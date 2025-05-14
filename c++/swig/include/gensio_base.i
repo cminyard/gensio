@@ -130,44 +130,6 @@ using namespace gensios;
 %newobject gensios::Gensio::gensio_acc_alloc;
 
 ////////////////////////////////////////////////////
-// Gensio
-// Ignore the normal destructor, it's protected.
-%extend gensios::Serial_Gensio {
-    ~Serial_Gensio()
-    {
-	self->free();
-    }
-}
-%ignore gensios::Serial_Gensio::~Serial_Gensio();
-
-%catches(gensios::gensio_error) gensios::Serial_Gensio::baud;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::datasize;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::parity;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::stopbits;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::flowcontrol;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::iflowcontrol;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::sbreak;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::dtr;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::rts;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::cts;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::dcd_dsr;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::ri;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::signature;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::baud_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::datasize_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::parity_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::stopbits_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::flowcontrol_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::iflowcontrol_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::sbreak_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::dtr_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::rts_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::cts_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::dcd_dsr_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::ri_s;
-%catches(gensios::gensio_error) gensios::Serial_Gensio::signature_s;
-
-////////////////////////////////////////////////////
 // Accepter
 // Constructor is deleted.
 %extend gensios::Accepter {
@@ -289,13 +251,6 @@ using namespace gensios;
 %rename("%s") gensio_mdns_service_event;
 %rename("%s", regextarget=1) "GENSIO_MDNS_SERVICE_.*";
 %include <gensio/gensio_mdns.h>
-%rename("%s") "";
-
-////////////////////////////////////////////////////
-// Pull some constants from sergensio.h
-%ignore "";
-%rename("%s", regextarget=1) "SERGENSIO_.*";
-%include <gensio/sergensio.h>
 %rename("%s") "";
 
 ////////////////////////////////////////////////////

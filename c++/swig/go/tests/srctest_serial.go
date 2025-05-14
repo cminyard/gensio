@@ -63,10 +63,12 @@ func (e *STelnetReflEvHnd) Datasize(val uint) {
 }
 
 func (e *STelnetReflEvHnd) Parity(val uint) {
+	fmt.Printf("Parity: %d\n", val)
 	if val != 0 {
 		e.parityV = val
 	}
 	spar := gensio.Gensio_parity_to_str(e.parityV)
+	fmt.Printf("Parity2: %s\n", spar)
 	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
 		gensio.GENSIO_ACONTROL_SER_PARITY,
 		[]byte(spar), nil, nil);
@@ -152,7 +154,6 @@ func (e *STelnetReflEvHnd) FlowState(state bool) {
 
 type STelnetEvHnd struct {
 	testbase.EvHnd
-	SG gensio.SerialGensio
 	gotBreak bool
 }
 
@@ -173,19 +174,6 @@ func (e *STelnetEvHnd) SendBreak() {
 	e.W.Wake()
 }
 
-type SerOpDone struct {
-	gensio.SerialOpDoneBase
-	err int
-	val uint
-	w *gensio.Waiter
-}
-
-func (d *SerOpDone) SerOpDone(err int, val uint) {
-	d.err = err
-	d.val = val
-	d.w.Wake()
-}
-
 type SerControlDone struct {
 	gensio.GensioControlDoneBase
 	err int
@@ -194,12 +182,13 @@ type SerControlDone struct {
 }
 
 func (d *SerControlDone) ControlDone(err int, val []byte) {
+	fmt.Printf("Done!: %d %s\n", err, val)
 	d.err = err
 	d.val = val
 	d.w.Wake()
 }
 
-var seb gensio.SerialEvent
+var seb gensio.Event
 
 func main() {
 	fmt.Println("Starting Serial Go tests")
@@ -220,7 +209,6 @@ func main() {
 	testbase.ObjCount++
 	g := gensio.NewGensio("telnet(rfc2217),tcp,localhost," + port, o, h)
 	h.SetGensio(g)
-	h.SG = g.(gensio.SerialGensio)
 
 	testbase.VerifyAccepter(r.GetAccepter(), "telnet", true, false, false)
 
@@ -259,8 +247,6 @@ func main() {
 	}
 	osd = nil
 
-	var val uint
-	var sval uint
 	var stval []byte
 	var stval2 []byte
 
@@ -280,10 +266,9 @@ func main() {
 		panic("Error from baud: " + gensio.ErrToStr(osd.err))
 	}
 	if !bytes.Equal(osd.val, stval) {
-		panic(fmt.Sprintf("Baud mismatch, expected %d got %d",
-			sval, osd.val))
+		panic(fmt.Sprintf("Baud mismatch, expected %s got %s",
+			stval, osd.val))
 	}
-	sval = 19200
 	testbase.ObjCount++
 	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
 		gensio.GENSIO_ACONTROL_SER_BAUD, []byte("00000000"),
@@ -292,236 +277,236 @@ func main() {
 		panic("Error waiting for baud: " + gensio.ErrToStr(rv))
 	}
 	if !bytes.Equal(stval2, stval) {
-		panic(fmt.Sprintf("Baud mismatch2, expected %d got %d",
-			sval, osd.val))
+		panic(fmt.Sprintf("Baud mismatch2, expected %s got %s",
+			stval, stval2))
 	}
 	stval2 = nil
 	stval = nil
 	osd = nil
 
 	testbase.ObjCount++
-	od := &SerOpDone{}
-	od.w = w
-	sval = 7
-	h.SG.Datasize(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("7")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_DATASIZE,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for datasize: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from datasize: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from datasize: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Datasize mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Datasize mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.DatasizeS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_DATASIZE, []byte("00000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for datasize: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Datasize mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Datasize mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = 2
-	h.SG.Parity(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("even")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_PARITY,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for parity: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from parity: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from parity: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Parity mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Parity mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.ParityS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_PARITY, []byte("000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
-		panic("Error waiting for parity: " + gensio.ErrToStr(rv))
+		panic("Error waiting for parity2: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Parity mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Parity mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = gensio.GENSIO_SER_PARITY_EVEN
-	h.SG.Stopbits(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("1")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_STOPBITS,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for stopbits: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from stopbits: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from stopbits: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Stopbits mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Stopbits mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.StopbitsS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_STOPBITS, []byte("00000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for stopbits: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Stopbits mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Stopbits mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = 1
-	h.SG.Stopbits(sval, od)
-	testbase.ObjCount++
-	rv = w.Wait(1, gensio.NewTime(1, 0))
-	if rv != 0 {
-		panic("Error waiting for stopbits: " + gensio.ErrToStr(rv))
-	}
-	if od.err != 0 {
-		panic("Error from stopbits: " + gensio.ErrToStr(od.err))
-	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Stopbits mismatch, expected %d got %d",
-			sval, od.val))
-	}
-	testbase.ObjCount++
-	rv, val = h.SG.StopbitsS(0, gensio.NewTime(1, 0), false)
-	if rv != 0 {
-		panic("Error waiting for stopbits: " + gensio.ErrToStr(rv))
-	}
-	if val != sval {
-		panic(fmt.Sprintf("Stopbits mismatch2, expected %d got %d",
-			sval, od.val))
-	}
-	od = nil
-
-	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = gensio.GENSIO_SER_FLOWCONTROL_RTS_CTS
-	h.SG.Flowcontrol(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("rtscts")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for flowcontrol: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from flowcontrol: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from flowcontrol: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Flowcontrol mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Flowcontrol mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.FlowcontrolS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_FLOWCONTROL, []byte("000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for flowcontrol: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Flowcontrol mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Flowcontrol mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = gensio.GENSIO_SER_FLOWCONTROL_DSR
-	h.SG.Iflowcontrol(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("dsr")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for iflowcontrol: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from iflowcontrol: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from iflowcontrol: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Iflowcontrol mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Iflowcontrol mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.IflowcontrolS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL, []byte("000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for iflowcontrol: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Iflowcontrol mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Iflowcontrol mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = gensio.GENSIO_SER_ON
-	h.SG.Sbreak(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("on")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_SBREAK,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for sbreak: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from sbreak: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from sbreak: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Sbreak mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Sbreak mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.SbreakS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_SBREAK, []byte("000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for sbreak: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Sbreak mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Sbreak mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
-	od.w = w
-	sval = gensio.GENSIO_SER_OFF
-	h.SG.Rts(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("off")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_RTS,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for rts: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from rts: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from rts: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
-		panic(fmt.Sprintf("Rts mismatch, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(osd.val, stval) {
+		panic(fmt.Sprintf("Rts mismatch, expected %s got %s",
+			stval, osd.val))
 	}
 	testbase.ObjCount++
-	rv, val = h.SG.RtsS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_RTS, []byte("000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for rts: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
-		panic(fmt.Sprintf("Rts mismatch2, expected %d got %d",
-			sval, od.val))
+	if !bytes.Equal(stval2, stval) {
+		panic(fmt.Sprintf("Rts mismatch2, expected %s got %s",
+			stval, stval2))
 	}
-	od = nil
+	osd = nil
 
 	// No tests for cts, dcd_dsr, ri.  Those require ipmisol
 
@@ -531,7 +516,6 @@ func main() {
 	g = nil
 	r = nil
 	tevh = nil
-	h.SG = nil
 	h = nil
 	w = nil
 	o = nil

@@ -15,7 +15,6 @@
 %rename(rawOs_Funcs) gensios::Os_Funcs;
 %rename("raw%s") gensios::Os_Funcs::log;
 %rename(rawGensio) gensios::Gensio;
-%rename(rawSerial_Gensio) gensios::Serial_Gensio;
 %rename(rawAccepter) gensios::Accepter;
 %rename(rawEvent) gensios::Event;
 %rename(rawSerial_Event) gensios::Serial_Event;
@@ -312,13 +311,6 @@ void *gensio_string_to_uintptr(char *in)
     }
 }
 %typemap(goargout) (const std::string *) { }
-
-%extend gensios::Gensio {
-    Serial_Gensio *to_serial_gensio() {
-	gensio_ref(self->get_gensio());
-	return dynamic_cast<Serial_Gensio *>(self);
-    }
-}
 
 %extend gensios::Waiter {
     int service(gensio_time *timeout) {

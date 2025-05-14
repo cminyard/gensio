@@ -14,9 +14,8 @@ import pygensio
 import sys
 
 # Note that serial_event must be first.
-class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
+class STelnet_Refl_EvHnd(Refl_EvHnd):
     def __init__(self, w):
-        pygensio.Serial_Event.__init__(self)
         Refl_EvHnd.__init__(self, w)
         self.got_break = False
         self.baud_v = 9600
@@ -31,13 +30,15 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         return
 
     def set_gensio(self, g):
-        self.g = pygensio.cast_to_serial_gensio(g)
+        self.g = g
         return
 
     def signature(self, sig):
         if sig is not None and len(sig) > 0:
             self.sig_v = sig
-        self.g.signature(self.sig_v, None)
+        self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
+                        pygensio.GENSIO_ACONTROL_SER_SIGNATURE,
+                        self.sig_v, None, None)
         return
 
     def flush(self, val):
@@ -130,9 +131,8 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         self.w.wake()
         return
 
-class STelnet_EvHnd(pygensio.Serial_Event, EvHnd):
+class STelnet_EvHnd(EvHnd):
     def __init__(self, w):
-        pygensio.Serial_Event.__init__(self)
         EvHnd.__init__(self, w)
         self.got_break = False
         self.baud_v = None
@@ -189,8 +189,8 @@ if rv != 0:
     raise Exception("Error waiting for sig: " + pygensio.err_to_string(rv))
 if od.err != 0:
     raise Exception("Error fetching sig: " + pygensio.err_to_string(od.err))
-if od.val != bytes("mysig", "utf8"):
-    raise Exception("Invalid sig: %s" % str(od.sig, "utf8"))
+if str(od.val, "utf8") != "mysig":
+    raise Exception("Invalid sig: '%s'" % str(od.val, "utf8"))
 del od
 
 g.control(0, pygensio.GENSIO_CONTROL_SET,
