@@ -19,14 +19,14 @@ func (l *LogHandler) Log(level int, log string) {
 var O *gensio.OsFuncs = gensio.NewOsFuncs(&LogHandler{})
 
 type ReflEvent interface {
-	gensio.SerialEvent
+	gensio.Event
 	BreakLinks()
 	setup(r Reflector, w *gensio.Waiter)
 	setGensio(g gensio.Gensio)
 }
 
 type ReflEvHnd struct {
-	gensio.SerialEventBase
+	gensio.EventBase
 	G gensio.Gensio
 	r Reflector
 	err int
@@ -245,7 +245,7 @@ type Event interface {
 }
 
 type EvHnd struct {
-	gensio.SerialEventBase
+	gensio.EventBase
 	o *gensio.OsFuncs
 	Data []byte
 	Readpos int

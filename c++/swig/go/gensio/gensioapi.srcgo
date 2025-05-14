@@ -249,45 +249,6 @@ type Gensio interface {
 	getRawGensio() RawGensio
 }
 
-type SerialGensio interface {
-	Baud(baud uint, done SerialOpDone)
-	Datasize(size uint, done SerialOpDone)
-	Parity(par uint, done SerialOpDone)
-	Stopbits(bits uint, done SerialOpDone)
-	Flowcontrol(flow uint, done SerialOpDone)
-	Iflowcontrol(flow uint, done SerialOpDone)
-	Sbreak(sbreak uint, done SerialOpDone)
-	Dtr(dtr uint, done SerialOpDone)
-	Rts(rts uint, done SerialOpDone)
-	Cts(cts uint, done SerialOpDone)
-	Dcd_dsr(dcd_dsr uint, done SerialOpDone)
-	Ri(ri uint, done SerialOpDone)
-	Signature(data []byte, done SerialOpSigDone)
-
-	// Syncrohous functions.  If you pass in a valid timeout,
-	// these will return GE_TIMEDOUT on a timeout.  If you set
-	// intr to true, it will return GE_INTERRUPTED if a signal
-	// comes in.  On all other errors it raises an exception.
-
-	BaudS(baud uint, timeout *Time, intr bool) (int, uint)
-	DatasizeS(size uint, timeout *Time, intr bool) (int, uint)
-	ParityS(par uint, timeout *Time, intr bool)(int, uint)
-	StopbitsS(bits uint, timeout *Time, intr bool) (int, uint)
-	FlowcontrolS(flow uint, timeout *Time, intr bool) (int, uint)
-	IflowcontrolS(flow uint, timeout *Time, intr bool) (int, uint)
-	SbreakS(sbreak uint, timeout *Time, intr bool) (int, uint)
-	DtrS(dtr uint, timeout *Time, intr bool) (int, uint)
-	RtsS(rts uint, timeout *Time, intr bool) (int, uint)
-	CtsS(cts uint, timeout *Time, intr bool) (int, uint)
-	Dcd_dsrS(dcd_dsr uint, timeout *Time, intr bool) (int, uint)
-	RiS(ri uint, timeout *Time, intr bool) (int, uint)
-
-	// Server side only, for reporting changes to the client
-	FlowState(state bool)
-	Modemstate(state uint)
-	Linestate(state uint)
-}
-
 // Callback events for a Gensio.
 type Event interface {
 	// Read data is ready on the Gensio.  err will be non-zero if
@@ -395,26 +356,6 @@ type EventBase struct {
 	e *raweventBase
 }
 
-// Serial callback events for a SerialGensio.  See the gensio_event.3
-// man page for details.  SerialGensio is now deprecated, do not
-// use it.  Use the Acontrol() interface in Gensio for these functions.
-// The events are not all moved to Event.
-type SerialEvent interface {
-	Event
-
-	// Internal methods, don't mess with these.
-	getSerialEventBase() *SerialEventBase
-}
-
-// This type must be the first entry in your event-handling callback
-// object; it allows the event handler to be passed NewGensio() or
-// whatnot.
-type SerialEventBase struct {
-	EventBase
-
-	se *rawserialEventBase
-}
-
 // Interface for handling an Open() operation completing.
 type GensioOpenDone interface {
 	OpenDone(err int)
@@ -461,38 +402,6 @@ type GensioControlDoneBase struct {
 	GensioControlDone
 
 	cd *rawGensioControlDoneBase
-}
-
-// Interface for handling asynchronous serial requests.
-type SerialOpDone interface {
-	SerOpDone(err int, val uint)
-
-	// Internal, do not use
-	getGensioSerialOpDoneBase() *SerialOpDoneBase
-}
-
-// This type must be the first entry in your event-handling callback
-// for a serial operation.
-type SerialOpDoneBase struct {
-	SerialOpDone
-
-	od *rawSerialOpDoneBase
-}
-
-// Interface for handling asynchronous serial signature requests.
-type SerialOpSigDone interface {
-	SerOpSigDone(err int, sig []byte)
-
-	// Internal, do not use
-	getGensioSerialOpSigDoneBase() *SerialOpSigDoneBase
-}
-
-// This type must be the first entry in your event-handling callback
-// for a serial signature operation.
-type SerialOpSigDoneBase struct {
-	SerialOpSigDone
-
-	od *rawSerialOpSigDoneBase
 }
 
 // Allocate a new Gensio.  See the str_to_gensio.3 man page for
@@ -943,204 +852,6 @@ func (g *gensioO) getRawGensio() RawGensio {
 	return g.g
 }
 
-type serialGensioO struct {
-	gensioO
-	sg RawSerial_Gensio
-}
-
-func (g *serialGensioO) destroy() {
-	if Debug {
-		fmt.Println("Serial Gensio destroy")
-	}
-	atomic.AddUint32(&GCCount, 1)
-	if g.g != nil {
-		DeleteRawGensio(g.g)
-	}
-	if g.sg != nil {
-		DeleteRawSerial_Gensio(g.sg)
-	}
-}
-
-func (g *serialGensioO) getRawSerial_Gensio() RawSerial_Gensio {
-	return g.g.(RawSerial_Gensio)
-}
-
-func (sg *serialGensioO) Baud(baud uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Baud(baud)
-	} else {
-		sg.sg.Baud(baud, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Datasize(size uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Datasize(size)
-	} else {
-		sg.sg.Datasize(size, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Parity(par uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Parity(par)
-	} else {
-		sg.sg.Parity(par, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Stopbits(bits uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Stopbits(bits)
-	} else {
-		sg.sg.Stopbits(bits, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Flowcontrol(flow uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Flowcontrol(flow)
-	} else {
-		sg.sg.Flowcontrol(flow, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Iflowcontrol(flow uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Iflowcontrol(flow)
-	} else {
-		sg.sg.Iflowcontrol(flow, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Sbreak(sbreak uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Sbreak(sbreak)
-	} else {
-		sg.sg.Sbreak(sbreak, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Dtr(dtr uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Dtr(dtr)
-	} else {
-		sg.sg.Dtr(dtr, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Rts(rts uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Rts(rts)
-	} else {
-		sg.sg.Rts(rts, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Cts(cts uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Cts(cts)
-	} else {
-		sg.sg.Cts(cts, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Dcd_dsr(dcd_dsr uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Dcd_dsr(dcd_dsr)
-	} else {
-		sg.sg.Dcd_dsr(dcd_dsr, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Ri(ri uint, done SerialOpDone) {
-	if done == nil {
-		sg.sg.Ri(ri)
-	} else {
-		sg.sg.Ri(ri, setupSerialOpDone(done))
-	}
-}
-
-func (sg *serialGensioO) Signature(data []byte, done SerialOpSigDone) {
-	if done == nil {
-		sg.sg.Signature(data)
-	} else {
-		sg.sg.Signature(data, setupSerialOpSigDone(done))
-	}
-}
-
-func (sg *serialGensioO) BaudS(baud uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Baud_s(&baud, timeout, intr)
-	return rv, baud
-}
-
-func (sg *serialGensioO) DatasizeS(size uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Datasize_s(&size, timeout, intr)
-	return rv, size
-}
-
-func (sg *serialGensioO) ParityS(par uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Parity_s(&par, timeout, intr)
-	return rv, par
-}
-
-func (sg *serialGensioO) StopbitsS(bits uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Stopbits_s(&bits, timeout, intr)
-	return rv, bits
-}
-
-func (sg *serialGensioO) FlowcontrolS(flow uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Flowcontrol_s(&flow, timeout, intr)
-	return rv, flow
-}
-
-func (sg *serialGensioO) IflowcontrolS(flow uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Iflowcontrol_s(&flow, timeout, intr)
-	return rv, flow
-}
-
-func (sg *serialGensioO) SbreakS(sbreak uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Sbreak_s(&sbreak, timeout, intr)
-	return rv, sbreak
-}
-
-func (sg *serialGensioO) DtrS(dtr uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Dtr_s(&dtr, timeout, intr)
-	return rv, dtr
-}
-
-func (sg *serialGensioO) RtsS(rts uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Rts_s(&rts, timeout, intr)
-	return rv, rts
-}
-
-func (sg *serialGensioO) CtsS(cts uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Cts_s(&cts, timeout, intr)
-	return rv, cts
-}
-
-func (sg *serialGensioO) Dcd_dsrS(dcd_dsr uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Dcd_dsr_s(&dcd_dsr, timeout, intr)
-	return rv, dcd_dsr
-}
-
-func (sg *serialGensioO) RiS(ri uint, timeout *Time, intr bool) (int, uint) {
-	rv := sg.sg.Ri_s(&ri, timeout, intr)
-	return rv, ri
-}
-
-func (sg *serialGensioO) FlowState(state bool) {
-	sg.sg.Flow_state(state)
-}
-
-func (sg *serialGensioO) Modemstate(state uint) {
-	sg.sg.Modemstate(state)
-}
-
-func (sg *serialGensioO) Linestate(state uint) {
-	sg.sg.Linestate(state)
-}
-
 type raweventBase struct {
 	RawEvent
 	sube Event
@@ -1294,7 +1005,7 @@ func (e *raweventBase) Modemstate(state uint) {
 	e.sube.Modemstate(state)
 }
 
-func (e *raweventBase) ModemstateMask(state uint) {
+func (e *raweventBase) Modemstate_mask(state uint) {
 	e.sube.ModemstateMask(state)
 }
 
@@ -1369,181 +1080,13 @@ func (e *raweventBase) Freed() {
 	e.sube = nil
 }
 
-type rawserialEventBase struct {
-	RawSerial_Event
-	subse SerialEvent
-}
-
-func (e *SerialEventBase) getSerialEventBase() *SerialEventBase {
-	return e
-}
-
-func (e *SerialEventBase) destroy() {
-	DeleteRawSerial_Event(e.se)
-	if Debug {
-		fmt.Println("Serial Event destroy")
-	}
-	atomic.AddUint32(&GCCount, 1)
-}
-
-func (e *rawserialEventBase) Read(err int, data []byte, auxdata []string) uint64 {
-	return e.subse.Read(err, data, auxdata)
-}
-
-func (e *rawserialEventBase) Write_ready() {
-	e.subse.WriteReady()
-}
-
-func (e *rawserialEventBase) New_channel(new_channel RawGensio,
-	auxdata []string) int {
-	g := allocGensioObj(new_channel, nil)
-	return e.subse.NewChannel(g, auxdata)
-}
-
-func (e *rawserialEventBase) Send_break() {
-	e.subse.SendBreak()
-}
-
-func (e *rawserialEventBase) Auth_begin() int {
-	return e.subse.AuthBegin()
-}
-
-func (e *rawserialEventBase) Precert_verify() int {
-	return e.subse.PrecertVerify()
-}
-
-func (e *rawserialEventBase) Postcert_verify(err int, errstr string) int {
-	return e.subse.PostcertVerify(err, errstr)
-}
-
-func (e *rawserialEventBase) Password_verify(val string) int {
-	return e.subse.PasswordVerify(val)
-}
-
-func (e *rawserialEventBase) Request_password(maxsize uint64, val *string) int {
-	rv, password := e.subse.RequestPassword(maxsize)
-	*val = password
-	return rv
-}
-
-func (e *rawserialEventBase) Verify_2fa(val []byte) int {
-	return e.subse.Verify2fa(val)
-}
-
-func (e *rawserialEventBase) Request_2fa(val *[]byte) int {
-	rv, ival := e.subse.Request2fa()
-	*val = ival
-	return rv
-}
-
-func (e *rawserialEventBase) Parmlog(s string) {
-	e.subse.Parmlog(s)
-}
-
-func (e *rawserialEventBase) Win_size(height uint, width uint) {
-	e.subse.WinSize(height, width)
-}
-
-func (e *rawserialEventBase) Log(level Gensio_log_levels, s string) int {
-	return e.subse.Log(level, s)
-}
-
-func (e *rawserialEventBase) User_event(event int, err int,
-		userdata *[]byte, auxdata []string) int {
-	return e.subse.UserEvent(event, err, userdata, auxdata)
-}
-
-func (e *rawserialEventBase) Freed() {
-	// The gensio associated with this is gone, break the loop so
-	// the EventBase object will be GC-ed.
-	e.subse = nil
-}
-
-func (e *rawserialEventBase) Modemstate(state uint) {
-	e.subse.Modemstate(state)
-}
-
-func (e *rawserialEventBase) Modemstate_mask(state uint) {
-	e.subse.ModemstateMask(state)
-}
-
-func (e *rawserialEventBase) Linestate(state uint) {
-	e.subse.Linestate(state)
-}
-
-func (e *rawserialEventBase) Linestate_mask(state uint) {
-	e.subse.LinestateMask(state)
-}
-
-func (e *rawserialEventBase) Signature(data []byte) {
-	e.subse.Signature(data)
-}
-
-func (e *rawserialEventBase) Flow_state(state bool) {
-	e.subse.FlowState(state)
-}
-
-func (e *rawserialEventBase) Sync() {
-	e.subse.Sync()
-}
-
-func (e *rawserialEventBase) Baud(baud uint) {
-	e.subse.Baud(baud)
-}
-
-func (e *rawserialEventBase) Datasize(size uint) {
-	e.subse.Datasize(size)
-}
-
-func (e *rawserialEventBase) Parity(par uint) {
-	e.subse.Parity(par)
-}
-
-func (e *rawserialEventBase) Stopbits(bits uint) {
-	e.subse.Stopbits(bits)
-}
-
-func (e *rawserialEventBase) Flowcontrol(flow uint) {
-	e.subse.Flowcontrol(flow)
-}
-
-func (e *rawserialEventBase) Iflowcontrol(flow uint) {
-	e.subse.Iflowcontrol(flow)
-}
-
-func (e *rawserialEventBase) Sbreak(sbreak uint) {
-	e.subse.Sbreak(sbreak)
-}
-
-func (e *rawserialEventBase) Dtr(dtr uint) {
-	e.subse.Dtr(dtr)
-}
-
-func (e *rawserialEventBase) Rts(rts uint) {
-	e.subse.Rts(rts)
-}
-
-func (e *rawserialEventBase) Flush(val uint) {
-	e.subse.Flush(val)
-}
-
 func setupEvent(e Event) RawEvent {
-	se, ok := e.(SerialEvent)
-	if ok {
-		eb := se.getSerialEventBase()
-		eb.se = &rawserialEventBase{}
-		eb.se.subse = se
-		eb.se.RawSerial_Event = NewDirectorSerial_Event(eb.se)
-		runtime.SetFinalizer(eb, destroyer.destroy)
-		return eb.se
-	} else {
-		eb := e.getEventBase()
-		eb.e = &raweventBase{}
-		eb.e.sube = e
-		eb.e.RawEvent = NewDirectorEvent(eb.e)
-		runtime.SetFinalizer(eb, destroyer.destroy)
-		return eb.e
-	}
+	eb := e.getEventBase()
+	eb.e = &raweventBase{}
+	eb.e.sube = e
+	eb.e.RawEvent = NewDirectorEvent(eb.e)
+	runtime.SetFinalizer(eb, destroyer.destroy)
+	return eb.e
 }
 
 type rawGensioOpenDoneBase struct {
@@ -1641,77 +1184,9 @@ func (cd *GensioControlDoneBase) destroy() {
 	atomic.AddUint32(&GCCount, 1)
 }
 
-type rawSerialOpDoneBase struct {
-	RawSerial_Op_Done
-	subd SerialOpDone
-}
-
-func (od *SerialOpDoneBase) getGensioSerialOpDoneBase() *SerialOpDoneBase {
-	return od
-}
-
-func (od *rawSerialOpDoneBase) Serial_op_done(err int, val uint) {
-	od.subd.SerOpDone(err, val)
-	od.subd = nil // Break the circular reference
-}
-
-func setupSerialOpDone(od SerialOpDone) RawSerial_Op_Done {
-	odb := od.getGensioSerialOpDoneBase()
-	odb.od = &rawSerialOpDoneBase{}
-	odb.od.subd = od
-	odb.od.RawSerial_Op_Done = NewDirectorSerial_Op_Done(odb.od)
-	runtime.SetFinalizer(odb, destroyer.destroy)
-	return odb.od
-}
-
-func (od *SerialOpDoneBase) destroy() {
-	DeleteRawSerial_Op_Done(od.od)
-	if Debug {
-		fmt.Println("Serial Op Done destroy")
-	}
-	atomic.AddUint32(&GCCount, 1)
-}
-
-type rawSerialOpSigDoneBase struct {
-	RawSerial_Op_Sig_Done
-	subd SerialOpSigDone
-}
-
-func (od *SerialOpSigDoneBase) getGensioSerialOpSigDoneBase() *SerialOpSigDoneBase {
-	return od
-}
-
-func (od *rawSerialOpSigDoneBase) Serial_op_sig_done(err int, sig []byte) {
-	nsig := make([]byte, len(sig))
-	copy(nsig, sig)
-	od.subd.SerOpSigDone(err, nsig)
-	od.subd = nil // Break the circular reference
-}
-
-func setupSerialOpSigDone(od SerialOpSigDone) RawSerial_Op_Sig_Done {
-	odb := od.getGensioSerialOpSigDoneBase()
-	odb.od = &rawSerialOpSigDoneBase{}
-	odb.od.subd = od
-	odb.od.RawSerial_Op_Sig_Done = NewDirectorSerial_Op_Sig_Done(odb.od)
-	runtime.SetFinalizer(odb, destroyer.destroy)
-	return odb.od
-}
-
-func (od *SerialOpSigDoneBase) destroy() {
-	DeleteRawSerial_Op_Sig_Done(od.od)
-	if Debug {
-		fmt.Println("Serial Op Sig Done destroy")
-	}
-	atomic.AddUint32(&GCCount, 1)
-}
-
 func allocGensioObj(rawg RawGensio, cb RawEvent) Gensio {
 	var g Gensio
-	if rawg.Is_serial() {
-		g = &serialGensioO{gensioO{rawg, cb}, rawg.To_serial_gensio()}
-	} else {
-		g = &gensioO{rawg, cb}
-	}
+	g = &gensioO{rawg, cb}
 	runtime.SetFinalizer(g, destroyer.destroy)
 	return g
 }
@@ -1832,13 +1307,8 @@ func (g *gensioO) AcontrolS(depth int, get bool, option uint,
 func (g *gensioO) SetEvent(e Event) {
 	// Break the link so it will GC
 	if reflect.ValueOf(g.e).IsValid() {
-		oldse, ok := g.e.(*rawserialEventBase)
-		if ok {
-			oldse.subse = nil
-		} else {
-			olde := g.e.(*raweventBase)
-			olde.sube = nil
-		}
+		olde := g.e.(*raweventBase)
+		olde.sube = nil
 	}
 	var rawcb RawEvent
 	if e == nil {

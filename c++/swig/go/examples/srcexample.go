@@ -42,7 +42,7 @@ func (ae *AccEvHnd) NewConnection(g gensio.Gensio) {
 }
 
 type EvHnd struct {
-	gensio.SerialEventBase
+	gensio.EventBase
 
 	g gensio.Gensio
 	writedata []byte
