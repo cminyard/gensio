@@ -1220,6 +1220,7 @@ gensio_ssl_filter_config(struct gensio_pparm_info *p,
 			 struct gensio_os_funcs *o,
 			 const char * const args[],
 			 bool default_is_client,
+			 struct gensio_base_parms *parms,
 			 struct gensio_ssl_filter_data **rdata)
 {
     unsigned int i;
@@ -1308,6 +1309,8 @@ gensio_ssl_filter_config(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_time(p, args[i], "con-timeout", 's',
 			      &data->con_timeout) > 0)
+	    continue;
+	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
@@ -1465,10 +1468,11 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 }
 
 static int
-ssl_gensio_alloc(struct gensio *child, const char *const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **net)
+ssl_gensio_alloc2(struct gensio *child, const char *const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio_base_parms *parms,
+		  struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
@@ -1481,19 +1485,25 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return GE_NOTSUP;
 
-    err = gensio_ssl_filter_config(&p, o, args, true, &data);
+    if (!parms) {
+	err = gensio_base_parms_alloc(o, true, "ssl", &parms);
+	if (err)
+	    goto out_err;
+    }
+
+    err = gensio_ssl_filter_config(&p, o, args, true, parms, &data);
     if (err)
-	return err;
+	goto out_err;
 
     err = gensio_ssl_filter_alloc(data, &filter);
     gensio_ssl_filter_config_free(data);
     if (err)
-	return err;
+	goto out_err;
 
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
     }
 
     gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
@@ -1501,7 +1511,13 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
+    }
+
+    err = gensio_base_parms_set(io, &parms);
+    if (err) {
+	gensio_free(io);
+	goto out_err;
     }
 
     gensio_set_is_packet(io, true);
@@ -1511,6 +1527,22 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
 
     *net = io;
     return 0;
+
+ out_nomem:
+    err = GE_NOMEM;
+ out_err:
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
+}
+
+static int
+ssl_gensio_alloc(struct gensio *child, const char *const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **net)
+{
+    return ssl_gensio_alloc2(child, args, o, cb, user_data, NULL, net);
 }
 
 static int
@@ -1554,8 +1586,13 @@ sslna_alloc_gensio(void *acc_data, const char * const *iargs,
 		   struct gensio *child, struct gensio **rio)
 {
     struct sslna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
 
-    return ssl_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    return ssl_gensio_alloc2(child, iargs, nadata->o, NULL, NULL, parms, rio);
 }
 
 static int
@@ -1627,20 +1664,26 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct sslna_data *nadata;
     int err;
+    struct gensio_base_parms *parms;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "ssl", user_data);
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return GE_NOTSUP;
 
+    err = gensio_base_parms_alloc(o, true, "ssl", &parms);
+    if (err)
+	goto out_err;
+
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_ssl_filter_config(&p, o, args, false, &nadata->data);
+    err = gensio_ssl_filter_config(&p, o, args, false, parms, &nadata->data);
     if (err) {
 	o->free(o, nadata);
-	return err;
+	nadata = NULL;
+	goto out_err;
     }
 
     nadata->o = o;
@@ -1650,14 +1693,28 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+    
     gensio_acc_set_is_packet(nadata->acc, true);
     gensio_acc_set_is_reliable(nadata->acc, true);
     *accepter = nadata->acc;
 
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    sslna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    sslna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 

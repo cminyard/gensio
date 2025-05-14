@@ -1195,6 +1195,9 @@ In addition to readbuf, the SSL gensio takes the following options:
 .B writebuf=<n>
 set the size of the write buffer.
 .TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
+.TP
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
 in a "/", then this is expected to be a directory that contains files
