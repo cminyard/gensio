@@ -1652,6 +1652,9 @@ In addition to readbuf, the msgdelim gensio takes the following options:
 .B writebuf=<n>
 set the size of the write buffer.
 .TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
+.TP
 .B crc[=on|off]
 Enable/disable the CRC at the end of the packet.  Useful if you are
 running over a reliable protocol, and especially for testing relpkt so
@@ -1714,6 +1717,11 @@ Limit the transmit rate of data going through this filter gensio.  A
 number of bytes is let through, then transmit is delayed until the
 given delay has passed.  Receive is not currently rate limited, but
 that may be added in the future.
+.SS Options
+The ratelimit gensio takes the following options:
+.TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
 .TP
 .B xmit_len=<n>
 The number of bytes to allow before a delay.  Note that the delay
@@ -1950,6 +1958,9 @@ to 256.
 .B writebuf=<n>
 Sets the maximum packet size that can be written to the TNC.  Defaults
 to 256.
+.TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
 .TP
 .B tncs=<n>
 The number of supported TNCs.  Defaults to 1.
@@ -2218,6 +2229,9 @@ extended to do string substitutions and such.
 
 The readbuf option is not available in this gensio.
 .SS Options
+.TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
 .TP
 .B in=<n>:<m>
 Translate character n (a number, 0xnn for hex, 0nnn  for octal, or nn for
@@ -2528,6 +2542,9 @@ Sets the maximum packet size that can be read.  Defaults to 256.
 .TP
 .B writebuf=<n>
 Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
 .TP
 .B nchans=<n>, in_nchans=<n>, out_nchans=<n>
 Specify how many channels are coming from/going to the sound gensio.
