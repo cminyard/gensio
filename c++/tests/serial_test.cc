@@ -84,9 +84,10 @@ int main(int argc, char *argv[])
     static const char *serial_parms[] = { "nouucplock=false", NULL };
     Gensio *bg = gensio_alloc("serialdev", devstr.c_str(), serial_parms,
 			      o, NULL);
-    Serial_Gensio *sg = (Serial_Gensio *) bg;
-    GensioW g(sg); // Take over lifetime of the gensio
-    unsigned int v;
+    GensioW g(bg); // Take over lifetime of the gensio
+    char data[100];
+    gensiods datalen;
+    int rv;
 
     o.proc_setup();
 
@@ -94,20 +95,32 @@ int main(int argc, char *argv[])
     g->open_s();
     cout << "Allocated" << endl;
     cout << "Validating baud is 9600" << endl;
-    v = 0;
-    sg->baud_s(&v);
-    if (v != 9600) {
+    strcpy(data, "0");
+    datalen = sizeof(data);
+    rv = g->acontrol_s(0, GENSIO_CONTROL_GET, GENSIO_ACONTROL_SER_BAUD,
+		       data, &datalen);
+    if (rv) {
+	err = 1;
+	cout << "*** Error getting baud" << endl;
+    }
+    if (strcmp(data, "9600") != 0) {
 	err = 1;
 	cout << "*** Baud was not 9600" << endl;
     }
     cout << "Setting baud to 19200" << endl;
-    v = 19200;
-    sg->baud_s(&v);
-    if (v != 19200) {
+    strcpy(data, "19200");
+    datalen = sizeof(data);
+    rv = g->acontrol_s(0, GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_BAUD,
+		       data, &datalen);
+    if (rv) {
 	err = 1;
-	cout << "*** Baud was not 19200" << endl;
+	cout << "*** Error getting baud" << endl;
     } else {
 	cout << "baud set to 19200" << endl;
+    }
+    if (strcmp(data, "19200") != 0) {
+	err = 1;
+	cout << "*** Baud was not set to 19200" << endl;
     }
     cout << "Closing" << endl;
 
