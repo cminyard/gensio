@@ -63,6 +63,12 @@ crc16(const unsigned char *buf, unsigned int len, uint16_t *icrc)
     *icrc = crc;
 }
 
+struct msgdelim_config {
+    gensiods max_read_size;
+    gensiods max_write_size;
+    bool crc;
+};
+
 struct msgdelim_filter {
     struct gensio_filter *filter;
 
@@ -70,15 +76,15 @@ struct msgdelim_filter {
 
     struct gensio_lock *lock;
 
+    struct msgdelim_config config;
+
     bool in_cmd; /* Last char was 254. */
     bool in_msg; /* Currently processing message data (after a start). */
     bool in_msg_complete; /* A full message is ready. */
     bool out_msg_complete;
-    bool crc;
 
     /* Data waiting to be delivered to the user. */
     unsigned char *read_data;
-    gensiods max_read_size;
     gensiods read_data_pos;
     gensiods read_data_len;
 
@@ -88,7 +94,6 @@ struct msgdelim_filter {
     gensiods write_data_pos;
     gensiods write_data_len;
 
-    gensiods max_write_size; /* Maximum user message size. */
     gensiods user_write_pos; /* Current user position. */
 };
 
@@ -193,7 +198,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 
 	    crc16(buf, inlen, &crc);
 	    for (j = 0; j < inlen; j++) {
-		if (mfilter->user_write_pos >= mfilter->max_write_size) {
+		if (mfilter->user_write_pos >= mfilter->config.max_write_size) {
 		    err = GE_TOOBIG;
 		    mfilter->user_write_pos = 0;
 		    mfilter->write_data_len = 0;
@@ -210,7 +215,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 
 	if (mfilter->user_write_pos > 0) {
 	    mfilter->out_msg_complete = true;
-	    if (mfilter->crc) {
+	    if (mfilter->config.crc) {
 		msgdelim_add_wrbyte(mfilter, crc >> 8);
 		msgdelim_add_wrbyte(mfilter, crc & 0xff);
 	    }
@@ -281,7 +286,7 @@ msgdelim_ll_write(struct gensio_filter *filter,
 
 		case 1: /* 254 1 is message separator */
 		    if (mfilter->in_msg) {
-			if (mfilter->crc) {
+			if (mfilter->config.crc) {
 			    if (mfilter->read_data_len <= 2)
 				break;
 			    crc = 0;
@@ -306,7 +311,7 @@ msgdelim_ll_write(struct gensio_filter *filter,
 	    handle_data:
 		if (!mfilter->in_msg)
 		    continue;
-		if (mfilter->read_data_len >= mfilter->max_read_size) {
+		if (mfilter->read_data_len >= mfilter->config.max_read_size) {
 		    mfilter->in_msg = false;
 		    continue;
 		}
@@ -396,7 +401,7 @@ msgdelim_control(struct gensio_filter *filter, bool get, int op, char *data,
 	if (!get)
 	    return GE_NOTSUP;
 	*datalen = snprintf(data, *datalen, "%lu",
-			    (unsigned long) mfilter->max_write_size);
+			    (unsigned long) mfilter->config.max_write_size);
 	return 0;
 
     default:
@@ -459,9 +464,7 @@ static int gensio_msgdelim_filter_func(struct gensio_filter *filter, int op,
 
 static struct gensio_filter *
 gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
-				 gensiods max_read_size,
-				 gensiods max_write_size,
-				 bool crc)
+				 struct msgdelim_config *config)
 {
     struct msgdelim_filter *mfilter;
 
@@ -471,23 +474,21 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 
     mfilter->o = o;
 
-    max_read_size += 2; /* Add CRC */
+    mfilter->config = *config;
 
-    mfilter->max_write_size = max_write_size;
-    mfilter->max_read_size = max_read_size;
-    mfilter->crc = crc;
+    mfilter->config.max_read_size += 2; /* Add CRC */
 
     /*
      * Room to double every byte (worst case) including the CRC and
      * add two separators (first one only for the first sent packet).
      */
-    mfilter->buf_max_write = ((max_write_size + 2) * 2) + 4;
+    mfilter->buf_max_write = ((config->max_write_size + 2) * 2) + 4;
 
     mfilter->lock = o->alloc_lock(o);
     if (!mfilter->lock)
 	goto out_nomem;
 
-    mfilter->read_data = o->zalloc(o, max_read_size);
+    mfilter->read_data = o->zalloc(o, config->max_read_size);
     if (!mfilter->read_data)
 	goto out_nomem;
 
@@ -513,30 +514,42 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 static int
-gensio_msgdelim_filter_alloc(struct gensio_pparm_info *p,
-			     struct gensio_os_funcs *o,
-			     const char * const args[],
-			     struct gensio_filter **rfilter)
+gensio_msgdelim_config(struct gensio_pparm_info *p,
+		       struct gensio_os_funcs *o,
+		       const char * const args[],
+		       struct gensio_base_parms *parms,
+		       struct msgdelim_config *config)
 {
-    struct gensio_filter *filter;
     unsigned int i;
-    gensiods max_read_size = 128; /* FIXME - magic number. */
-    gensiods max_write_size = 128; /* FIXME - magic number. */
-    bool crc = true;
+
+    config->max_read_size = 128; /* FIXME - magic number. */
+    config->max_write_size = 128; /* FIXME - magic number. */
+    config->crc = true;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &config->max_write_size) > 0)
 	    continue;
-	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &config->max_read_size) > 0)
 	    continue;
-	if (gensio_pparm_bool(p, args[i], "crc", &crc) > 0)
+	if (gensio_pparm_bool(p, args[i], "crc", &config->crc) > 0)
+	    continue;
+	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    filter = gensio_msgdelim_filter_raw_alloc(o, max_read_size, max_write_size,
-					      crc);
+    return 0;
+}
+
+static int
+gensio_msgdelim_filter_alloc(struct gensio_os_funcs *o,
+			     struct msgdelim_config *config,
+			     struct gensio_filter **rfilter)
+{
+    struct gensio_filter *filter;
+
+    filter = gensio_msgdelim_filter_raw_alloc(o, config);
     if (!filter)
 	return GE_NOMEM;
 
@@ -545,18 +558,26 @@ gensio_msgdelim_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-msgdelim_gensio_alloc(struct gensio *child, const char *const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **net)
+msgdelim_gensio_alloc2(struct gensio *child, const char *const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio_base_parms **parms,
+		       struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
+    struct msgdelim_config config;
     struct gensio *io;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "msgdelim", user_data);
 
-    err = gensio_msgdelim_filter_alloc(&p, o, args, &filter);
+    memset(&config, 0, sizeof(config));
+
+    err = gensio_msgdelim_config(&p, 0, args, *parms, &config);
+    if (err)
+	return err;
+
+    err = gensio_msgdelim_filter_alloc(o, &config, &filter);
     if (err)
 	return err;
 
@@ -573,12 +594,39 @@ msgdelim_gensio_alloc(struct gensio *child, const char *const args[],
 	gensio_filter_free(filter);
 	return GE_NOMEM;
     }
+    gensio_free(child); /* Lose the ref we acquired. */
+
+    err = gensio_base_parms_set(io, parms);
+    if (err) {
+	gensio_free(io);
+	return err;
+    }
 
     gensio_set_is_packet(io, true);
-    gensio_free(child); /* Lose the ref we acquired. */
 
     *net = io;
     return 0;
+}
+
+static int
+msgdelim_gensio_alloc(struct gensio *child, const char *const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **net)
+{
+    struct gensio_base_parms *parms;
+    int err;
+
+    err = gensio_base_parms_alloc(o, true, "msgdelim", &parms);
+    if (err)
+	return err;
+
+    err = msgdelim_gensio_alloc2(child, args, o, cb, user_data,
+				 &parms, net);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
 }
 
 static int
@@ -604,7 +652,7 @@ str_to_msgdelim_gensio(const char *str, const char * const args[],
 
 struct msgdelimna_data {
     struct gensio_accepter *acc;
-    const char **args;
+    struct msgdelim_config config;
     struct gensio_os_funcs *o;
     gensio_accepter_event cb;
     void *user_data;
@@ -615,8 +663,6 @@ msgdelimna_free(void *acc_data)
 {
     struct msgdelimna_data *nadata = acc_data;
 
-    if (nadata->args)
-	gensio_argv_free(nadata->o, nadata->args);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -625,8 +671,20 @@ msgdelimna_alloc_gensio(void *acc_data, const char * const *iargs,
 			struct gensio *child, struct gensio **rio)
 {
     struct msgdelimna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
+    int err;
 
-    return msgdelim_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    err = msgdelim_gensio_alloc2(child, iargs, nadata->o, NULL, NULL,
+				 &parms, rio);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+
+    return err;
 }
 
 static int
@@ -634,10 +692,8 @@ msgdelimna_new_child(void *acc_data, void **finish_data,
 		     struct gensio_filter **filter)
 {
     struct msgdelimna_data *nadata = acc_data;
-    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "msgdelim",
-			      nadata->user_data);
 
-    return gensio_msgdelim_filter_alloc(&p, nadata->o, nadata->args, filter);
+    return gensio_msgdelim_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
 static int
@@ -679,16 +735,20 @@ msgdelim_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct msgdelimna_data *nadata;
     int err;
+    struct gensio_base_parms *parms = NULL;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "msgdelim", user_data);
+
+    err = gensio_base_parms_alloc(o, true, "msgdelim", &parms);
+    if (err)
+	goto out_err;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_argv_copy(o, args, NULL, &nadata->args);
-    if (err) {
-	o->free(o, nadata);
-	return err;
-    }
+    err = gensio_msgdelim_config(&p, o, args, parms, &nadata->config);
+    if (err)
+	goto out_err;
 
     nadata->o = o;
     nadata->cb = cb;
@@ -699,13 +759,27 @@ msgdelim_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+
     gensio_acc_set_is_packet(nadata->acc, true);
     *accepter = nadata->acc;
 
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    msgdelimna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    msgdelimna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 
