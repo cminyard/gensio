@@ -318,6 +318,25 @@ So, for instance, "10D5H4M9s100u" would be ten days, 5 hours, 4
 minutes, 9 seconds, 100 microseconds.  If a plain number with no
 letter at the end is given, the value may default to a specific unit.
 That will be specified by the specific gensio.
+.SH "Drain Timeout"
+Many gensios store data queued to be sent.  On a close, by default
+they will wait until the output has completely been sent before
+finishing the close.
+
+This is normally what you want, but may not be desirable in some
+situations.  So these gensios will implement a
+.B drain_timeout
+option, and there is a corresponding control for setting it after
+creation.
+
+The
+.B drain_timeout
+is he amount of time to wait for data to drain on a close.  This sets
+the time (in milliseconds) that the gensio will wait for the data to
+drain before shutting down with pending data.  If you set this to a
+negative value, it will wait forever, which is the default.  Though
+not really forever, some lower layer is going to time out and shut the
+connection down before you reach this.
 .SH "TCP"
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -1081,6 +1100,9 @@ In addition to readbuf, the ipmisol gensio takes the following options:
 .TP
 .B writebuf=<n>
 to set the size of the write buffer.
+.TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
 .PP
 It also takes the following ipmisol options:
 .TP
@@ -1128,12 +1150,7 @@ In addition to readbuf, the telnet gensio takes the following options:
 set the size of the write buffer.
 .TP
 .B drain_timeout=<n>
-The amount of time to wait for data to drain on a close.  This sets
-the time (in milliseconds) that the gensio will wait for the data to
-drain before shutting down with pending data.  If you set this to a
-negative value, it will wait forever, which is the default.  Though
-not really forever, some lower layer is going to time out and shut the
-connection down before you reach this.
+See the section on Drain Timeout.
 .TP
 .B rfc2217[=true|false]
 enable or disable RFC2217 mode for this gensio.  If this is enabled

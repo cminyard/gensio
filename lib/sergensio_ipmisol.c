@@ -1777,25 +1777,33 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 		     struct gensio **rio)
 {
     const char *devname = gdata;
-    struct iterm_data *idata;
+    struct iterm_data *idata = NULL;
     int err;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "ipmisol", user_data);
+
+    err = gensio_base_parms_alloc(o, true, "ipmisol", &parms);
+    if (err)
+	goto out_err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_pparm_ds(&p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
+	if (parms && gensio_base_parm(parms, &p, args[i]) > 0)
+	    continue;
 	gensio_pparm_unknown_parm(&p, args[i]);
-	return GE_INVAL;
+	err = GE_INVAL;
+	goto out_err;
     }
 
     idata = o->zalloc(o, sizeof(*idata));
     if (!idata)
-	return GE_NOMEM;
+	goto out_nomem;
 
     idata->o = o;
 
@@ -1809,7 +1817,13 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 				  user_data);
     if (!idata->io) {
 	gensio_ll_free(idata->ll);
-	return GE_NOMEM;
+	goto out_nomem;
+    }
+
+    err = gensio_base_parms_set(idata->io, &parms);
+    if (err) {
+	gensio_free(idata->io);
+	goto out_err;
     }
 
     gensio_set_is_serial(idata->io, true);
@@ -1826,8 +1840,13 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
     *rio = idata->io;
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    iterm_free(idata);
+    if (idata)
+	iterm_free(idata);
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 
