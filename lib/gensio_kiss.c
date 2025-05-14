@@ -17,10 +17,36 @@
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/argvutils.h>
 
+struct kiss_config {
+    bool server;
+    gensiods max_read_size;
+    gensiods max_write_size;
+    bool tncs[16];
+    unsigned int txdelay;
+    unsigned int persist;
+    unsigned int slot_time;
+    bool full_duplex;
+    unsigned int set_hardware;
+    unsigned int setup_delay;
+    bool set_hardware_set;
+    char *setupstr;
+    gensiods setupstr_len;
+};
+
+static void
+gensio_kiss_config_cleanup(struct gensio_os_funcs *o,
+			   struct kiss_config *config)
+{
+    if (config->setupstr)
+	o->free(o, config->setupstr);
+}
+
 struct kiss_filter {
     struct gensio_filter *filter;
 
     struct gensio_os_funcs *o;
+
+    struct kiss_config config;
 
     struct gensio_lock *lock;
     gensio_filter_cb filter_cb;
@@ -29,18 +55,15 @@ struct kiss_filter {
     bool waiting_setup_timer;
     unsigned char *setupstr;
     gensiods setupstr_pos;
-    gensiods setupstr_len;
     unsigned int setup_delay;
 
     bool in_esc; /* Currently processing message data (after a start). */
     bool in_msg_complete; /* A full message is ready. */
     bool out_msg_ready;
     bool in_bad_packet;
-    bool server;
 
     /* Data waiting to be delivered to the user. */
     unsigned char *read_data;
-    gensiods max_read_size;
     gensiods read_data_pos;
     gensiods read_data_len;
 
@@ -50,10 +73,8 @@ struct kiss_filter {
     gensiods write_data_pos;
     gensiods write_data_len;
 
-    gensiods max_write_size; /* Maximum user message size. */
     gensiods user_write_pos; /* Current user position. */
 
-    bool tncs[16];
     uint8_t curr_tnc;
     unsigned char startdata[320];
     unsigned char startdata_len;
@@ -88,7 +109,7 @@ kiss_ll_write_pending(struct gensio_filter *filter)
     struct kiss_filter *kfilter = filter_to_kiss(filter);
 
     return kfilter->out_msg_ready ||
-	kfilter->setupstr_pos < kfilter->setupstr_len;
+	kfilter->setupstr_pos < kfilter->config.setupstr_len;
 }
 
 static bool
@@ -124,7 +145,7 @@ kiss_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     struct kiss_filter *kfilter = filter_to_kiss(filter);
     unsigned int i;
 
-    if (!kfilter->waiting_setup_timer && kfilter->setupstr_len) {
+    if (!kfilter->waiting_setup_timer && kfilter->config.setupstr_len) {
 	kfilter->setupstr_pos = 0;
 	kfilter->waiting_setup_timer = true;
 	timeout->secs = kfilter->setup_delay / 1000;
@@ -178,14 +199,15 @@ kiss_ul_write(struct gensio_filter *filter,
 	}
     }
     kiss_lock(kfilter);
-    if (!kfilter->tncs[tnc]) {
+    if (!kfilter->config.tncs[tnc]) {
+	printf("A\n");
 	rv = GE_INVAL;
-    } else if (kfilter->setupstr_pos < kfilter->setupstr_len) {
+    } else if (kfilter->setupstr_pos < kfilter->config.setupstr_len) {
 	struct gensio_sg sg[1];
 	gensiods count;
 
 	kiss_unlock(kfilter);
-	sg[0].buflen = kfilter->setupstr_len - kfilter->setupstr_pos;
+	sg[0].buflen = kfilter->config.setupstr_len - kfilter->setupstr_pos;
 	sg[0].buf = kfilter->setupstr + kfilter->setupstr_pos;
 	rv = handler(cb_data, &count, sg, 1, NULL);
 	kiss_lock(kfilter);
@@ -207,7 +229,7 @@ kiss_ul_write(struct gensio_filter *filter,
 	    const unsigned char *buf = isg[i].buf;
 
 	    for (j = 0; j < inlen; j++) {
-		if (kfilter->user_write_pos >= kfilter->max_write_size)
+		if (kfilter->user_write_pos >= kfilter->config.max_write_size)
 		    break;
 		kfilter->user_write_pos++;
 		kiss_add_wrbyte(kfilter, buf[j]);
@@ -299,7 +321,7 @@ kiss_ll_write(struct gensio_filter *filter,
 		kfilter->in_esc = true;
 		continue;
 	    }
-	    if (kfilter->read_data_len >= kfilter->max_read_size) {
+	    if (kfilter->read_data_len >= kfilter->config.max_read_size) {
 		kfilter->in_bad_packet = true;
 		continue;
 	    }
@@ -320,7 +342,7 @@ kiss_ll_write(struct gensio_filter *filter,
 
 	    /* Throw away everything but data to tncs we have. */
 	    if (kfilter->read_data[0] & 0xf ||
-			!kfilter->tncs[kfilter->curr_tnc]) {
+			!kfilter->config.tncs[kfilter->curr_tnc]) {
 		kfilter->in_msg_complete = false;
 		kfilter->read_data_len = 0;
 		kfilter->in_esc = 0;
@@ -378,6 +400,7 @@ kfilter_free(struct kiss_filter *kfilter)
 {
     struct gensio_os_funcs *o = kfilter->o;
 
+    gensio_kiss_config_cleanup(o, &kfilter->config);
     if (kfilter->lock)
 	o->free_lock(kfilter->lock);
     if (kfilter->setupstr)
@@ -484,113 +507,134 @@ handle_get_ranges(bool vals[16], const char *str)
 }
 
 static int
-gensio_kiss_filter_alloc(struct gensio_pparm_info *p,
-			 struct gensio_os_funcs *o, const char * const args[],
-			 bool server, struct gensio_filter **rfilter)
+gensio_kiss_config(struct gensio_pparm_info *p,
+		   struct gensio_os_funcs *o, const char * const args[],
+		   struct gensio_base_parms *parms,
+		   struct kiss_config *config)
 {
-    struct kiss_filter *kfilter;
     unsigned int i;
-    gensiods max_read_size = 1024; /* FIXME - magic number. */
-    gensiods max_write_size = 1024; /* FIXME - magic number. */
-    bool tncs[16] = { true, false };
-    unsigned int txdelay = 500;
-    unsigned int persist = 63;
-    unsigned int slot_time = 100;
-    bool full_duplex = false;
-    unsigned int set_hardware = 0;
-    unsigned int setup_delay = 1000;
-    bool set_hardware_set = false, bval;
     const char *str, *setupstr = NULL;
+    bool bval;
     int rv;
 
+    config->max_read_size = 1024; /* FIXME - magic number. */
+    config->max_write_size = 1024; /* FIXME - magic number. */
+    config->tncs[0] = true;
+    config->txdelay = 500;
+    config->persist = 63;
+    config->slot_time = 100;
+    config->full_duplex = false;
+    config->set_hardware = 0;
+    config->setup_delay = 1000;
+    config->set_hardware_set = false;
+
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &config->max_read_size) > 0)
 	    continue;
-	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &config->max_write_size) > 0)
 	    continue;
 	if (gensio_pparm_value(p, args[i], "tncs", &str) > 0) {
-	    rv = handle_get_ranges(tncs, str);
+	    rv = handle_get_ranges(config->tncs, str);
 	    if (rv)
 		return rv;
 	    continue;
 	}
-	if (gensio_pparm_uint(p, args[i], "txdelay", &txdelay) > 0) {
-	    if (txdelay > 2550)
+	if (gensio_pparm_uint(p, args[i], "txdelay", &config->txdelay) > 0) {
+	    if (config->txdelay > 2550)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_pparm_uint(p, args[i], "persist", &persist) > 0) {
-	    if (persist > 255)
+	if (gensio_pparm_uint(p, args[i], "persist", &config->persist) > 0) {
+	    if (config->persist > 255)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_pparm_uint(p, args[i], "slottime", &slot_time) > 0) {
-	    if (slot_time > 2550)
+	if (gensio_pparm_uint(p, args[i], "slottime", &config->slot_time) > 0) {
+	    if (config->slot_time > 2550)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_pparm_bool(p, args[i], "fullduplex", &full_duplex) > 0)
+	if (gensio_pparm_bool(p, args[i], "fullduplex",
+			      &config->full_duplex) > 0)
 	    continue;
-	if (gensio_pparm_uint(p, args[i], "sethardware", &set_hardware) > 0) {
-	    if (set_hardware > 255)
+	if (gensio_pparm_uint(p, args[i], "sethardware",
+			      &config->set_hardware) > 0) {
+	    if (config->set_hardware > 255)
 		return GE_INVAL;
-	    set_hardware_set = true;
+	    config->set_hardware_set = true;
 	    continue;
 	}
-	if (gensio_pparm_bool(p, args[i], "server", &server) > 0)
+	if (gensio_pparm_bool(p, args[i], "server", &config->server) > 0)
 	    continue;
 	if (gensio_pparm_value(p, args[i], "setupstr", &setupstr) > 0)
 	    continue;
-	if (gensio_pparm_uint(p, args[i], "setup-delay", &setup_delay) > 0)
+	if (gensio_pparm_uint(p, args[i], "setup-delay",
+			      &config->setup_delay) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "d710", &bval) > 0) {
 	    if (bval)
-		setupstr = "xflow on\rhbaud 1200\rkiss on\rrestart\r";
+		config->setupstr = "xflow on\rhbaud 1200\rkiss on\rrestart\r";
 	    continue;
 	}
 	if (gensio_pparm_bool(p, args[i], "d710-9600", &bval) > 0) {
 	    if (bval)
-		setupstr = "xflow on\rhbaud 9600\rkiss on\rrestart\r";
+		config->setupstr = "xflow on\rhbaud 9600\rkiss on\rrestart\r";
 	    continue;
 	}
+	if (gensio_base_parm(parms, p, args[i]) > 0)
+	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (max_read_size < 256) {
+    if (config->max_read_size < 256) {
 	gensio_pparm_slog(p, "readbuf must be >= 256");
 	return GE_INVAL;
     }
-    if (max_write_size < 256) {
+    if (config->max_write_size < 256) {
 	gensio_pparm_slog(p, "writebuf must be >= 256");
 	return GE_INVAL;
     }
+
+    if (setupstr) {
+	config->setupstr = gensio_strdup(o, setupstr);
+	if (!config->setupstr)
+	    return GE_NOMEM;
+	config->setupstr_len = strlen(config->setupstr);
+    }
+
+    return 0;
+}
+
+static int
+gensio_kiss_filter_alloc(struct gensio_os_funcs *o,
+			 struct kiss_config *config,
+			 struct gensio_filter **rfilter)
+{
+    struct kiss_filter *kfilter;
+    unsigned int i;
 
     kfilter = o->zalloc(o, sizeof(*kfilter));
     if (!kfilter)
 	return GE_NOMEM;
 
     kfilter->o = o;
-    kfilter->max_write_size = max_write_size;
-    kfilter->max_read_size = max_read_size;
-    kfilter->server = server;
-    kfilter->setup_delay = setup_delay;
+    kfilter->config = *config;
 
-    if (setupstr) {
-	kfilter->setupstr = (unsigned char *) gensio_strdup(o, setupstr);
-	if (!kfilter->setupstr)
+    if (config->setupstr) {
+	kfilter->config.setupstr = gensio_strdup(o, config->setupstr);
+	if (!kfilter->config.setupstr)
 	    goto out_nomem;
-	kfilter->setupstr_len = strlen(setupstr);
     }
 
     /* Room to double every byte and the begin and end frame markers. */
-    kfilter->buf_max_write = ((max_write_size + 2) * 2) + 2;
+    kfilter->buf_max_write = ((config->max_write_size + 2) * 2) + 2;
 
     kfilter->lock = o->alloc_lock(o);
     if (!kfilter->lock)
 	goto out_nomem;
 
-    kfilter->read_data = o->zalloc(o, max_read_size);
+    kfilter->read_data = o->zalloc(o, config->max_read_size);
     if (!kfilter->read_data)
 	goto out_nomem;
 
@@ -603,32 +647,30 @@ gensio_kiss_filter_alloc(struct gensio_pparm_info *p,
     if (!kfilter->filter)
 	goto out_nomem;
 
-    memcpy(kfilter->tncs, tncs, sizeof(kfilter->tncs));
-
-    for (i = 0; !server && i < 16; i++) {
-	if (!tncs[i])
+    for (i = 0; !config->server && i < 16; i++) {
+	if (!config->tncs[i])
 	    continue;
 
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 1;
-	kfilter->startdata[kfilter->startdata_len++] = (txdelay + 5) / 10;
+	kfilter->startdata[kfilter->startdata_len++] = (config->txdelay + 5) / 10;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 2;
-	kfilter->startdata[kfilter->startdata_len++] = persist;
+	kfilter->startdata[kfilter->startdata_len++] = config->persist;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 3;
-	kfilter->startdata[kfilter->startdata_len++] = (slot_time + 5) / 10;
+	kfilter->startdata[kfilter->startdata_len++] = (config->slot_time + 5) / 10;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 5;
-	kfilter->startdata[kfilter->startdata_len++] = full_duplex;
+	kfilter->startdata[kfilter->startdata_len++] = config->full_duplex;
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
-	if (set_hardware_set) {
+	if (config->set_hardware_set) {
 	    kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	    kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 6;
-	    kfilter->startdata[kfilter->startdata_len++] = set_hardware;
+	    kfilter->startdata[kfilter->startdata_len++] = config->set_hardware;
 	    kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	}
     }
@@ -642,25 +684,35 @@ gensio_kiss_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-kiss_gensio_alloc(struct gensio *child, const char *const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **net)
+kiss_gensio_alloc2(struct gensio *child, const char *const args[],
+		   bool server,
+		   struct gensio_os_funcs *o,
+		   gensio_event cb, void *user_data,
+		   struct gensio_base_parms **parms,
+		   struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    struct kiss_config config;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "kiss", user_data);
 
-    err = gensio_kiss_filter_alloc(&p, o, args, false, &filter);
+    memset(&config, 0, sizeof(config));
+    config.server = server;
+
+    err = gensio_kiss_config(&p, 0, args, *parms, &config);
     if (err)
-	return err;
+	goto out_err;
+
+    err = gensio_kiss_filter_alloc(o, &config, &filter);
+    if (err)
+	goto out_err;
 
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
     }
 
     gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
@@ -668,14 +720,47 @@ kiss_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
+    }
+    gensio_free(child); /* Lose the ref we acquired. */
+
+    err = gensio_base_parms_set(io, parms);
+    if (err) {
+	gensio_free(io);
+	goto out_err;
     }
 
     gensio_set_is_packet(io, true);
-    gensio_free(child); /* Lose the ref we acquired. */
 
     *net = io;
     return 0;
+
+ out_nomem:
+    err = GE_NOMEM;
+ out_err:
+    gensio_kiss_config_cleanup(o, &config);
+    return err;
+}
+
+static int
+kiss_gensio_alloc(struct gensio *child, const char *const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **net)
+{
+    struct gensio_base_parms *parms;
+    int err;
+
+    err = gensio_base_parms_alloc(o, true, "kiss", &parms);
+    if (err)
+	return err;
+
+    err = kiss_gensio_alloc2(child, args, false, o, cb, user_data,
+			     &parms, net);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
 }
 
 static int
@@ -701,9 +786,9 @@ str_to_kiss_gensio(const char *str, const char * const args[],
 
 struct kissna_data {
     struct gensio_accepter *acc;
-    const char **args;
     struct gensio_os_funcs *o;
     gensio_accepter_event cb;
+    struct kiss_config config;
     void *user_data;
 };
 
@@ -712,8 +797,7 @@ kissna_free(void *acc_data)
 {
     struct kissna_data *nadata = acc_data;
 
-    if (nadata->args)
-	gensio_argv_free(nadata->o, nadata->args);
+    gensio_kiss_config_cleanup(nadata->o, &nadata->config);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -722,8 +806,20 @@ kissna_alloc_gensio(void *acc_data, const char * const *iargs,
 		    struct gensio *child, struct gensio **rio)
 {
     struct kissna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
+    int err;
 
-    return kiss_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    err = kiss_gensio_alloc2(child, iargs, false, nadata->o, NULL, NULL,
+			     &parms, rio);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+
+    return err;
 }
 
 static int
@@ -731,10 +827,8 @@ kissna_new_child(void *acc_data, void **finish_data,
 		 struct gensio_filter **filter)
 {
     struct kissna_data *nadata = acc_data;
-    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "kiss",
-			      nadata->user_data);
 
-    return gensio_kiss_filter_alloc(&p, nadata->o, nadata->args, true, filter);
+    return gensio_kiss_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
 static int
@@ -776,16 +870,21 @@ kiss_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct kissna_data *nadata;
     int err;
+    struct gensio_base_parms *parms = NULL;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "kiss", user_data);
+
+    err = gensio_base_parms_alloc(o, true, "kiss", &parms);
+    if (err)
+	goto out_err;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_argv_copy(o, args, NULL, &nadata->args);
-    if (err) {
-	o->free(o, nadata);
-	return err;
-    }
+    nadata->config.server = true;
+    err = gensio_kiss_config(&p, o, args, parms, &nadata->config);
+    if (err)
+	goto out_err;
 
     nadata->o = o;
     nadata->cb = cb;
@@ -796,13 +895,27 @@ kiss_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+
     gensio_acc_set_is_packet(nadata->acc, true);
     *accepter = nadata->acc;
 
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    kissna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    kissna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 
