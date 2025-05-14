@@ -76,7 +76,7 @@
 #define GENSIO_CONTROL_SER_SEND_MODEMSTATE	53u
 #define GENSIO_CONTROL_SER_SEND_LINESTATE	54u
 
-#define GENSIO_CONTROL_DRAIN_TIMEOUT		45u
+#define GENSIO_CONTROL_DRAIN_TIMEOUT		55u
 
 /* Keep the async control number in a different range, just to be safe. */
 #define GENSIO_ACONTROL_SER_BAUD		1000u
