@@ -14,7 +14,6 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_base.h>
 #include <gensio/gensio_class.h>
-#include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
 
@@ -1015,9 +1014,6 @@ struct stel_req {
     int maxval;
     gensio_control_done cdone;
     const struct stel_xlat_str *xlatstr;
-    void (*done)(struct sergensio *sio, int err, int val, void *cb_data);
-    void (*donesig)(struct sergensio *sio, int err, char *sig,
-		    unsigned int sig_len, void *cb_data);
     void *cb_data;
     int time_left;
     struct stel_req *next;
@@ -1025,7 +1021,6 @@ struct stel_req {
 
 struct stel_data {
     struct gensio *io;
-    struct sergensio *sio;
 
     struct gensio_os_funcs *o;
 
@@ -1114,10 +1109,6 @@ stel_queue(struct stel_data *sdata, int option,
 	   int minval, int maxval,
 	   gensio_control_done cdone,
 	   const struct stel_xlat_str *xlatstr,
-	   void (*done)(struct sergensio *sio, int err,
-			int baud, void *cb_data),
-	   void (*donesig)(struct sergensio *sio, int err, char *sig,
-			   unsigned int sig_len, void *cb_data),
 	   void *cb_data,
 	   gensio_time *timeout)
 {
@@ -1134,8 +1125,6 @@ stel_queue(struct stel_data *sdata, int option,
     req->option = option;
     req->cdone = cdone;
     req->xlatstr = xlatstr;
-    req->done = done;
-    req->donesig = donesig;
     req->cb_data = cb_data;
     req->minval = minval;
     if (!maxval)
@@ -1170,12 +1159,10 @@ stel_queue(struct stel_data *sdata, int option,
 static int
 stel_baud(struct stel_data *sdata, int baud, const char *sbaud,
 	  gensio_control_done cdone,
-	  void (*done)(struct sergensio *sio, int err,
-		       int baud, void *cb_data),
 	  void *cb_data,
 	  gensio_time *timeout)
 {
-    bool is_client = sergensio_is_client(sdata->sio);
+    bool is_client = gensio_is_client(sdata->io);
     unsigned char buf[6];
     int err;
 
@@ -1183,7 +1170,7 @@ stel_baud(struct stel_data *sdata, int baud, const char *sbaud,
 	baud = strtol(sbaud, NULL, 0);
 
     if (is_client) {
-	err = stel_queue(sdata, 1, 0, 0, cdone, NULL, done, NULL, cb_data,
+	err = stel_queue(sdata, 1, 0, 0, cdone, NULL, cb_data,
 			 timeout);
 	if (err)
 	    return err;
@@ -1212,13 +1199,11 @@ stel_queue_and_send(struct stel_data *sdata, int option, int val,
 		    int xmitbase, int minval, int maxval,
 		    gensio_control_done cdone,
 		    const struct stel_xlat_str *xlatstr,
-		    void (*done)(struct sergensio *sio, int err, int val,
-				 void *cb_data),
 		    void *cb_data,
 		    gensio_time *timeout)
 {
     unsigned char buf[3];
-    bool is_client = sergensio_is_client(sdata->sio);
+    bool is_client = gensio_is_client(sdata->io);
     int err;
 
     if (sval) {
@@ -1242,7 +1227,7 @@ stel_queue_and_send(struct stel_data *sdata, int option, int val,
 
     if (is_client) {
 	err = stel_queue(sdata, option, xmitbase, xmitbase + maxval,
-			 cdone, xlatstr, done, NULL, cb_data, timeout);
+			 cdone, xlatstr, cb_data, timeout);
 	if (err)
 	    return err;
     } else {
@@ -1260,57 +1245,51 @@ stel_queue_and_send(struct stel_data *sdata, int option, int val,
 static int
 stel_datasize(struct stel_data *sdata, int datasize, const char *sdatasize,
 	      gensio_control_done cdone,
-	      void (*done)(struct sergensio *sio, int err, int datasize,
-			   void *cb_data),
 	      void *cb_data,
 	      gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 2, datasize, sdatasize, 0, 0, 8,
-			       cdone, NULL, done, cb_data, timeout);
+			       cdone, NULL, cb_data, timeout);
 }
 
 static const struct stel_xlat_str stel_parity_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_PARITY_NONE },
-    { "odd", SERGENSIO_PARITY_ODD },
-    { "even", SERGENSIO_PARITY_EVEN },
-    { "mark", SERGENSIO_PARITY_MARK },
-    { "space", SERGENSIO_PARITY_SPACE },
+    { "none", GENSIO_SER_PARITY_NONE },
+    { "odd", GENSIO_SER_PARITY_ODD },
+    { "even", GENSIO_SER_PARITY_EVEN },
+    { "mark", GENSIO_SER_PARITY_MARK },
+    { "space", GENSIO_SER_PARITY_SPACE },
     {}
 };
 
 static int
 stel_parity(struct stel_data *sdata, int parity, const char *sparity,
 	    gensio_control_done cdone,
-	    void (*done)(struct sergensio *sio, int err, int parity,
-			 void *cb_data),
 	    void *cb_data,
 	    gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 3, parity, sparity, 0, 0, 5,
-			       cdone, stel_parity_xlatstr, done, cb_data,
+			       cdone, stel_parity_xlatstr, cb_data,
 			       timeout);
 }
 
 static int
 stel_stopbits(struct stel_data *sdata, int stopbits, const char *sstopbits,
 	      gensio_control_done cdone,
-	      void (*done)(struct sergensio *sio, int err, int stopbits,
-			   void *cb_data),
 	      void *cb_data,
 	      gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 4, stopbits, sstopbits, 0, 0, 3,
-			       cdone, NULL, done, cb_data, timeout);
+			       cdone, NULL, cb_data, timeout);
 }
 
 static const struct stel_xlat_str stel_flow_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_FLOWCONTROL_NONE },
-    { "xonxoff", SERGENSIO_FLOWCONTROL_XON_XOFF },
-    { "rtscts", SERGENSIO_FLOWCONTROL_RTS_CTS },
+    { "none", GENSIO_SER_FLOWCONTROL_NONE },
+    { "xonxoff", GENSIO_SER_FLOWCONTROL_XON_XOFF },
+    { "rtscts", GENSIO_SER_FLOWCONTROL_RTS_CTS },
     {}
 };
 
@@ -1318,23 +1297,21 @@ static int
 stel_flowcontrol(struct stel_data *sdata, int flowcontrol,
 		 const char *sflowcontrol,
 		 gensio_control_done cdone,
-		 void (*done)(struct sergensio *sio, int err,
-			      int flowcontrol, void *cb_data),
 		 void *cb_data,
 		 gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 5, flowcontrol, sflowcontrol, 0, 0, 3,
-			       cdone, stel_flow_xlatstr, done, cb_data,
+			       cdone, stel_flow_xlatstr, cb_data,
 			       timeout);
 }
 
 static const struct stel_xlat_str stel_iflow_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_FLOWCONTROL_NONE },
-    { "dcd", SERGENSIO_FLOWCONTROL_DCD },
-    { "dtr", SERGENSIO_FLOWCONTROL_DTR },
-    { "dsr", SERGENSIO_FLOWCONTROL_DSR },
+    { "none", GENSIO_SER_FLOWCONTROL_NONE },
+    { "dcd", GENSIO_SER_FLOWCONTROL_DCD },
+    { "dtr", GENSIO_SER_FLOWCONTROL_DTR },
+    { "dsr", GENSIO_SER_FLOWCONTROL_DSR },
     {}
 };
 
@@ -1342,13 +1319,11 @@ static int
 stel_iflowcontrol(struct stel_data *sdata, int iflowcontrol,
 		  const char *siflowcontrol,
 		  gensio_control_done cdone,
-		  void (*done)(struct sergensio *sio, int err,
-			       int iflowcontrol, void *cb_data),
 		  void *cb_data,
 		  gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 5, iflowcontrol, siflowcontrol,13, 0, 6,
-			       cdone, stel_iflow_xlatstr, done, cb_data,
+			       cdone, stel_iflow_xlatstr, cb_data,
 			       timeout);
 }
 
@@ -1363,59 +1338,50 @@ static const struct stel_xlat_str stel_on_off_xlatstr[] = {
 static int
 stel_sbreak(struct stel_data *sdata, int breakv, const char *sbreakv,
 	    gensio_control_done cdone,
-	    void (*done)(struct sergensio *sio, int err, int breakv,
-			 void *cb_data),
 	    void *cb_data,
 	    gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 5, breakv, sbreakv, 4, 0, 2,
-			       cdone, stel_on_off_xlatstr, done, cb_data,
+			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
 
 static int
 stel_dtr(struct stel_data *sdata, int dtr, const char *sdtr,
 	 gensio_control_done cdone,
-	 void (*done)(struct sergensio *sio, int err, int dtr,
-		      void *cb_data),
 	 void *cb_data,
 	 gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 5, dtr, sdtr, 7, 0, 2,
-			       cdone, stel_on_off_xlatstr, done, cb_data,
+			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
 
 static int
 stel_rts(struct stel_data *sdata, int rts, const char *srts,
 	 gensio_control_done cdone,
-	 void (*done)(struct sergensio *sio, int err, int rts,
-		      void *cb_data),
 	 void *cb_data,
 	 gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 5, rts, srts, 10, 0, 2,
-			       cdone, stel_on_off_xlatstr, done, cb_data,
+			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
 
 static int
 stel_signature(struct stel_data *sdata, const char *sig, unsigned int sig_len,
 	       gensio_control_done cdone,
-	       void (*done)(struct sergensio *sio, int err, char *sig,
-			    unsigned int sig_len, void *cb_data),
 	       void *cb_data,
 	       gensio_time *timeout)
 {
     unsigned char outopt[MAX_TELNET_CMD_XMIT_BUF];
-    bool is_client = sergensio_is_client(sdata->sio);
+    bool is_client = gensio_is_client(sdata->io);
 
     if (sig_len > (MAX_TELNET_CMD_XMIT_BUF - 2))
 	sig_len = MAX_TELNET_CMD_XMIT_BUF - 2;
 
     if (is_client) {
-	int err = stel_queue(sdata, 0, 0, 0, cdone, NULL, NULL, done, cb_data,
-			     timeout);
+	int err = stel_queue(sdata, 0, 0, 0, cdone, NULL, cb_data, timeout);
 	if (err)
 	    return err;
 
@@ -1442,7 +1408,7 @@ stel_send(struct stel_data *sdata, unsigned int opt, unsigned int val)
     buf[1] = opt;
     buf[2] = val;
 
-    if (!sergensio_is_client(sdata->sio))
+    if (!gensio_is_client(sdata->io))
 	buf[1] += 100;
 
     sdata->rops->send_option(sdata->filter, buf, 3);
@@ -1458,7 +1424,7 @@ stel_modemstate(struct stel_data *sdata, unsigned int val, const char *sval)
     if (sval)
 	val = strtol(sval, NULL, 0);
 
-    if (sergensio_is_client(sdata->sio))
+    if (gensio_is_client(sdata->io))
 	opt = 11;
     else
 	opt = 7;
@@ -1473,7 +1439,7 @@ stel_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
     if (sval)
 	val = strtol(sval, NULL, 0);
 
-    if (sergensio_is_client(sdata->sio))
+    if (gensio_is_client(sdata->io))
 	opt = 10;
     else
 	opt = 6;
@@ -1493,8 +1459,6 @@ stel_send_modemstate(struct stel_data *sdata, unsigned int val,
 static int
 stel_set_modemstate_mask(struct stel_data *sdata, unsigned int val,
 			 const char *sval, gensio_control_done cdone,
-			 void (*done)(struct sergensio *sio, int err,
-				      int datasize, void *cb_data),
 			 void *cb_data,
 			 gensio_time *timeout)
 {
@@ -1502,7 +1466,7 @@ stel_set_modemstate_mask(struct stel_data *sdata, unsigned int val,
 	val = strtol(sval, NULL, 0);
 
     return stel_queue_and_send(sdata, 11, val, NULL, 0, 0, 255, cdone,
-			       NULL, done, cb_data, timeout);
+			       NULL, cb_data, timeout);
 }
 
 static int
@@ -1516,8 +1480,6 @@ stel_send_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
 static int
 stel_set_linestate_mask(struct stel_data *sdata, unsigned int val,
 			const char *sval, gensio_control_done cdone,
-			void (*done)(struct sergensio *sio, int err,
-				     int datasize, void *cb_data),
 			void *cb_data,
 			gensio_time *timeout)
 {
@@ -1525,7 +1487,7 @@ stel_set_linestate_mask(struct stel_data *sdata, unsigned int val,
 	val = strtol(sval, NULL, 0);
 
     return stel_queue_and_send(sdata, 10, val, NULL, 0, 0, 255, cdone,
-			       NULL, done, cb_data, timeout);
+			       NULL, cb_data, timeout);
 }
 
 static int
@@ -1548,7 +1510,7 @@ stel_flowcontrol_state(struct stel_data *sdata, bool val, const char *sval)
 	buf[1] = 8;
     else
 	buf[1] = 9;
-    if (!sergensio_is_client(sdata->sio))
+    if (!gensio_is_client(sdata->io))
 	buf[1] += 100;
 
     sdata->rops->send_option(sdata->filter, buf, 2);
@@ -1568,13 +1530,11 @@ static const struct stel_xlat_str stel_flush_xlatstr[] = {
 static int
 stel_flush(struct stel_data *sdata, unsigned int val, const char *sval,
 	   gensio_control_done cdone,
-	   void (*done)(struct sergensio *sio, int err, int datasize,
-			void *cb_data),
 	   void *cb_data,
 	   gensio_time *timeout)
 {
     return stel_queue_and_send(sdata, 12, val, sval, 0, 0, 3, cdone,
-			       stel_flush_xlatstr, done, cb_data, timeout);
+			       stel_flush_xlatstr, cb_data, timeout);
 }
 
 static int
@@ -1586,63 +1546,6 @@ stel_send_break(struct stel_data *sdata)
     buf[1] = TN_BREAK;
     sdata->rops->send_cmd(sdata->filter, buf, 2);
     return 0;
-}
-
-static int
-sergensio_stel_func(struct sergensio *sio, int op, int val, char *buf,
-		    void *done, void *cb_data)
-{
-    struct stel_data *sdata = sergensio_get_gensio_data(sio);
-
-    switch (op) {
-    case SERGENSIO_FUNC_BAUD:
-	return stel_baud(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_DATASIZE:
-	return stel_datasize(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_PARITY:
-	return stel_parity(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_STOPBITS:
-	return stel_stopbits(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_FLOWCONTROL:
-	return stel_flowcontrol(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_IFLOWCONTROL:
-	return stel_iflowcontrol(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_SBREAK:
-	return stel_sbreak(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_DTR:
-	return stel_dtr(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_RTS:
-	return stel_rts(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_MODEMSTATE:
-	return stel_modemstate(sdata, val, NULL);
-
-    case SERGENSIO_FUNC_LINESTATE:
-	return stel_linestate(sdata, val, NULL);
-
-    case SERGENSIO_FUNC_FLOWCONTROL_STATE:
-	return stel_flowcontrol_state(sdata, val, NULL);
-
-    case SERGENSIO_FUNC_FLUSH:
-	return stel_flush(sdata, val, NULL, NULL, done, cb_data, NULL);
-
-    case SERGENSIO_FUNC_SIGNATURE:
-	return stel_signature(sdata, buf, val, NULL, NULL, NULL, NULL);
-
-    case SERGENSIO_FUNC_SEND_BREAK:
-	return stel_send_break(sdata);
-
-    default:
-	return GE_NOTSUP;
-    }
 }
 
 static int
@@ -1671,7 +1574,7 @@ stel_control(void *handler_data, bool get, int option,
 	return stel_flowcontrol_state(sdata, 0, data);
 
     case GENSIO_CONTROL_SER_FLUSH:
-	return stel_flush(sdata, 0, data, NULL, NULL, NULL, NULL);
+	return stel_flush(sdata, 0, data, NULL, NULL, NULL);
 
     case GENSIO_CONTROL_SER_SEND_BREAK:
 	return stel_send_break(sdata);
@@ -1690,52 +1593,58 @@ stel_acontrol(void *handler_data, bool get, int option,
     gensio_control_done cdone = idata->done;
     void *cb_data = idata->cb_data;
     gensio_time *timeout = idata->timeout;
+    gensiods datalen = idata->datalen;
 
     if (!gensio_is_serial(sdata->io))
 	return GE_NOTSUP;
 
+    if (get)
+	data = NULL;
+
     switch (option) {
     case GENSIO_ACONTROL_SER_BAUD:
-	return stel_baud(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_baud(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_DATASIZE:
-	return stel_datasize(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_datasize(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_PARITY:
-	return stel_parity(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_parity(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_STOPBITS:
-	return stel_stopbits(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_stopbits(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_FLOWCONTROL:
-	return stel_flowcontrol(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_flowcontrol(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_IFLOWCONTROL:
-	return stel_iflowcontrol(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_iflowcontrol(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_SBREAK:
-	return stel_sbreak(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_sbreak(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_DTR:
-	return stel_dtr(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_dtr(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_RTS:
-	return stel_rts(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_rts(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_FLUSH:
-	return stel_flush(sdata, 0, data, cdone, NULL, cb_data, timeout);
+	return stel_flush(sdata, 0, data, cdone, cb_data, timeout);
 
     case GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK:
-	return stel_set_modemstate_mask(sdata, 0, data, cdone, NULL, cb_data,
+	return stel_set_modemstate_mask(sdata, 0, data, cdone, cb_data,
 					timeout);
 
     case GENSIO_ACONTROL_SER_SET_LINESTATE_MASK:
-	return stel_set_linestate_mask(sdata, 0, data, cdone, NULL, cb_data,
+	return stel_set_linestate_mask(sdata, 0, data, cdone, cb_data,
 				       timeout);
 
     case GENSIO_ACONTROL_SER_SIGNATURE:
-	return stel_signature(sdata, data, idata->datalen,
-			      cdone, NULL, cb_data, timeout);
+	if (get)
+	    datalen = 0;
+	return stel_signature(sdata, data, datalen,
+			      cdone, cb_data, timeout);
 
     default:
 	return GE_NOTSUP;
@@ -1873,13 +1782,6 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 		curr->cdone(sdata->io, 0, sval, strlen(sval), curr->cb_data);
 	    }
 	}
-	if (sig) {
-	    if (curr->donesig)
-		curr->donesig(sdata->sio, 0, sig, sig_len, curr->cb_data);
-	} else {
-	    if (curr->done)
-		curr->done(sdata->sio, 0, val - curr->minval, curr->cb_data);
-	}
 	sdata->o->free(sdata->o, curr);
 	return;
     }
@@ -1951,10 +1853,6 @@ stelc_timeout(void *handler_data)
     while (req) {
 	if (req->cdone)
 	    req->cdone(sdata->io, GE_TIMEDOUT, NULL, 0, req->cb_data);
-	else if (req->done)
-	    req->done(sdata->sio, GE_TIMEDOUT, 0, req->cb_data);
-	else if (req->donesig)
-	    req->donesig(sdata->sio, GE_TIMEDOUT, NULL, 0, req->cb_data);
 	prev = req;
 	req = req->next;
 	sdata->o->free(sdata->o, prev);
@@ -1972,8 +1870,6 @@ stel_free(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
 
-    if (sdata->sio)
-	sergensio_data_free(sdata->sio);
     if (sdata->lock)
 	sdata->o->free_lock(sdata->lock);
     while (sdata->reqs) {
@@ -2385,13 +2281,8 @@ telnet_gensio_alloc2(struct gensio *child, const char * const args[],
 
     sdata->io = io;
 
-    if (sdata->allow_rfc2217) {
+    if (sdata->allow_rfc2217)
 	gensio_set_is_serial(io, true);
-	err = sergensio_addclass(o, io, sergensio_stel_func, sdata,
-				 &sdata->sio);
-	if (err)
-	    goto out_err;
-    }
 
     gensio_free(child); /* Lose the ref we acquired. */
     gensio_set_is_client(io, sdata->is_client);
@@ -2449,8 +2340,6 @@ str_to_telnet_gensio(const char *str, const char * const args[],
 }
 
 struct stela_data {
-    struct sergensio_accepter *sacc;
-
     struct gensio_accepter *acc;
 
     gensiods max_read_size;
@@ -2470,7 +2359,7 @@ stela_free(void *acc_data)
 {
     struct stela_data *stela = acc_data;
 
-    /* stela->sacc will be freed in the class callback. */
+    /* stela->acc will be freed in the class callback. */
     stela->o->free(stela->o, stela);
 }
 
@@ -2582,13 +2471,8 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
 
     sdata->io = io;
 
-    if (sdata->allow_rfc2217) {
+    if (sdata->allow_rfc2217)
 	gensio_set_is_serial(io, true);
-	err = sergensio_addclass(sdata->o, io, sergensio_stel_func, sdata,
-				 &sdata->sio);
-	if (err)
-	    return err;
-    }
 
     gensio_set_is_client(io, sdata->is_client);
 
@@ -2616,14 +2500,6 @@ gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
     default:
 	return GE_NOTSUP;
     }
-}
-
-static int
-sergensio_stela_func(struct sergensio_accepter *sacc,
-		     int op, int val, char *buf,
-		     void *done, void *cb_data)
-{
-    return GE_NOTSUP;
 }
 
 static int
@@ -2706,13 +2582,9 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     if (rv)
 	goto out_err;
     
-    if (allow_rfc2217) {
+    if (allow_rfc2217)
 	gensio_acc_set_is_serial(accepter, true);
-	rv = sergensio_acc_addclass(o, accepter, sergensio_stela_func, stela,
-				    &stela->sacc);
-	if (rv)
-	    goto out_err;
-    }
+
     stela->acc = accepter;
     gensio_acc_set_is_reliable(accepter, gensio_acc_is_reliable(child));
 
