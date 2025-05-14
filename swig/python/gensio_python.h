@@ -296,15 +296,6 @@ gensio_pyref(struct gensio *io)
 }
 
 static void
-sergensio_pyref(struct sergensio *sio)
-{
-    struct gensio_data *data =
-	(struct gensio_data *) sergensio_get_user_data(sio);
-
-    ref_gensio_data(data);
-}
-
-static void
 gensio_accepter_pyref(struct gensio_accepter *acc)
 {
     struct gensio_data *data =
@@ -1284,94 +1275,6 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
     return GE_NOTSUP;
 }
 
-struct sergensio_cbdata {
-    const char *cbname;
-    swig_cb_val *h_val;
-};
-
-#define stringify_1(x...)     #x
-#define stringify(x...)       stringify_1(x)
-
-#define sergensio_cbdata(name, h) \
-({							\
-    struct sergensio_cbdata *cbd = (struct sergensio_cbdata *) \
-	malloc(sizeof(*cbd));				       \
-    if (cbd) {						\
-	cbd->cbname = stringify(name);			\
-	cbd->h_val = ref_swig_cb(h, name);		\
-    }							\
-    cbd;						\
- })
-
-static void
-cleanup_sergensio_cbdata(struct sergensio_cbdata *cbd)
-{
-    deref_swig_cb_val(cbd->h_val);
-    free(cbd);
-}
-
-static void
-sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
-{
-    struct sergensio_cbdata *cbd = (struct sergensio_cbdata *) cb_data;
-    swig_ref sio_ref;
-    PyObject *o, *args;
-    OI_PY_STATE gstate;
-
-    gstate = OI_PY_STATE_GET();
-
-    sio_ref = swig_make_ref(sio, sergensio);
-    args = PyTuple_New(3);
-    sergensio_pyref(sio);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
-    if (err) {
-	o = OI_PI_FromString(gensio_err_to_str(err));
-    } else {
-	Py_INCREF(Py_None);
-	o = Py_None;
-    }
-    PyTuple_SET_ITEM(args, 1, o);
-    o = PyInt_FromLong(val);
-    PyTuple_SET_ITEM(args, 2, o);
-
-    swig_finish_call(cbd->h_val, cbd->cbname, args, true);
-
-    cleanup_sergensio_cbdata(cbd);
-    OI_PY_STATE_PUT(gstate);
-}
-
-static void
-sergensio_sig_cb(struct sergensio *sio, int err,
-		 const char *sig, unsigned int len, void *cb_data)
-{
-    swig_cb_val *h_val = (swig_cb_val *) cb_data;
-    swig_ref sio_ref;
-    PyObject *args, *o;
-    OI_PY_STATE gstate;
-
-    gstate = OI_PY_STATE_GET();
-
-    sio_ref = swig_make_ref(sio, sergensio);
-    args = PyTuple_New(3);
-    sergensio_pyref(sio);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
-    if (err) {
-	o = OI_PI_FromString(gensio_err_to_str(err));
-    } else {
-	o = Py_None;
-	Py_INCREF(o);
-    }
-    PyTuple_SET_ITEM(args, 1, o);
-
-    o = PyBytes_FromStringAndSize(sig, len);
-    PyTuple_SET_ITEM(args, 2, o);
-
-    swig_finish_call(h_val, "signature", args, true);
-    deref_swig_cb_val(h_val);
-
-    OI_PY_STATE_PUT(gstate);
-}
-
 struct mdns {
     struct gensio_os_funcs *o;
     bool closed;
@@ -1582,19 +1485,6 @@ static void err_handle(const char *name, int rv)
 	return;
     PyErr_Format(PyExc_Exception, "gensio:%s: %s", name,
 		 gensio_err_to_str(rv));
-}
-
-static void ser_err_handle(const char *name, int rv)
-{
-    if (!rv)
-	return;
-    PyErr_Format(PyExc_Exception, "sergensio:%s: %s", name,
-		 gensio_err_to_str(rv));
-}
-
-static void cast_error(const char *to, const char *from)
-{
-    PyErr_Format(PyExc_RuntimeError, "Error casting from %s to %s", from, to);
 }
 
 static void oom_err(void)
