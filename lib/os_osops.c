@@ -669,8 +669,6 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 /*
  * Serial port handling.
  */
-#include <gensio/sergensio.h>
-
 #ifdef _WIN32
 
 #include <wtsapi32.h>
@@ -926,30 +924,30 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 	if (get) {
 	    if (t->fParity) {
 		switch (t->Parity) {
-		case NOPARITY: *((int *) val) = SERGENSIO_PARITY_NONE; break;
-		case EVENPARITY: *((int *) val) = SERGENSIO_PARITY_EVEN; break;
-		case ODDPARITY: *((int *) val) = SERGENSIO_PARITY_ODD; break;
-		case MARKPARITY: *((int *) val) = SERGENSIO_PARITY_MARK; break;
+		case NOPARITY: *((int *) val) = GENSIO_SER_PARITY_NONE; break;
+		case EVENPARITY: *((int *) val) = GENSIO_SER_PARITY_EVEN; break;
+		case ODDPARITY: *((int *) val) = GENSIO_SER_PARITY_ODD; break;
+		case MARKPARITY: *((int *) val) = GENSIO_SER_PARITY_MARK; break;
 		case SPACEPARITY:
-		    *((int *) val) = SERGENSIO_PARITY_SPACE;
+		    *((int *) val) = GENSIO_SER_PARITY_SPACE;
 		    break;
 		default:
 		    rv = GE_IOERR;
 		}
 	    } else {
-		*((int *) val) = SERGENSIO_PARITY_NONE;
+		*((int *) val) = GENSIO_SER_PARITY_NONE;
 	    }
 	} else {
 	    t->fParity = 1;
 	    switch (val) {
-	    case SERGENSIO_PARITY_NONE:
+	    case GENSIO_SER_PARITY_NONE:
 		t->fParity = 0;
 		t->Parity = NOPARITY;
 		break;
-	    case SERGENSIO_PARITY_EVEN: t->Parity = EVENPARITY; break;
-	    case SERGENSIO_PARITY_ODD: t->Parity = ODDPARITY; break;
-	    case SERGENSIO_PARITY_MARK: t->Parity = MARKPARITY; break;
-	    case SERGENSIO_PARITY_SPACE: t->Parity = SPACEPARITY; break;
+	    case GENSIO_SER_PARITY_EVEN: t->Parity = EVENPARITY; break;
+	    case GENSIO_SER_PARITY_ODD: t->Parity = ODDPARITY; break;
+	    case GENSIO_SER_PARITY_MARK: t->Parity = MARKPARITY; break;
+	    case GENSIO_SER_PARITY_SPACE: t->Parity = SPACEPARITY; break;
 	    default:
 		rv = GE_INVAL;
 	    }
@@ -3114,40 +3112,40 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 #ifdef CMSPAR
 		if (t->curr_termios.c_cflag & CMSPAR) {
 		    if (t->curr_termios.c_cflag & PARODD)
-			*((int *) val) = SERGENSIO_PARITY_MARK;
+			*((int *) val) = GENSIO_SER_PARITY_MARK;
 		    else
-			*((int *) val) = SERGENSIO_PARITY_SPACE;
+			*((int *) val) = GENSIO_SER_PARITY_SPACE;
 		    break;
 		}
 #endif
 		if (t->curr_termios.c_cflag & PARODD)
-		    *((int *) val) = SERGENSIO_PARITY_ODD;
+		    *((int *) val) = GENSIO_SER_PARITY_ODD;
 		else
-		    *((int *) val) = SERGENSIO_PARITY_EVEN;
+		    *((int *) val) = GENSIO_SER_PARITY_EVEN;
 	    } else {
-		*((int *) val) = SERGENSIO_PARITY_NONE;
+		*((int *) val) = GENSIO_SER_PARITY_NONE;
 	    }
 	} else {
 	    switch (val) {
-	    case SERGENSIO_PARITY_NONE:
+	    case GENSIO_SER_PARITY_NONE:
 		t->curr_termios.c_cflag &= ~PARENB;
 		break;
 
-	    case SERGENSIO_PARITY_ODD:
+	    case GENSIO_SER_PARITY_ODD:
 		t->curr_termios.c_cflag |= PARENB | PARODD;
 		break;
 
-	    case SERGENSIO_PARITY_EVEN:
+	    case GENSIO_SER_PARITY_EVEN:
 		t->curr_termios.c_cflag |= PARENB;
 		t->curr_termios.c_cflag &= ~PARODD;
 		break;
 
 #ifdef CMSPAR
-	    case SERGENSIO_PARITY_MARK:
+	    case GENSIO_SER_PARITY_MARK:
 		t->curr_termios.c_cflag |= PARENB | PARODD | CMSPAR;
 		break;
 
-	    case SERGENSIO_PARITY_SPACE:
+	    case GENSIO_SER_PARITY_SPACE:
 		t->curr_termios.c_cflag |= PARENB | CMSPAR;
 		t->curr_termios.c_cflag &= ~PARODD;
 		break;
