@@ -29,7 +29,6 @@ if os.name != 'nt':
 #include <signal.h>
 
 #include <gensio/gensio.h>
-#include <gensio/sergensio.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/netif.h>
@@ -350,13 +349,9 @@ static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
 %include <typemaps.i>
 %include <exception.i>
 
-%nodefaultctor sergensio;
-%nodefaultctor sergensio_accepter;
 %nodefaultctor gensio_os_funcs;
 struct gensio { };
-struct sergensio { };
 struct gensio_accepter { };
-struct sergensio_accepter { };
 struct gensio_os_funcs { };
 struct waiter { };
 
@@ -1040,74 +1035,10 @@ struct waiter { };
 	return gensio_is_serial(self);
     }
 
-    %newobject cast_to_sergensio;
-    struct sergensio *cast_to_sergensio() {
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_get_user_data(self);
-	struct sergensio *sio = gensio_to_sergensio(self);
-
-	if (!sio)
-	    cast_error("sergensio", "gensio");
-	else
-	    ref_gensio_data(data);
-	return sio;
-    }
-
     bool same_as(struct gensio *other) {
 	return self == other;
     }
 }
-
-%define sgensio_entry(name)
-    void sg_##name(int name, swig_cb *h) {
-	struct sergensio_cbdata *cbdata = NULL;
-	int rv;
-
-	if (!nil_swig_cb(h)) {
-	    cbdata = sergensio_cbdata(name, h);
-	    if (!cbdata) {
-		oom_err();
-		return;
-	    }
-	    rv = sergensio_##name(self, name, sergensio_cb, cbdata);
-	} else {
-	    rv = sergensio_##name(self, name, NULL, NULL);
-	}
-
-	if (rv && cbdata)
-	    cleanup_sergensio_cbdata(cbdata);
-	ser_err_handle("sg_" stringify(name), rv);
-    }
-
-    int sg_##name##_s(int name) {
-	struct gensio_data *data = (struct gensio_data *)
-	    sergensio_get_user_data(self);
-	struct sergensio_b *b = NULL;
-	int rv;
-
-	rv = sergensio_b_alloc(self, data->o, &b);
-	if (!rv)
-	    rv = sergensio_##name##_b(b, &name);
-	if (rv)
-	    ser_err_handle("sg_" stringify(name)"_s", rv);
-	if (b)
-	    sergensio_b_free(b);
-	return name;
-    }
-%enddef
-
-%constant int SERGENSIO_PARITY_NONE = SERGENSIO_PARITY_NONE;
-%constant int SERGENSIO_PARITY_ODD = SERGENSIO_PARITY_ODD;
-%constant int SERGENSIO_PARITY_EVEN = SERGENSIO_PARITY_EVEN;
-%constant int SERGENSIO_PARITY_MARK = SERGENSIO_PARITY_MARK;
-%constant int SERGENSIO_PARITY_SPACE = SERGENSIO_PARITY_SPACE;
-
-%constant int SERGENSIO_FLOWCONTROL_NONE = SERGENSIO_FLOWCONTROL_NONE;
-%constant int SERGENSIO_FLOWCONTROL_XON_XOFF = SERGENSIO_FLOWCONTROL_XON_XOFF;
-%constant int SERGENSIO_FLOWCONTROL_RTS_CTS = SERGENSIO_FLOWCONTROL_RTS_CTS;
-%constant int SERGENSIO_FLOWCONTROL_DCD = SERGENSIO_FLOWCONTROL_DCD;
-%constant int SERGENSIO_FLOWCONTROL_DTR = SERGENSIO_FLOWCONTROL_DTR;
-%constant int SERGENSIO_FLOWCONTROL_DSR = SERGENSIO_FLOWCONTROL_DSR;
 
 %constant int GENSIO_SER_PARITY_NONE = GENSIO_SER_PARITY_NONE;
 %constant int GENSIO_SER_PARITY_ODD = GENSIO_SER_PARITY_ODD;
@@ -1129,52 +1060,6 @@ struct waiter { };
 %constant int GENSIO_SER_FLUSH_XMIT = GENSIO_SER_FLUSH_XMIT;
 %constant int GENSIO_SER_FLUSH_BOTH = GENSIO_SER_FLUSH_BOTH;
 
-%constant int SERGENSIO_BREAK_ON = SERGENSIO_BREAK_ON;
-%constant int SERGENSIO_BREAK_OFF = SERGENSIO_BREAK_OFF;
-
-%constant int SERGENSIO_DTR_ON = SERGENSIO_DTR_ON;
-%constant int SERGENSIO_DTR_OFF = SERGENSIO_DTR_OFF;
-
-%constant int SERGENSIO_RTS_ON = SERGENSIO_RTS_ON;
-%constant int SERGENSIO_RTS_OFF = SERGENSIO_RTS_OFF;
-
-%constant int SERGENSIO_CTS_AUTO = SERGENSIO_CTS_AUTO;
-%constant int SERGENSIO_CTS_OFF = SERGENSIO_CTS_OFF;
-
-%constant int SERGENSIO_DCD_DSR_ON = SERGENSIO_DCD_DSR_ON;
-%constant int SERGENSIO_DCD_DSR_OFF = SERGENSIO_DCD_DSR_OFF;
-
-%constant int SERGENSIO_RI_ON = SERGENSIO_RI_ON;
-%constant int SERGENSIO_RI_OFF = SERGENSIO_RI_OFF;
-
-%constant int SERGENSIO_LINESTATE_DATA_READY = SERGENSIO_LINESTATE_DATA_READY;
-%constant int SERGENSIO_LINESTATE_OVERRUN_ERR = SERGENSIO_LINESTATE_OVERRUN_ERR;
-%constant int SERGENSIO_LINESTATE_PARITY_ERR = SERGENSIO_LINESTATE_PARITY_ERR;
-%constant int SERGENSIO_LINESTATE_FRAMING_ERR = SERGENSIO_LINESTATE_FRAMING_ERR;
-%constant int SERGENSIO_LINESTATE_BREAK = SERGENSIO_LINESTATE_BREAK;
-%constant int SERGENSIO_LINESTATE_XMIT_HOLD_EMPTY =
-	SERGENSIO_LINESTATE_XMIT_HOLD_EMPTY;
-%constant int SERGENSIO_LINESTATE_XMIT_SHIFT_EMPTY =
-	SERGENSIO_LINESTATE_XMIT_SHIFT_EMPTY;
-%constant int SERGENSIO_LINESTATE_TIMEOUT_ERR = SERGENSIO_LINESTATE_TIMEOUT_ERR;
-
-%constant int SERGENSIO_MODEMSTATE_CTS_CHANGED = SERGENSIO_MODEMSTATE_CTS_CHANGED;
-%constant int SERGENSIO_MODEMSTATE_DSR_CHANGED = SERGENSIO_MODEMSTATE_DSR_CHANGED;
-%constant int SERGENSIO_MODEMSTATE_RI_CHANGED = SERGENSIO_MODEMSTATE_RI_CHANGED;
-%constant int SERGENSIO_MODEMSTATE_CD_CHANGED = SERGENSIO_MODEMSTATE_CD_CHANGED;
-%constant int SERGENSIO_MODEMSTATE_CTS = SERGENSIO_MODEMSTATE_CTS;
-%constant int SERGENSIO_MODEMSTATE_DSR = SERGENSIO_MODEMSTATE_DSR;
-%constant int SERGENSIO_MODEMSTATE_RI = SERGENSIO_MODEMSTATE_RI;
-%constant int SERGENSIO_MODEMSTATE_CD = SERGENSIO_MODEMSTATE_CD;
-
-%constant int SERGENSIO_FLUSH_RCV_BUFFER = SERGENSIO_FLUSH_RCV_BUFFER;
-%constant int SERGENSIO_FLUSH_XMIT_BUFFER = SERGENSIO_FLUSH_XMIT_BUFFER;
-%constant int SERGENSIO_FLUSH_RCV_XMIT_BUFFERS = SERGENSIO_FLUSH_RCV_XMIT_BUFFERS;
-/* Note that the following are deprecated. */
-%constant int SERGIO_FLUSH_RCV_BUFFER = SERGENSIO_FLUSH_RCV_BUFFER;
-%constant int SERGIO_FLUSH_XMIT_BUFFER = SERGENSIO_FLUSH_XMIT_BUFFER;
-%constant int SERGIO_FLUSH_RCV_XMIT_BUFFERS = SERGENSIO_FLUSH_RCV_XMIT_BUFFERS;
-
 /* New names that should be used. */
 %constant int GENSIO_SER_LINESTATE_DATA_READY = GENSIO_SER_LINESTATE_DATA_READY;
 %constant int GENSIO_SER_LINESTATE_OVERRUN_ERR = GENSIO_SER_LINESTATE_OVERRUN_ERR;
@@ -1194,103 +1079,6 @@ struct waiter { };
 %constant int GENSIO_SER_MODEMSTATE_RI = GENSIO_SER_MODEMSTATE_RI;
 %constant int GENSIO_SER_MODEMSTATE_CD = GENSIO_SER_MODEMSTATE_CD;
 
-
-%nodefaultctor sergensio;
-%extend sergensio {
-    ~sergensio()
-    {
-	struct gensio *io = sergensio_to_gensio(self);
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_get_user_data(io);
-
-	deref_gensio_data(data, io);
-    }
-
-    %newobject cast_to_gensio;
-    struct gensio *cast_to_gensio() {
-	struct gensio *io = sergensio_to_gensio(self);
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_get_user_data(io);
-
-	ref_gensio_data(data);
-	return io;
-    }
-
-    /* Standard baud rates. */
-    sgensio_entry(baud);
-
-    /* 5, 6, 7, or 8 bits. */
-    sgensio_entry(datasize);
-
-    /* SERGENSIO_PARITY_ entries */
-    sgensio_entry(parity);
-
-    /* 1 or 2 */
-    sgensio_entry(stopbits);
-
-    /* SERGENSIO_FLOWCONTROL_ entries */
-    sgensio_entry(flowcontrol);
-
-    /* SERGENSIO_FLOWCONTROL_ entries for iflowcontrol */
-    sgensio_entry(iflowcontrol);
-
-    /* SERGENSIO_BREAK_ entries */
-    sgensio_entry(sbreak);
-
-    /* SERGENSIO_DTR_ entries */
-    sgensio_entry(dtr);
-
-    /* SERGENSIO_RTS_ entries */
-    sgensio_entry(rts);
-
-    /* SERGENSIO_CTS_ entries */
-    sgensio_entry(cts);
-
-    /* SERGENSIO_DCD_DSR_ entries */
-    sgensio_entry(dcd_dsr);
-
-    /* SERGENSIO_RI_ entries */
-    sgensio_entry(ri);
-
-    int sg_modemstate(unsigned int modemstate) {
-	return sergensio_modemstate(self, modemstate);
-    }
-
-    int sg_linestate(unsigned int linestate) {
-	return sergensio_linestate(self, linestate);
-    }
-
-    int sg_flowcontrol_state(bool val) {
-	return sergensio_flowcontrol_state(self, val);
-    }
-
-    int sg_flush(unsigned int val) {
-	return sergensio_flush(self, val);
-    }
-
-    void sg_signature(char *value, swig_cb *h) {
-	swig_cb_val *h_val = NULL;
-	int rv;
-	unsigned int len = 0;
-
-	if (value)
-	    len = strlen(value);
-	if (!nil_swig_cb(h)) {
-	    h_val = ref_swig_cb(h, signature);
-	    rv = sergensio_signature(self, value, len, sergensio_sig_cb, h_val);
-	} else {
-	    rv = sergensio_signature(self, value, len, NULL, NULL);
-	}
-
-	if (rv && h_val)
-	    deref_swig_cb_val(h_val);
-	ser_err_handle("sg_signature", rv);
-    }
-
-    void sg_send_break() {
-	ser_err_handle("sg_send_break", sergensio_send_break(self));
-    }
-}
 
 %constant int GENSIO_ACC_CONTROL_LADDR = GENSIO_ACC_CONTROL_LADDR;
 %constant int GENSIO_ACC_CONTROL_LPORT = GENSIO_ACC_CONTROL_LPORT;
@@ -1565,39 +1353,6 @@ struct waiter { };
 
     bool is_serial() {
 	return gensio_acc_is_message(self);
-    }
-
-    %newobject cast_to_sergensio_acc;
-    struct sergensio_accepter *cast_to_sergensio_acc() {
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_acc_get_user_data(self);
-	struct sergensio_accepter *sacc = gensio_acc_to_sergensio_acc(self);
-
-	if (!sacc)
-	    cast_error("sergensio_accepter", "gensio_accepter");
-	else
-	    ref_gensio_data(data);
-	return sacc;
-    }
-}
-
-%extend sergensio_accepter {
-    ~sergensio_accepter() {
-	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_acc_get_user_data(acc);
-
-	deref_gensio_accepter_data(data, acc);
-    }
-
-    %newobject cast_to_gensio_acc;
-    struct gensio_accepter *cast_to_gensio_acc() {
-	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
-	struct gensio_data *data = (struct gensio_data *)
-	    gensio_acc_get_user_data(acc);
-
-	ref_gensio_data(data);
-	return acc;
     }
 }
 
