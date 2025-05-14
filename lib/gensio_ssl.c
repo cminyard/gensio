@@ -1625,6 +1625,13 @@ sslna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 static int
 sslna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    struct sslna_data *nadata = acc_data;
+    int err;
+
+    err = gensio_acc_base_parms_apply(nadata->acc, io);
+    if (err)
+      return err;
+
     gensio_set_callback(io, sslna_gensio_event, acc_data);
 
     gensio_set_is_packet(io, true);

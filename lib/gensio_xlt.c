@@ -514,6 +514,13 @@ xltna_new_child(void *acc_data, void **finish_data,
 static int
 xltna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    struct xltna_data *nadata = acc_data;
+    int err;
+
+    err = gensio_acc_base_parms_apply(nadata->acc, io);
+    if (err)
+      return err;
+
     gensio_set_attr_from_child(io, gensio_get_child(io, 0));
     return 0;
 }

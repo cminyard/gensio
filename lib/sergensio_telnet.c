@@ -2573,7 +2573,12 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
 		    struct gensio *child)
 {
     struct stel_data *sdata = finish_data;
+    struct stela_data *stela = acc_data;
     int err;
+
+    err = gensio_acc_base_parms_apply(stela->acc, io);
+    if (err)
+      return err;
 
     sdata->io = io;
 

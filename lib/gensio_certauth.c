@@ -3370,6 +3370,11 @@ static int
 certauthna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct certauthna_data *nadata = acc_data;
+    int err;
+
+    err = gensio_acc_base_parms_apply(nadata->acc, io);
+    if (err)
+      return err;
 
     gensio_set_is_client(io, gensio_certauth_filter_config_is_client(
 					nadata->data));

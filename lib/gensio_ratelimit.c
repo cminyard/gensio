@@ -478,6 +478,13 @@ ratelimitna_new_child(void *acc_data, void **finish_data,
 static int
 ratelimitna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    struct ratelimitna_data *nadata = acc_data;
+    int err;
+
+    err = gensio_acc_base_parms_apply(nadata->acc, io);
+    if (err)
+      return err;
+
     return 0;
 }
 
