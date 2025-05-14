@@ -14,9 +14,9 @@
 
 #include "utils.h"
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_class.h>
-#include <gensio/sergensio_class.h>
 #include <gensio/gensio_base.h>
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_openipmi_oshandler.h>
@@ -41,10 +41,6 @@
  */
 typedef void (*gensio_ll_ipmisol_cb)(void *handler_data, int op, void *data);
 
-/* op is values from sergensio_class.h. */
-typedef int (*gensio_ll_ipmisol_ops)(struct gensio_ll *ll, int op,
-				     int val, char *buf,
-				     void *done, void *cb_data);
 enum sol_state {
     SOL_CLOSED,
     SOL_IN_OPEN,
@@ -66,7 +62,6 @@ struct sol_op_done {
     bool use_runner;
     gensio_control_done cdone;
     struct sol_xlat_str *xlatstr;
-    sergensio_done cb;
     int done_val;
     int val;
     void *cb_data;
@@ -78,7 +73,6 @@ struct sol_ll {
     struct gensio_ll *ll;
     struct gensio_os_funcs *o;
     struct gensio *io;
-    struct sergensio *sio;
 
     struct gensio_lock *lock;
 
@@ -908,14 +902,11 @@ static void sol_disable(struct gensio_ll *ll)
 static int ipmisol_do_break(struct gensio_ll *ll);
 static int ipmisol_do_flush(struct gensio_ll *ll, int val, const char *sval);
 static int ipmisol_do_cts(struct gensio_ll *ll, int ival, const char *sval,
-			  gensio_control_done cdone,
-			  sergensio_done done, void *cb_data);
+			  gensio_control_done cdone, void *cb_data);
 static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival, const char *sval,
-			      gensio_control_done cdone,
-			      sergensio_done done, void *cb_data);
+			      gensio_control_done cdone, void *cb_data);
 static int ipmisol_do_ri(struct gensio_ll *ll, int ival, const char *sval,
-			 gensio_control_done cdone,
-			 sergensio_done done, void *cb_data);
+			 gensio_control_done cdone, void *cb_data);
 
 static int
 sol_control(struct gensio_ll *ll, bool get, unsigned int option,
@@ -955,15 +946,15 @@ sol_acontrol(struct gensio_ll *ll, bool get, unsigned int option,
 
     switch (option) {
     case GENSIO_ACONTROL_SER_CTS:
-	return ipmisol_do_cts(ll, 0, data, idata->done, NULL,
+	return ipmisol_do_cts(ll, 0, data, idata->done,
 			      idata->cb_data);
 
     case GENSIO_ACONTROL_SER_DCD_DSR:
-	return ipmisol_do_dcd_dsr(ll, 0, data, idata->done, NULL,
+	return ipmisol_do_dcd_dsr(ll, 0, data, idata->done,
 				  idata->cb_data);
 
     case GENSIO_ACONTROL_SER_RI:
-	return ipmisol_do_ri(ll, 0, data, idata->done, NULL,
+	return ipmisol_do_ri(ll, 0, data, idata->done,
 			     idata->cb_data);
 
     default:
@@ -1044,25 +1035,25 @@ static int ipmisol_do_flush(struct gensio_ll *ll, int val, const char *sval)
 
     if (sval) {
 	if (strcmp(sval, "recv") == 0)
-	    val = SERGENSIO_FLUSH_RCV_BUFFER;
+	    val = GENSIO_SER_FLUSH_RECV;
 	else if (strcmp(sval, "xmit") == 0)
-	    val = SERGENSIO_FLUSH_XMIT_BUFFER;
+	    val = GENSIO_SER_FLUSH_XMIT;
 	else if (strcmp(sval, "both") == 0)
-	    val = SERGENSIO_FLUSH_RCV_XMIT_BUFFERS;
+	    val = GENSIO_SER_FLUSH_BOTH;
 	else
 	    return GE_INVAL;
     }
 
     switch(val) {
-    case SERGENSIO_FLUSH_RCV_BUFFER:
+    case GENSIO_SER_FLUSH_RECV:
 	val = IPMI_SOL_BMC_RECEIVE_QUEUE;
 	break;
 
-    case SERGENSIO_FLUSH_XMIT_BUFFER:
+    case GENSIO_SER_FLUSH_XMIT:
 	val = IPMI_SOL_BMC_TRANSMIT_QUEUE;
 	break;
 
-    case SERGENSIO_FLUSH_RCV_XMIT_BUFFERS:
+    case GENSIO_SER_FLUSH_BOTH:
 	return GE_NOTSUP;
 
     default:
@@ -1174,7 +1165,6 @@ sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
 {
     struct gensio_os_funcs *o = solll->o;
     struct sol_op_done *op = *op_done;
-    sergensio_done cb;
     gensio_control_done cdone;
     void *cb_data;
     const char *sval = NULL;
@@ -1185,7 +1175,6 @@ sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
     if (err)
 	err = sol_xlat_ipmi_err(solll->o, err);
 
-    cb = op->cb;
     cdone = op->cdone;
     val = op->done_val;
     if (!err && cdone) {
@@ -1211,10 +1200,6 @@ sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
 	sol_unlock(solll);
 	cdone(solll->io, err, sval, sval ? strlen(sval) : 0, cb_data);
 	sol_lock(solll);
-    } else if (cb) {
-	sol_unlock(solll);
-	cb(solll->sio, err, val, cb_data);
-	sol_lock(solll);
     }
     op = *op_done;
     if (op && !op->started) {
@@ -1230,7 +1215,7 @@ sol_do_op(struct sol_ll *solll, struct sol_op_done **op_done,
 		      void *),
 	  int val, int done_val, gensio_control_done cdone,
 	  struct sol_xlat_str *xlatstr,
-	  sergensio_done done, void *cb_data)
+	  void *cb_data)
 {
     struct gensio_os_funcs *o = solll->o;
     struct sol_op_done *op, *op2;
@@ -1242,7 +1227,6 @@ sol_do_op(struct sol_ll *solll, struct sol_op_done **op_done,
 
     op->use_runner = false;
     op->solll = solll;
-    op->cb = done;
     op->cb_data = cb_data;
     op->val = val;
     op->done_val = done_val;
@@ -1271,33 +1255,33 @@ sol_do_op(struct sol_ll *solll, struct sol_op_done **op_done,
 struct sol_xlat_str cts_xlat_str[] = {
     { "0", 0 },
     { "", 0 },
-    { "auto", SERGENSIO_CTS_AUTO },
-    { "off", SERGENSIO_CTS_OFF },
+    { "auto", GENSIO_SER_ON },
+    { "off", GENSIO_SER_OFF },
     {}
 };
 
 static int ipmisol_do_cts(struct gensio_ll *ll, int ival, const char *sval,
 			  gensio_control_done cdone,
-			  sergensio_done done, void *cb_data)
+			  void *cb_data)
 {
     struct sol_ll *solll = ll_to_sol(ll);
     int rv, val;
 
     if (sval) {
 	if (strcmp(sval, "auto") == 0)
-	    ival = SERGENSIO_CTS_AUTO;
+	    ival = GENSIO_SER_ON;
 	else if (strcmp(sval, "off") == 0)
-	    ival = SERGENSIO_CTS_OFF;
+	    ival = GENSIO_SER_OFF;
 	else
 	    return GE_INVAL;
     }
 
     sol_lock(solll);
     switch (ival) {
-    case SERGENSIO_CTS_AUTO:
+    case GENSIO_SER_ON:
 	val = 1;
 	break;
-    case SERGENSIO_CTS_OFF:
+    case GENSIO_SER_OFF:
 	val = 0;
 	break;
     default:
@@ -1305,7 +1289,7 @@ static int ipmisol_do_cts(struct gensio_ll *ll, int ival, const char *sval,
 	goto out_unlock;
     }
     rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_CTS_assertable,
-		   val, ival, cdone, cts_xlat_str, done, cb_data);
+		   val, ival, cdone, cts_xlat_str, cb_data);
  out_unlock:
     sol_unlock(solll);
 
@@ -1321,27 +1305,26 @@ struct sol_xlat_str on_off_xlat_str[] = {
 };
 
 static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival, const char *sval,
-			      gensio_control_done cdone,
-			      sergensio_done done, void *cb_data)
+			      gensio_control_done cdone, void *cb_data)
 {
     struct sol_ll *solll = ll_to_sol(ll);
     int rv, val;
 
     if (sval) {
 	if (strcmp(sval, "on") == 0)
-	    ival = SERGENSIO_DCD_DSR_ON;
+	    ival = GENSIO_SER_ON;
 	else if (strcmp(sval, "off") == 0)
-	    ival = SERGENSIO_DCD_DSR_OFF;
+	    ival = GENSIO_SER_OFF;
 	else
 	    return GE_INVAL;
     }
 
     sol_lock(solll);
     switch (ival) {
-    case SERGENSIO_DCD_DSR_ON:
+    case GENSIO_SER_ON:
 	val = 1;
 	break;
-    case SERGENSIO_DCD_DSR_OFF:
+    case GENSIO_SER_OFF:
 	val = 0;
 	break;
     default:
@@ -1349,7 +1332,7 @@ static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival, const char *sval,
 	goto out_unlock;
     }
     rv = sol_do_op(solll, &solll->dcd_dsr_done, ipmi_sol_set_DCD_DSR_asserted,
-		   val, ival, cdone, on_off_xlat_str, done, cb_data);
+		   val, ival, cdone, on_off_xlat_str, cb_data);
  out_unlock:
     sol_unlock(solll);
 
@@ -1357,27 +1340,26 @@ static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival, const char *sval,
 }
 
 static int ipmisol_do_ri(struct gensio_ll *ll, int ival, const char *sval,
-			 gensio_control_done cdone,
-			 sergensio_done done, void *cb_data)
+			 gensio_control_done cdone, void *cb_data)
 {
     struct sol_ll *solll = ll_to_sol(ll);
     int rv, val;
 
     if (sval) {
 	if (strcmp(sval, "on") == 0)
-	    ival = SERGENSIO_RI_ON;
+	    ival = GENSIO_SER_ON;
 	else if (strcmp(sval, "off") == 0)
-	    ival = SERGENSIO_RI_OFF;
+	    ival = GENSIO_SER_OFF;
 	else
 	    return GE_INVAL;
     }
 
     sol_lock(solll);
     switch (ival) {
-    case SERGENSIO_RI_ON:
+    case GENSIO_SER_ON:
 	val = 1;
 	break;
-    case SERGENSIO_RI_OFF:
+    case GENSIO_SER_OFF:
 	val = 0;
 	break;
     default:
@@ -1385,51 +1367,11 @@ static int ipmisol_do_ri(struct gensio_ll *ll, int ival, const char *sval,
 	goto out_unlock;
     }
     rv = sol_do_op(solll, &solll->ri_done, ipmi_sol_set_RI_asserted,
-		   val, ival, cdone, on_off_xlat_str, done, cb_data);
+		   val, ival, cdone, on_off_xlat_str, cb_data);
  out_unlock:
     sol_unlock(solll);
 
     return rv;
-}
-
-static int
-ipmisol_ser_ops(struct gensio_ll *ll, int op,
-		int val, char *buf,
-		void *done, void *cb_data)
-{
-    switch (op) {
-    case SERGENSIO_FUNC_FLUSH:
-	return ipmisol_do_flush(ll, val, NULL);
-
-    case SERGENSIO_FUNC_SEND_BREAK:
-	return ipmisol_do_break(ll);
-
-    case SERGENSIO_FUNC_CTS:
-	return ipmisol_do_cts(ll, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_DCD_DSR:
-	return ipmisol_do_dcd_dsr(ll, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_RI:
-	return ipmisol_do_ri(ll, val, NULL, NULL, done, cb_data);
-
-    /* You really can't set much on a SOL connection once it's up. */
-    case SERGENSIO_FUNC_BAUD:
-    case SERGENSIO_FUNC_DATASIZE:
-    case SERGENSIO_FUNC_PARITY:
-    case SERGENSIO_FUNC_STOPBITS:
-    case SERGENSIO_FUNC_FLOWCONTROL:
-    case SERGENSIO_FUNC_IFLOWCONTROL:
-    case SERGENSIO_FUNC_SBREAK:
-    case SERGENSIO_FUNC_DTR:
-    case SERGENSIO_FUNC_RTS:
-    case SERGENSIO_FUNC_MODEMSTATE:
-    case SERGENSIO_FUNC_LINESTATE:
-    case SERGENSIO_FUNC_FLOWCONTROL_STATE:
-    case SERGENSIO_FUNC_SIGNATURE:
-    default:
-	return GE_NOTSUP;
-    }
 }
 
 static int
@@ -1623,7 +1565,6 @@ ipmisol_gensio_ll_alloc(struct gensio_pparm_info *p,
 			void *ser_cbs_data,
 			gensiods max_read_size,
 			gensiods max_write_size,
-			gensio_ll_ipmisol_ops *rops,
 			struct gensio_ll **rll)
 {
     struct sol_ll *solll;
@@ -1709,7 +1650,6 @@ ipmisol_gensio_ll_alloc(struct gensio_pparm_info *p,
     solll->ser_cbs = ser_cbs;
     solll->ser_cbs_data = ser_cbs_data;
 
-    *rops = ipmisol_ser_ops;
     *rll = solll->ll;
     return 0;
 
@@ -1720,31 +1660,16 @@ ipmisol_gensio_ll_alloc(struct gensio_pparm_info *p,
     return err;
 }
 
-static void
-ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
-{
-    struct sol_ll *solll = ll_to_sol(ll);
-
-    solll->sio = sio;
-    solll->io = sergensio_to_gensio(sio);
-}
-
-
 struct iterm_data {
-    struct sergensio *sio;
     struct gensio_os_funcs *o;
 
     struct gensio_ll *ll;
     struct gensio *io;
-
-    gensio_ll_ipmisol_ops ops;
 };
 
 static void
 iterm_free(struct iterm_data *idata)
 {
-    if (idata->sio)
-	sergensio_data_free(idata->sio);
     idata->o->free(idata->o, idata);
 }
 
@@ -1762,15 +1687,6 @@ iterm_ser_cb(void *handler_data, int op, void *data)
 }
 
 static int
-sergensio_iterm_func(struct sergensio *sio, int op, int val, char *buf,
-		     void *done, void *cb_data)
-{
-    struct iterm_data *idata = sergensio_get_gensio_data(sio);
-
-    return idata->ops(idata->ll, op, val, buf, done, cb_data);
-}
-
-static int
 ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
@@ -1782,6 +1698,7 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
+    struct sol_ll *solll;
     struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "ipmisol", user_data);
 
@@ -1809,7 +1726,7 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 
     err = ipmisol_gensio_ll_alloc(&p, o, devname, iterm_ser_cb, idata,
 				  max_read_size, max_write_size,
-				  &idata->ops, &idata->ll);
+				  &idata->ll);
     if (err)
 	goto out_err;
 
@@ -1826,16 +1743,10 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_err;
     }
 
+    solll = ll_to_sol(idata->ll);
+    solll->io = idata->io;
+
     gensio_set_is_serial(idata->io, true);
-
-    err = sergensio_addclass(o, idata->io, sergensio_iterm_func, idata,
-			     &idata->sio);
-    if (err) {
-	gensio_free(idata->io);
-	return err;
-    }
-
-    ipmisol_gensio_ll_set_sio(idata->ll, idata->sio);
 
     *rio = idata->io;
     return 0;
