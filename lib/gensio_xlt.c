@@ -20,20 +20,26 @@
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/argvutils.h>
 
+struct xlt_config {
+    unsigned char inxlt[256];
+
+    unsigned char outxlt[256];
+};
+
 struct xlt_filter {
     struct gensio_filter *filter;
 
     struct gensio_lock *lock;
 
-    unsigned char inxlt[256];
+    struct gensio_os_funcs *o;
+
+    struct xlt_config config;
+
     unsigned char inbuf[256];
     gensiods inlen;
 
-    unsigned char outxlt[256];
     unsigned char outbuf[256];
     gensiods outlen;
-
-    struct gensio_os_funcs *o;
 };
 
 #define filter_to_xlt(v) ((struct xlt_filter *) \
@@ -108,7 +114,7 @@ xlt_ul_write(struct gensio_filter *filter,
 	const unsigned char *buf = sg[i].buf;
 
 	for (j = 0; pos < sizeof(tfilter->outbuf) && j < sg[i].buflen; j++)
-	    tfilter->outbuf[pos++] = tfilter->outxlt[buf[j]];
+	    tfilter->outbuf[pos++] = tfilter->config.outxlt[buf[j]];
     }
     tfilter->outlen = pos;
 
@@ -150,7 +156,7 @@ xlt_ll_write(struct gensio_filter *filter,
 
     xlt_lock(tfilter);
     for (i = 0; pos < sizeof(tfilter->inbuf) && i < buflen; i++)
-	tfilter->inbuf[pos++] = tfilter->inxlt[buf[i]];
+	tfilter->inbuf[pos++] = tfilter->config.inxlt[buf[i]];
     tfilter->inlen = pos;
 
     if (tfilter->inlen > 0) {
@@ -273,27 +279,77 @@ process_xlt(unsigned char table[256], const char *str)
 }
 
 static int
-gensio_xlt_filter_alloc(struct gensio_pparm_info *p,
-			struct gensio_os_funcs *o,
-			const char * const args[],
+gensio_xlt_config(struct gensio_pparm_info *p,
+		  struct gensio_os_funcs *o,
+		  const char * const args[],
+		  struct gensio_base_parms *parms,
+		  struct xlt_config *config)
+{
+    int rv;
+    const char *str;
+    bool bval;
+    unsigned int i;
+
+    for (i = 0; i < 256; i++) {
+	config->inxlt[i] = i;
+	config->outxlt[i] = i;
+    }
+
+    for (i = 0; args && args[i]; i++) {
+	if (gensio_pparm_value(p, args[i], "in", &str) > 0) {
+	    rv = process_xlt(config->inxlt, str);
+	    if (rv)
+		return rv;
+	    continue;
+	}
+	if (gensio_pparm_value(p, args[i], "out", &str) > 0) {
+	    rv = process_xlt(config->outxlt, str);
+	    if (rv)
+		return rv;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "crlf", &bval) > 0) {
+	    config->inxlt['\r'] = '\n';
+	    config->outxlt['\n'] = '\r';
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "lfcr", &bval) > 0) {
+	    config->outxlt['\r'] = '\n';
+	    config->inxlt['\n'] = '\r';
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "crnl", &bval) > 0) {
+	    config->inxlt['\r'] = '\n';
+	    config->outxlt['\n'] = '\r';
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "nlcr", &bval) > 0) {
+	    config->outxlt['\r'] = '\n';
+	    config->inxlt['\n'] = '\r';
+	    continue;
+	}
+	if (gensio_base_parm(parms, p, args[i]) > 0)
+	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
+	return GE_INVAL;
+    }
+    return 0;
+}
+
+static int
+gensio_xlt_filter_alloc(struct gensio_os_funcs *o,
+			struct xlt_config *config,
 			struct gensio_filter **rfilter)
 {
     int rv = GE_INVAL;
-    unsigned int i;
     struct xlt_filter *tfilter;
-    const char *str;
-    bool bval;
 
     tfilter = o->zalloc(o, sizeof(*tfilter));
     if (!tfilter)
 	return GE_NOMEM;
 
     tfilter->o = o;
-
-    for (i = 0; i < 256; i++) {
-	tfilter->inxlt[i] = i;
-	tfilter->outxlt[i] = i;
-    }
+    tfilter->config = *config;
 
     tfilter->lock = o->alloc_lock(o);
     if (!tfilter->lock) {
@@ -308,43 +364,6 @@ gensio_xlt_filter_alloc(struct gensio_pparm_info *p,
 	goto out_err;
     }
 
-    for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_value(p, args[i], "in", &str) > 0) {
-	    rv = process_xlt(tfilter->inxlt, str);
-	    if (rv)
-		goto out_err;
-	    continue;
-	}
-	if (gensio_pparm_value(p, args[i], "out", &str) > 0) {
-	    rv = process_xlt(tfilter->outxlt, str);
-	    if (rv)
-		goto out_err;
-	    continue;
-	}
-	if (gensio_pparm_bool(p, args[i], "crlf", &bval) > 0) {
-	    tfilter->inxlt['\r'] = '\n';
-	    tfilter->outxlt['\n'] = '\r';
-	    continue;
-	}
-	if (gensio_pparm_bool(p, args[i], "lfcr", &bval) > 0) {
-	    tfilter->outxlt['\r'] = '\n';
-	    tfilter->inxlt['\n'] = '\r';
-	    continue;
-	}
-	if (gensio_pparm_bool(p, args[i], "crnl", &bval) > 0) {
-	    tfilter->inxlt['\r'] = '\n';
-	    tfilter->outxlt['\n'] = '\r';
-	    continue;
-	}
-	if (gensio_pparm_bool(p, args[i], "nlcr", &bval) > 0) {
-	    tfilter->outxlt['\r'] = '\n';
-	    tfilter->inxlt['\n'] = '\r';
-	    continue;
-	}
-	gensio_pparm_unknown_parm(p, args[i]);
-	goto out_err;
-    }
-
     *rfilter = tfilter->filter;
     return 0;
 
@@ -354,18 +373,26 @@ gensio_xlt_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-xlt_gensio_alloc(struct gensio *child, const char *const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **net)
+xlt_gensio_alloc2(struct gensio *child, const char *const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio_base_parms **parms,
+		  struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    struct xlt_config config;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "xlt", user_data);
 
-    err = gensio_xlt_filter_alloc(&p, o, args, &filter);
+    memset(&config, 0, sizeof(config));
+
+    err = gensio_xlt_config(&p, 0, args, *parms, &config);
+    if (err)
+	return err;
+
+    err = gensio_xlt_filter_alloc(o, &config, &filter);
     if (err)
 	return err;
 
@@ -382,13 +409,39 @@ xlt_gensio_alloc(struct gensio *child, const char *const args[],
 	gensio_filter_free(filter);
 	return GE_NOMEM;
     }
+    gensio_free(child); /* Lose the ref we acquired. */
+
+    err = gensio_base_parms_set(io, parms);
+    if (err) {
+	gensio_free(io);
+	return err;
+    }
 
     gensio_set_attr_from_child(io, child);
 
-    gensio_free(child); /* Lose the ref we acquired. */
-
     *net = io;
     return 0;
+}
+
+static int
+xlt_gensio_alloc(struct gensio *child, const char *const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **net)
+{
+    struct gensio_base_parms *parms;
+    int err;
+
+    err = gensio_base_parms_alloc(o, true, "xlt", &parms);
+    if (err)
+	return err;
+
+    err = xlt_gensio_alloc2(child, args, o, cb, user_data,
+			    &parms, net);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
 }
 
 static int
@@ -414,7 +467,7 @@ str_to_xlt_gensio(const char *str, const char * const args[],
 
 struct xltna_data {
     struct gensio_accepter *acc;
-    const char **args;
+    struct xlt_config config;
     struct gensio_os_funcs *o;
     gensio_accepter_event cb;
     void *user_data;
@@ -425,8 +478,6 @@ xltna_free(void *acc_data)
 {
     struct xltna_data *nadata = acc_data;
 
-    if (nadata->args)
-	gensio_argv_free(nadata->o, nadata->args);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -435,8 +486,20 @@ xltna_alloc_gensio(void *acc_data, const char * const *iargs,
 		     struct gensio *child, struct gensio **rio)
 {
     struct xltna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
+    int err;
 
-    return xlt_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    err = xlt_gensio_alloc2(child, iargs, nadata->o, NULL, NULL,
+			    &parms, rio);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+
+    return err;
 }
 
 static int
@@ -444,10 +507,8 @@ xltna_new_child(void *acc_data, void **finish_data,
 		  struct gensio_filter **filter)
 {
     struct xltna_data *nadata = acc_data;
-    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "xlt",
-			      nadata->user_data);
 
-    return gensio_xlt_filter_alloc(&p, nadata->o, nadata->args, filter);
+    return gensio_xlt_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
 static int
@@ -489,16 +550,20 @@ xlt_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct xltna_data *nadata;
     int err;
+    struct gensio_base_parms *parms = NULL;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "xlt", user_data);
+
+    err = gensio_base_parms_alloc(o, true, "xlt", &parms);
+    if (err)
+	goto out_err;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_argv_copy(o, args, NULL, &nadata->args);
-    if (err) {
-	o->free(o, nadata);
-	return err;
-    }
+    err = gensio_xlt_config(&p, o, args, parms, &nadata->config);
+    if (err)
+	goto out_err;
 
     nadata->o = o;
     nadata->cb = cb;
@@ -509,6 +574,11 @@ xlt_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+
     gensio_acc_set_is_reliable(nadata->acc, gensio_acc_is_reliable(child));
     gensio_acc_set_is_packet(nadata->acc, gensio_acc_is_packet(child));
     gensio_acc_set_is_message(nadata->acc, gensio_acc_is_message(child));
@@ -516,8 +586,17 @@ xlt_gensio_accepter_alloc(struct gensio_accepter *child,
 
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    xltna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    xltna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 

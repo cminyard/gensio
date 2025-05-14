@@ -395,7 +395,18 @@ ratelimit_gensio_alloc(struct gensio *child, const char *const args[],
 		       gensio_event cb, void *user_data,
 		       struct gensio **net)
 {
-    return ratelimit_gensio_alloc2(child, args, o, cb, user_data, NULL, net);
+    struct gensio_base_parms *parms;
+    int err;
+
+    err = gensio_base_parms_alloc(o, true, "ratelimit", &parms);
+    if (err)
+	return err;
+
+    err = ratelimit_gensio_alloc2(child, args, o, cb, user_data, &parms, net);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
 }
 
 static int
@@ -503,9 +514,9 @@ ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
     struct ratelimitna_data *nadata;
     int err;
     struct gensio_base_parms *parms = NULL;
-    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "msgdelim", user_data);
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "ratelimit", user_data);
 
-    err = gensio_base_parms_alloc(o, true, "msgdelim", &parms);
+    err = gensio_base_parms_alloc(o, true, "ratelimit", &parms);
     if (err)
 	goto out_err;
 
