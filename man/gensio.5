@@ -1279,6 +1279,9 @@ readbuf option is not available in the gensio.
 .SS Options
 The certauth gensio takes the following options:
 .TP
+.B drain_timeout=<n>
+See the section on Drain Timeout.
+.TP
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
 in a "/", then this is expected to be a directory that contains files

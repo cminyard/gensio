@@ -2730,6 +2730,7 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 			      struct gensio_os_funcs *o,
 			      const char * const args[],
 			      bool default_is_client,
+			      struct gensio_base_parms *parms,
 			      struct gensio_certauth_filter_data **rdata)
 {
     unsigned int i;
@@ -2865,6 +2866,8 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "allow-unencrypted",
 			      &data->allow_unencrypted) > 0)
+	    continue;
+	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
@@ -3146,10 +3149,11 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 }
 
 static int
-certauth_gensio_alloc(struct gensio *child, const char *const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **net)
+certauth_gensio_alloc2(struct gensio *child, const char *const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio_base_parms *parms,
+		       struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
@@ -3159,30 +3163,38 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     bool is_client;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "certauth", user_data);
 
-    err = gensio_certauth_filter_config(&p, o, args, true, &data);
+    if (!parms) {
+	err = gensio_base_parms_alloc(o, true, "certauth", &parms);
+	if (err)
+	    goto out_err;
+    }
+
+    err = gensio_certauth_filter_config(&p, o, args, true, parms, &data);
     if (err)
-	return err;
+	goto out_err;
 
     if (!gensio_is_reliable(child) ||
 	!(gensio_is_encrypted(child) ||
-	  gensio_certauth_filter_config_allow_unencrypted(data)))
+	  gensio_certauth_filter_config_allow_unencrypted(data))) {
 	/*
 	 * Cowardly refusing to run over an unreliable or unencrypted
 	 * connection.  The allow-unencrypted flag is internal for
 	 * testing and undocumented.
 	 */
-	return GE_NOTSUP;
+	err = GE_NOTSUP;
+	goto out_err;
+    }
 
     is_client = gensio_certauth_filter_config_is_client(data);
     err = gensio_certauth_filter_alloc(data, &filter);
     gensio_certauth_filter_config_free(data);
     if (err)
-	return err;
+	goto out_err;
 
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
     }
 
     gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
@@ -3190,7 +3202,13 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
+    }
+
+    err = gensio_base_parms_set(io, &parms);
+    if (err) {
+	gensio_free(io);
+	goto out_err;
     }
 
     gensio_set_is_client(io, is_client);
@@ -3201,6 +3219,22 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
 
     *net = io;
     return 0;
+
+ out_nomem:
+    err = GE_NOMEM;
+ out_err:
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
+}
+
+static int
+certauth_gensio_alloc(struct gensio *child, const char *const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **net)
+{
+    return certauth_gensio_alloc2(child, args, o, cb, user_data, NULL, net);
 }
 
 static int
@@ -3244,8 +3278,14 @@ certauthna_alloc_gensio(void *acc_data, const char * const *iargs,
 			struct gensio *child, struct gensio **rio)
 {
     struct certauthna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
 
-    return certauth_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    return certauth_gensio_alloc2(child, iargs, nadata->o, NULL, NULL,
+				  parms, rio);
 }
 
 static int
@@ -3373,21 +3413,25 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct certauthna_data *nadata;
     int err;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "certauth", user_data);
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run over an unreliable connection. */
 	return GE_NOTSUP;
 
+    err = gensio_base_parms_alloc(o, true, "certauth", &parms);
+    if (err)
+	goto out_err;
+
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_certauth_filter_config(&p, o, args, false, &nadata->data);
-    if (err) {
-	o->free(o, nadata);
-	return err;
-    }
+    err = gensio_certauth_filter_config(&p, o, args, false, parms,
+					&nadata->data);
+    if (err)
+	goto out_err;
 
     nadata->o = o;
 
@@ -3396,14 +3440,28 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+    
     gensio_acc_set_is_packet(nadata->acc, gensio_acc_is_packet(child));
     gensio_acc_set_is_reliable(nadata->acc, gensio_acc_is_reliable(child));
     *accepter = nadata->acc;
 
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    certauthna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    certauthna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 
