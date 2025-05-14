@@ -16,6 +16,11 @@
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/argvutils.h>
 
+struct ratelimit_config {
+    gensiods xmit_buf_len;
+    gensio_time delay;
+};
+
 struct ratelimit_filter {
     struct gensio_filter *filter;
 
@@ -23,12 +28,12 @@ struct ratelimit_filter {
 
     struct gensio_lock *lock;
 
+    struct ratelimit_config config;
+
     gensio_filter_cb filter_cb;
     void *filter_cb_data;
 
-    gensiods xmit_buf_len;
     unsigned char *xmit_buf;
-    gensio_time delay;
 
     bool xmit_ready;
 };
@@ -52,7 +57,7 @@ static void
 ratelimit_filter_start_timer(struct ratelimit_filter *rfilter)
 {
     rfilter->filter_cb(rfilter->filter_cb_data,
-		       GENSIO_FILTER_CB_START_TIMER, &rfilter->delay);
+		       GENSIO_FILTER_CB_START_TIMER, &rfilter->config.delay);
 }
 
 static void
@@ -123,11 +128,11 @@ ratelimit_ul_write(struct ratelimit_filter *rfilter,
     ratelimit_lock(rfilter);
     if (!rfilter->xmit_ready)
 	goto out;
-    for (i = 0; i < sglen && count < rfilter->xmit_buf_len; i++) {
+    for (i = 0; i < sglen && count < rfilter->config.xmit_buf_len; i++) {
 	gensiods len = sg[i].buflen;
 
-	if (len > rfilter->xmit_buf_len - count)
-	    len = rfilter->xmit_buf_len - count;
+	if (len > rfilter->config.xmit_buf_len - count)
+	    len = rfilter->config.xmit_buf_len - count;
 
 	memcpy(rfilter->xmit_buf + count, sg[i].buf, len);
 	count += len;
@@ -258,8 +263,7 @@ static int gensio_ratelimit_filter_func(struct gensio_filter *filter, int op,
 
 static struct gensio_filter *
 gensio_ratelimit_filter_raw_alloc(struct gensio_os_funcs *o,
-				  gensiods xmit_size,
-				  struct gensio_time xmit_delay)
+				  struct ratelimit_config *config)
 {
     struct ratelimit_filter *rfilter;
 
@@ -268,10 +272,9 @@ gensio_ratelimit_filter_raw_alloc(struct gensio_os_funcs *o,
 	return NULL;
 
     rfilter->o = o;
-    rfilter->xmit_buf_len = xmit_size;
-    rfilter->delay = xmit_delay;
+    rfilter->config = *config;
 
-    rfilter->xmit_buf = o->zalloc(o, xmit_size);
+    rfilter->xmit_buf = o->zalloc(o, config->xmit_buf_len);
     if (!rfilter->xmit_buf)
 	goto out_nomem;
 
@@ -292,31 +295,44 @@ gensio_ratelimit_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 static int
-gensio_ratelimit_filter_alloc(struct gensio_pparm_info *p,
-			      struct gensio_os_funcs *o,
-			      const char * const args[],
-			      struct gensio_filter **rfilter)
+gensio_ratelimit_config(struct gensio_pparm_info *p,
+			struct gensio_os_funcs *o,
+			const char * const args[],
+			struct gensio_base_parms *parms,
+			struct ratelimit_config *config)
 {
-    struct gensio_filter *filter;
     unsigned int i;
-    gensiods xmit_len = 1;
-    struct gensio_time xmit_delay = { 0, 0 };
+
+    config->xmit_buf_len = 1;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_ds(p, args[i], "xmit_len", &xmit_len) > 0)
+	if (gensio_pparm_ds(p, args[i], "xmit_len", &config->xmit_buf_len) > 0)
 	    continue;
-	if (gensio_pparm_time(p, args[i], "xmit_delay", 0, &xmit_delay) > 0)
+	if (gensio_pparm_time(p, args[i], "xmit_delay", 0,
+			      &config->delay) > 0)
+	    continue;
+	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (xmit_delay.secs == 0 && xmit_delay.nsecs == 0) {
+    if (config->delay.secs == 0 && config->delay.nsecs == 0) {
 	gensio_pparm_slog(p, "xmit_delay cannot be zero");
 	return GE_INVAL;
     }
 
-    filter = gensio_ratelimit_filter_raw_alloc(o, xmit_len, xmit_delay);
+    return 0;
+}
+
+static int
+gensio_ratelimit_filter_alloc(struct gensio_os_funcs *o,
+			      struct ratelimit_config *config,
+			      struct gensio_filter **rfilter)
+{
+    struct gensio_filter *filter;
+
+    filter = gensio_ratelimit_filter_raw_alloc(o, config);
     if (!filter)
 	return GE_NOMEM;
 
@@ -325,18 +341,26 @@ gensio_ratelimit_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-ratelimit_gensio_alloc(struct gensio *child, const char *const args[],
-		       struct gensio_os_funcs *o,
-		       gensio_event cb, void *user_data,
-		       struct gensio **net)
+ratelimit_gensio_alloc2(struct gensio *child, const char *const args[],
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio_base_parms **parms,
+			struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
-    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ratelimie", user_data);
+    struct ratelimit_config config;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ratelimit", user_data);
 
-    err = gensio_ratelimit_filter_alloc(&p, o, args, &filter);
+    memset(&config, 0, sizeof(config));
+
+    err = gensio_ratelimit_config(&p, 0, args, *parms, &config);
+    if (err)
+	return err;
+
+    err = gensio_ratelimit_filter_alloc(o, &config, &filter);
     if (err)
 	return err;
 
@@ -353,11 +377,25 @@ ratelimit_gensio_alloc(struct gensio *child, const char *const args[],
 	gensio_filter_free(filter);
 	return GE_NOMEM;
     }
-
     gensio_free(child); /* Lose the ref we acquired. */
+
+    err = gensio_base_parms_set(io, parms);
+    if (err) {
+	gensio_free(io);
+	return err;
+    }
 
     *net = io;
     return 0;
+}
+
+static int
+ratelimit_gensio_alloc(struct gensio *child, const char *const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **net)
+{
+    return ratelimit_gensio_alloc2(child, args, o, cb, user_data, NULL, net);
 }
 
 static int
@@ -383,7 +421,7 @@ str_to_ratelimit_gensio(const char *str, const char * const args[],
 
 struct ratelimitna_data {
     struct gensio_accepter *acc;
-    const char **args;
+    struct ratelimit_config config;
     struct gensio_os_funcs *o;
     gensio_accepter_event cb;
     void *user_data;
@@ -394,8 +432,6 @@ ratelimitna_free(void *acc_data)
 {
     struct ratelimitna_data *nadata = acc_data;
 
-    if (nadata->args)
-	gensio_argv_free(nadata->o, nadata->args);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -404,8 +440,19 @@ ratelimitna_alloc_gensio(void *acc_data, const char * const *iargs,
 			 struct gensio *child, struct gensio **rio)
 {
     struct ratelimitna_data *nadata = acc_data;
+    struct gensio_base_parms *parms = NULL;
+    int err;
 
-    return ratelimit_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+    parms = gensio_acc_base_parms_dup(nadata->acc);
+    if (!parms)
+	return GE_NOMEM;
+
+    err = ratelimit_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
+
+    if (parms)
+	gensio_base_parms_free(&parms);
+
+    return err;
 }
 
 static int
@@ -413,10 +460,8 @@ ratelimitna_new_child(void *acc_data, void **finish_data,
 		      struct gensio_filter **filter)
 {
     struct ratelimitna_data *nadata = acc_data;
-    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "ratelimit",
-			      nadata->user_data);
 
-    return gensio_ratelimit_filter_alloc(&p, nadata->o, nadata->args, filter);
+    return gensio_ratelimit_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
 static int
@@ -457,16 +502,20 @@ ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct ratelimitna_data *nadata;
     int err;
+    struct gensio_base_parms *parms = NULL;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "msgdelim", user_data);
+
+    err = gensio_base_parms_alloc(o, true, "msgdelim", &parms);
+    if (err)
+	goto out_err;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return GE_NOMEM;
+	goto out_nomem;
 
-    err = gensio_argv_copy(o, args, NULL, &nadata->args);
-    if (err) {
-	o->free(o, nadata);
-	return err;
-    }
+    err = gensio_ratelimit_config(&p, o, args, parms, &nadata->config);
+    if (err)
+	goto out_err;
 
     nadata->o = o;
     nadata->cb = cb;
@@ -479,10 +528,23 @@ ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
 	goto out_err;
     *accepter = nadata->acc;
 
+    err = gensio_acc_base_parms_set(nadata->acc, &parms);
+    if (err)
+	goto out_err;
+
     return 0;
 
+ out_nomem:
+    err = GE_NOMEM;
  out_err:
-    ratelimitna_free(nadata);
+    if (nadata) {
+	if (nadata->acc)
+	    gensio_acc_free(nadata->acc);
+	else
+	    ratelimitna_free(nadata);
+    }
+    if (parms)
+	gensio_base_parms_free(&parms);
     return err;
 }
 
