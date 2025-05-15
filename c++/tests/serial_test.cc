@@ -13,6 +13,7 @@
 #endif
 
 #include <iostream>
+#include <cstring>
 #include <gensio/gensio>
 using namespace std;
 using namespace gensios;
