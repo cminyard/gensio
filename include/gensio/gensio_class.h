@@ -157,21 +157,6 @@ int gensio_cb(struct gensio *io, int event, int err,
 	      const char *const *auxdata);
 
 /*
- * Add and get the classdata for a gensio.
- */
-struct gensio_classops {
-    int (*propagate_to_parent)(struct gensio *parent, struct gensio *child,
-			       void *classdata);
-    void (*cleanup)(struct gensio *io, void *classdata);
-};
-#define GENSIO_CLASSOPS_VERSION 1
-GENSIO_DLL_PUBLIC
-int gensio_addclass(struct gensio *io, const char *name, int classops_ver,
-		    struct gensio_classops *ops, void *classdata);
-GENSIO_DLL_PUBLIC
-void *gensio_getclass(struct gensio *io, const char *name);
-
-/*
  * Functions for gensio_acc_func...
  */
 
@@ -238,14 +223,6 @@ struct gensio_acc_classops {
 			       void *classdata);
     void (*cleanup)(struct gensio_accepter *io, void *classdata);
 };
-#define GENSIO_ACC_CLASSOPS_VERSION 1
-GENSIO_DLL_PUBLIC
-int gensio_acc_addclass(struct gensio_accepter *acc,
-			const char *name, int classops_ver,
-			struct gensio_acc_classops *ops,
-			void *classdata);
-GENSIO_DLL_PUBLIC
-void *gensio_acc_getclass(struct gensio_accepter *acc, const char *name);
 
 /*
  * Keep track of the gensios pending on an accepter.  Primarily so that
