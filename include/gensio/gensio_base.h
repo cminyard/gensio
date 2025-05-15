@@ -487,14 +487,6 @@ struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					void *open_data);
 
 /*
- * Set the drain timeout for the gensio.  Search for drain_time in the
- * gensio.5 man page for details on what this does.  Time is in
- * milliseconds.  A negative number disables the timer (the default).
- */
-GENSIO_DLL_PUBLIC
-void base_gensio_set_drain_timeout(struct gensio *io, int timeout);
-
-/*
  * There are some parameters that are handled directly by the base
  * layer, this interface is used to allow a gensio to interface
  * to that for setting parameters used directly by the base.

@@ -2068,14 +2068,6 @@ base_gensio_server_alloc(struct gensio_os_funcs *o,
 			  open_done, open_data, NULL, NULL);
 }
 
-void
-base_gensio_set_drain_timeout(struct gensio *io, int timeout)
-{
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
-    ndata->drain_timeout = timeout;
-}
-
 int
 gensio_base_parms_alloc(struct gensio_os_funcs *o, bool is_accepter,
 			const char *typestr,
