@@ -13,7 +13,7 @@ and FreeBSD do::
   rm -rf $HOME/tmp/install
   cd ..
   rm -rf Ztest
-  (on FreeBSD use gmake instead of make)
+  (on FreeBSD use gmake instead of make and add "MAKE=gmake" on configure.)
 
 and obviously everything should pass on all platforms.  Before running
 tests on Linux, make sure the serialsim driver is installed so it will
