@@ -19,6 +19,15 @@ and obviously everything should pass on all platforms.  Before running
 tests on Linux, make sure the serialsim driver is installed so it will
 be able to run all the tests.
 
+On Windows, at least on my system, you can set the serial ports like::
+
+  export GENSIO_TEST_ECHO_DEV=//./COM3
+  export GENSIO_TEST_PIPE_DEVS=//./COM2://./COM4
+
+Though the serial ports might move around.  But this lets the tests
+use real serial ports on the system.  It still won't do some tests
+that require the special serialsim driver on Linux.
+
 Install it on a local system, make sure the serialsim driver is
 installed, and run the ser2net tests.
 

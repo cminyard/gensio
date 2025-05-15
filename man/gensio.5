@@ -726,9 +726,16 @@ connecting =
 
 A serialdev connection is a local serial port.  The device is a
 .B /dev/xxx
-type, and should be real stream device of some type that normal
-termios or serial processing work on.  For non-serial devices, use the
-"dev" gensio.
+type on Unix-type systems, and should be real stream device of some
+type that normal termios or serial processing work on.
+
+On Windows system, the device is
+.B //./COM<n>
+where <n> is the port number that you see in the device manager.  Note
+that these can move around when you reboot; I'm not sure there is a way
+to fix that.
+
+For non-serial devices, use the "dev" gensio.
 
 This is, no surprise, a serial gensio.
 
