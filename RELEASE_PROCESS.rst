@@ -28,6 +28,17 @@ Though the serial ports might move around.  But this lets the tests
 use real serial ports on the system.  It still won't do some tests
 that require the special serialsim driver on Linux.
 
+On FreeBSD, I tried using simulated serial ports on qemu hooking them
+to Linux serialsim device.  The echo device worked, but the pipe
+devices didn't and I couldn't figure out why.  I tried using a socket
+device for the pipe devices, but they don't appear to handle flow
+control or modem state lines properly.  I guess I'll need a real
+system with FreeBSD to test real serial devices.
+
+On MacOS, I couldn't get a USB serial device to work well.  They would
+kind of work, but under heavy load they would lock up or crash the
+system.
+
 Install it on a local system, make sure the serialsim driver is
 installed, and run the ser2net tests.
 
