@@ -512,9 +512,6 @@ gensios:
 gensio.h
     The main include files for gensios and gensio accepters.
 
-sergensio.h
-    Serial port handling gensios and gensio accepters.
-
 gensio_os_funcs.h
     The definition for an OS handler.
 
@@ -532,9 +529,6 @@ available for you:
 
 gensio_class.h
     The main include file for creating your own gensio.
-
-sergensio_class.h
-    The main include file for creating your own serial port gensio.
 
 gensio_base.h
     This handles a lot of the boiler plate for a gensio.  Most of the
@@ -877,18 +871,14 @@ handling serial I/O and setting all the parameters associated with a
 serial port.
 
 You can discover if a gensio (or any of its children) is a serial port
-by calling ``gensio_to_sergensio()``.  If that returns NULL, it is not
-a sergensio and none of it's children are sergensios.  If it returns
-non-NULL, it returns the sergensio object for you to use.  Note that
-the gensio returned by ``sergensio_to_gensio()`` will be the one
-passed in to ``gensio_to_sergensio()``, not necessarily the gensio
-that sergensio is directly associated with.
+by calling ``gensio_is_serial()``.  If that returns false, it is not
+capable of serial operation.  If it returns true, it can.
 
-A sergensio may be a client, meaning that it can set serial settings,
-or it may be a server, meaning that it will receive serial settings
-from the other end of the connection.
+A serial gensio may be a client, meaning that it can set serial
+settings, or it may be a server, meaning that it will receive serial
+settings from the other end of the connection.
 
-Most sergensios are client only: serialdev (normal serial port),
+Most serial gensios are client only: serialdev (normal serial port),
 ipmisol, and stdio accepter.  Currently only telnet has both client
 and server capabilities.
 
@@ -903,7 +893,7 @@ You can access pretty much all of the gensio interface through python,
 though it's done a little differently than the C interface.
 
 Since python is fully object oriented, gensios and gensio accepters
-are first-class objects, along with gensio_os_funcs, sergensios, and
+are first-class objects, along with gensio_os_funcs, and
 waiters.
 
 Here's a small program:

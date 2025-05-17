@@ -125,15 +125,6 @@ instance, could really screw things up.
 
 For string defaults, setting the default value to NULL causes
 the gensio to use it's backup default.
-.SH "Serial gensios"
-Some gensio types support serial port setting options.  Standard
-serial ports, IPMI Serial Over LAN, and telnet with RFC2217 enabled.
-
-A client serial gensio can set and get serial port options using the
-.B sergensio_xxx()
-functions.  Server serial gensios receive requests from the client via
-.I GENSIO_EVENT_SER_xxx
-events in the callback.
 .SH "Streams and Channels"
 Some gensios support the concept of a stream and/or a channel.
 

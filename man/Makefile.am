@@ -6,8 +6,7 @@ man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 	gensio_acc_shutdown.3 gensio_acc_set_accept_callback_enable.3 \
 	gensio_acc_control.3 gensio_acc_get_type.3 gensio_add_default.3 \
 	str_to_gensio_accepter.3 gensio_acc_accept_s.3 gensio_acc_startup.3 \
-	sergensio.5 gensio_to_sergensio.3 sergensio_baud.3 \
-	sergensio_b_alloc.3 sergensio_event.3 gensio_mdns.3 gensio_bswap.3
+	gensio_mdns.3 gensio_bswap.3
 
 # Note that $(LN_SF) is set in configure.ac
 
@@ -110,39 +109,6 @@ install-data-hook:
 	$(LN_SF) gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_del_default.3
 	$(LN_SF) gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_reset_defaults.3
 	$(LN_SF) gensio_acc_accept_s.3 $(DESTDIR)$(man3dir)/gensio_acc_set_sync.3
-	$(LN_SF) gensio_to_sergensio.3 $(DESTDIR)$(man3dir)/sergensio_to_gensio.3
-	$(LN_SF) gensio_to_sergensio.3 $(DESTDIR)$(man3dir)/sergensio_get_user_data.3
-	$(LN_SF) gensio_to_sergensio.3 $(DESTDIR)$(man3dir)/sergensio_is_client.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_datasize.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_parity.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_stopbits.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_flowcontrol.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_iflowcontrol.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_sbreak.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_dtr.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_rts.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_signature.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_linestate.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_modemstate.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_flowcontrol_state.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_flush.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_send_break.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_cts.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_dcd_dsr.3
-	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_ri.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_b_free.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_baud_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_datasize_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_parity_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_stopbits_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_flowcontrol_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_iflowcontrol_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_sbreak_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_dtr_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_rts_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_cts_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_dcd_dsr_b.3
-	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_ri_b.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_alloc_mdns.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_free_mdns.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_mdns_add_service.3
@@ -220,39 +186,6 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_del_default.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_reset_defaults.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_set_sync.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_to_gensio.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_get_user_data.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_is_client.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_datasize.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_parity.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_stopbits.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_flowcontrol.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_iflowcontrol.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_sbreak.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dtr.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_rts.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_cts.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dcd_dsr.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_ri.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_signature.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_linestate.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_modemstate.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_flowcontrol_state.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_flush.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_send_break.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_b_free.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_baud_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_datasize_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_parity_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_stopbits_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_flowcontrol_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_iflowcontrol_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_sbreak_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dtr_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_rts_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_cts_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dcd_dsr_b.3
-	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_ri_b.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_alloc_mdns.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_free_mdns.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_add_service.3
