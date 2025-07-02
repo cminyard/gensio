@@ -1429,6 +1429,9 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	    rv = GE_CERTNOTFOUND;
 	    goto err;
 	}
+    } else {
+	if (!SSL_CTX_set_default_verify_paths(ctx))
+	    goto err;
     }
 
     if (data->certfile && data->certfile[0]) {
