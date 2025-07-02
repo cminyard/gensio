@@ -3108,6 +3108,13 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 	    rv = GE_CERTNOTFOUND;
 	    goto err;
 	}
+    } else {
+	if (!X509_STORE_set_default_paths(store)) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Setting default CA path failed for certauth");
+	    rv = GE_NOCERT;
+	    goto err;
+	}
     }
 
     if (data->certfile && data->certfile[0]) {
