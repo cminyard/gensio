@@ -256,6 +256,8 @@ run_get_output(const char *argv[],
     if (d.err) {
 	fprintf(stderr, "Error opening stdio: %s\n",
 		gensio_err_to_str(d.err));
+	if (argv[0])
+	    fprintf(stderr, "  Is %s installed?\n", argv[0]);
 	goto out;
     }
     io_open = true;
