@@ -951,6 +951,8 @@ keygen(int argc, char *argv[])
 	err = keygen_one("default", key, cert);
 	free(key);
 	free(cert);
+	if (err)
+	    return 1;
 	goto out_finish;
     }
 
@@ -995,6 +997,8 @@ keygen(int argc, char *argv[])
     printf("logon.  This lets you store your password in your .gtlssh\n");
     printf("directory so gtlsshd can pick it up.  Not ideal, but it's\n");
     printf("not terrible, as the private keys are there, anyway.\n");
+    printf("You *ONLY* need this if you are logging on to this system\n");
+    printf("from another system.\n");
     if (promptyn("Do you want to store your password?"))
 	storepw();
 #endif
