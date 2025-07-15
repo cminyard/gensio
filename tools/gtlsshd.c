@@ -3477,8 +3477,9 @@ main(int argc, char *argv[])
     start_log(debug);
     log_event(LOG_NOTICE, "gtlsshd startup");
 
-    if (!sctp && notcp) {
-	log_event(LOG_ERR, "You cannot disable both TCP and SCTP\n");
+    if (!sctp && notcp && !other_acc_str) {
+	log_event(LOG_ERR,
+		  "You cannot disable both TCP and SCTP without other_acc\n");
 	return 1;
     }
 

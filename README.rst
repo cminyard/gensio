@@ -203,14 +203,14 @@ conacc
 
     .. code-block:: bash
 
-      gtlsshd --notcp --nosctp --oneshot --nodaemon --other_acc
-         'conacc,relpkt(mode=server),msgdelim,/dev/ttyUSB1,115200n81'
+      gtlsshd --notcp --oneshot --nodaemon --other_acc
+         'conacc,relpkt(mode=server),msgdelim,serialdev,/dev/ttyUSB1,115200n81'
 
     You could connect with:
 
     .. code-block:: bash
 
-      gtlssh --transport 'relpkt,msgdelim,/dev/ttyUSB2,115200n81' USB2
+      gtlssh --transport 'relpkt,msgdelim,serialdev,/dev/ttyUSB2,115200n81' USB2
 
     This creates a reliable packet transport over a serial port.  The
     mode=server is required to make relpkt run as the server, since it
