@@ -2422,9 +2422,6 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
     const char *auxdata_heard[4] = { "oob", "heard", addrstr, NULL };
     gensiods rcount;
 
-    if (len == 0)
-	return;
-
     snprintf(pidstr, sizeof(pidstr), "pid:%d", *data);
     data++;
     len--;
