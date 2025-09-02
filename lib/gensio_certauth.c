@@ -3423,7 +3423,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 			       gensio_accepter_event cb, void *user_data,
 			       struct gensio_accepter **accepter)
 {
-    struct certauthna_data *nadata;
+    struct certauthna_data *nadata = NULL;
     int err;
     struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "certauth", user_data);

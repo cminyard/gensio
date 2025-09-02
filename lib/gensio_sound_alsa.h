@@ -689,14 +689,13 @@ gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
     void **hints, **n;
     gensiods count = 0, size = 0;
     char **names = NULL, **specs = NULL;
-    unsigned int p;
 
     if (snd_device_name_hint(-1, "pcm", &hints) < 0) {
 	*rcount = 0;
 	return 0;
     }
 
-    for (p = 0, n = hints; *n != NULL; p++, n++) {
+    for (n = hints; *n != NULL; n++) {
 	char *name, *desc, *io;
 	unsigned int i, j, len;
 

@@ -8,8 +8,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifndef GENSIO_OPENPMI_OSHANDLER_H
-#define GENSIO_OPENIPM_OSHANDLER_H
+#ifndef GENSIO_OPENIPMI_OSHANDLER_H
+#define GENSIO_OPENIPMI_OSHANDLER_H
 
 #include <OpenIPMI/os_handler.h>
 

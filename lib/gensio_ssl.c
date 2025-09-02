@@ -1672,9 +1672,9 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
-    struct sslna_data *nadata;
+    struct sslna_data *nadata = NULL;
     int err;
-    struct gensio_base_parms *parms;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "ssl", user_data);
 
     if (!gensio_acc_is_reliable(child))

@@ -875,7 +875,7 @@ kiss_gensio_accepter_alloc(struct gensio_accepter *child,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
-    struct kissna_data *nadata;
+    struct kissna_data *nadata = NULL;
     int err;
     struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "kiss", user_data);
