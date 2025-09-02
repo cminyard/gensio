@@ -232,7 +232,7 @@ add_output_buf(struct ioinfo *ii, char *str)
 static void
 start_close(struct ioinfo *ii)
 {
-    int rv;
+    int rv = 0;
 
     gensio_os_funcs_lock(ii->ai->o, ii->lock);
     if (!ii->closing) {
