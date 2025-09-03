@@ -438,6 +438,9 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     struct accinfo *ai = user_data;
     struct gensio *io;
     struct ioinfo *ii;
+    char str[100];
+    gensiods size = sizeof(str);
+    int rv;
 
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = idata;
@@ -452,6 +455,17 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 
     /* In a new connection the data is the gensio pointer. */
     io = idata;
+
+    printf("Got connection from the following address:\n");
+    /* Only fetch the first address, on SCTP there can be multiple ones. */
+    snprintf(str, sizeof(str), "%u", 0);
+    rv = gensio_control(io,
+			GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_GET,
+			GENSIO_CONTROL_RADDR,
+			str, &size);
+    if (!rv)
+	printf("  %s\n", str);
 
     if (ai->shutting_down) {
 	/* We are shutting down, just refuse the connection. */
@@ -514,6 +528,7 @@ main(int argc, char *argv[])
     int rv;
     struct gensio_os_proc_data *proc_data = NULL;
     struct gensio_thread *tid2 = NULL;
+    unsigned int i;
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio accepter given\n");
@@ -598,6 +613,22 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Could not start %s: %s\n", argv[1],
 		gensio_err_to_str(rv));
 	goto out_err;
+    }
+
+    printf("Listening on the following addresses:\n");
+    for (i = 0; ; i++) {
+	char str[100];
+	gensiods size = sizeof(str);
+
+	snprintf(str, sizeof(str), "%u", i);
+	rv = gensio_acc_control(ai.acc,
+				GENSIO_CONTROL_DEPTH_FIRST,
+				GENSIO_CONTROL_GET,
+				GENSIO_ACC_CONTROL_LADDR,
+				str, &size);
+	if (rv)
+	    break;
+	printf("  %s\n", str);
     }
 
     /*

@@ -209,6 +209,8 @@ main(int argc, char *argv[])
     struct coninfo ci;
     int rv;
     struct gensio_os_proc_data *proc_data;
+    char str[100];
+    gensiods size = sizeof(str);
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio given\n");
@@ -272,6 +274,17 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	goto out_err;
     }
+
+    printf("Connecting to the following address:\n");
+    /* Only fetch the first address, on SCTP there can be multiple ones. */
+    snprintf(str, sizeof(str), "%u", 0);
+    rv = gensio_control(ci.io,
+			GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_GET,
+			GENSIO_CONTROL_RADDR,
+			str, &size);
+    if (!rv)
+	printf("  %s\n", str);
 
     /*
      * The gensio is closed after being allocation.  We need to open
