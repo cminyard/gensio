@@ -24,6 +24,21 @@
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_ax25_addr.h>
 
+/* Add timestamps to messages. */
+#define GENSIO_AFSKMDM_DEBUG_TIME	0x10
+
+/* Dump full received/sent messages. */
+#define GENSIO_AFSKMDM_DEBUG_MSG	0x08
+
+/* Dump some state handing information. */
+#define GENSIO_AFSKMDM_DEBUG_STATE	0x04
+
+/* Dump raw bit handling information. */
+#define GENSIO_AFSKMDM_DEBUG_BIT_HNDL	0x02
+
+/* Dump raw messages */
+#define GENSIO_AFSKMDM_DEBUG_RAW_MSG	0x01
+
 /*
  * This filter implements a audio frequency shift keying modem per the
  * GAX25 spec.
@@ -527,7 +542,7 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
     struct gensio_os_funcs *o = sfilter->o;
     struct gensio_fdump h;
 
-    if (sfilter->debug & 0x10) {
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_TIME) {
 	gensio_time time;
 
 	o->get_monotonic_time(o, &time);
@@ -1089,7 +1104,7 @@ afskmdm_ul_write(struct gensio_filter *filter,
     if (count == 0)
 	goto out_process;
 
-    if (sfilter->debug & 8) {
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_MSG) {
 	afskmdm_print_msg(sfilter, "W", 0, sfilter->wrbufs[cbuf].data,
 			  sfilter->wrbufs[cbuf].len, false);
     }
@@ -1278,14 +1293,14 @@ afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 	w->certainty = 0.0;
     } else if (ws->curr_wmsgs == 1) {
 	/* Always have one working message. */
-	if (sfilter->debug & 4)
+	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
 	    printf("WMSG: restart\n");
 	w->read_data_len = 0;
 	w->num_uncertain = 0;
 	w->certainty = 0.0;
 	w->state = AFSKMDM_STATE_PREAMBLE_SEARCH_0;
     } else {
-	if (sfilter->debug & 4)
+	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
 	    printf("WMSG: retire %u\n", msgn);
 	ws->curr_wmsgs--;
 	w->in_use = false;
@@ -1297,7 +1312,7 @@ afskmdm_handle_new_byte(struct afskmdm_filter *sfilter,
 			unsigned int wset, unsigned int msgn,
 			struct wmsg *w)
 {
-    if (sfilter->debug & 2)
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	printf("BYTE(%d): %2.2x\n", msgn, w->curr_byte);
     if (w->read_data_len >= sfilter->max_read_size) {
 	afskmdm_drop_wmsg(sfilter, wset, msgn, w, false);
@@ -1319,7 +1334,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
     if (w->read_data_len < 3)
 	goto bad_msg;
 
-    if (sfilter->debug & 1) {
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_RAW_MSG) {
 	afskmdm_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
 			  true);
 	printf("    bitpos %d  endframe %lu\n", w->curr_bit_pos,
@@ -1341,7 +1356,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 	msgcrc = ((w->read_data[w->read_data_len - 1] << 8) |
 		  w->read_data[w->read_data_len - 2]);
 
-	if (sfilter->debug & 1)
+	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_RAW_MSG)
 	    printf("    CRC %4.4x, MSGCRC %4.4x\n", crc, msgcrc);
 
 	if (crc != msgcrc)
@@ -1365,7 +1380,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 	}
     }
 
-    if (sfilter->debug & 8) {
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_MSG) {
 	afskmdm_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
 			  false);
     }
@@ -1441,7 +1456,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 		w2->curr_bit_pos = w->curr_bit_pos;
 		w2->read_data_len = w->read_data_len;
 		memcpy(w2->read_data, w->read_data, w->read_data_len);
-		if (sfilter->debug & 4)
+		if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
 		    printf("WMSG: add %u %u\n", wset, i);
 		sfilter->wmsgsets[wset].curr_wmsgs++;
 		w2->new_wmsg = true;
@@ -1488,7 +1503,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
     bit = level == w->prev_recv_level;
     w->prev_recv_level = level;
 
-    if (sfilter->debug & 2)
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	printf("BIT(%u %u %lu): l:%d b:%d %f  (%d)\n", wset, msgn,
 	       sfilter->framenr + pos - sfilter->prevread_size,
 	       level, bit, certainty, w->state);
@@ -1616,7 +1631,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 		  buf1, buf2, pspace, dummyp);
 
     process_powers(sfilter, pmark, pspace, &best_pos, &certainty, &level);
-    if (sfilter->debug & 2) {
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL) {
 	printf("CORR(%lu %u %lu):\n",
 	       sfilter->framecount++, *curpos,
 	       sfilter->framenr + *curpos - sfilter->prevread_size);
@@ -1872,7 +1887,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	buf = sfilter->filteredbuf;
     }
 
-    if (sfilter->debug & 2)
+    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	printf("Processing frame %lu %d %u\n", sfilter->framenr,
 	       sfilter->transmit_state, pos);
     if (!sfilter->full_duplex && sfilter->transmit_state > WAITING_TRANSMIT) {
@@ -1910,7 +1925,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    }
 	}
 
-	if (sfilter->debug & 2)
+	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	    printf("SYNC: %d %u\n", in_sync, sfilter->nr_in_sync);
 
 	sfilter->in_corr_counter++;
