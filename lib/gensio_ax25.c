@@ -456,6 +456,15 @@ struct ax25_conf_data {
 
     /* Report all raw packets? */
     bool report_raw;
+
+/* Add timestamps to messages. */
+#define GENSIO_AX25_DEBUG_TIME	0x10
+
+/* Dump full received/sent messages. */
+#define GENSIO_AX25_DEBUG_MSG	0x08
+
+    /* Debug flags. */
+    unsigned int debug;
 };
 
 struct ax25_base {
@@ -1243,6 +1252,128 @@ ax25_base_set_state(struct ax25_base *base, enum ax25_base_state state)
     base->state = state;
 }
 #endif
+
+/*
+ * Message printing handling, for debugging.
+ */
+static int
+decode_ax25_control_field(char *str, size_t strlen,
+			  unsigned char *buf, unsigned int buflen)
+{
+    static char *sname[4] = { "RR", "RNR", "REJ", "SREJ" };
+    static char *uname[32] = { [0x0f] = "SABME", [0x07] = "SABM",
+	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
+	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
+
+    if ((*buf & 1) == 0) {
+	/* I frame. */
+	snprintf(str, strlen, "I p=%d nr=%d ns=%d",
+		 (*buf >> 4) & 1,
+		 (*buf >> 5) & 0x7,
+		 (*buf >> 1) & 0x7);
+    } else if ((*buf & 0x3) == 1) {
+	/* S frame */
+	snprintf(str, strlen, "%s pf=%d nr=%d",
+		 sname[(*buf >> 2) & 0x3],
+		 (*buf >> 4) & 1,
+		 (*buf >> 5) & 0x7);
+    } else {
+	/* UI frame. */
+	char *n = uname[((*buf >> 2) & 0x3) | ((*buf >> 3) & 0x1c)];
+	if (!n)
+	    n = "?";
+	snprintf(str, strlen, "%s pf=%d", n, (*buf >> 4) & 1);
+    }
+
+    return 0;
+}
+
+static void
+ax25_prmsg(struct gensio_os_funcs *o,
+	   struct gensio_sg *sg, gensiods sglen, unsigned int buflen)
+{
+    struct gensio_ax25_addr addr;
+    char str[100];
+    unsigned char buf[15];
+    gensiods pos = 0, pos2 = 0;
+    int err;
+    unsigned int i, j, k;
+
+    if (buflen < 15)
+	return;
+
+    for (i = 0, j = 0, k = 0; i < 15; i++) {
+	const unsigned char *nbuf = sg[j].buf;
+
+	buf[i] = nbuf[k];
+	k++;
+	if (k >= sg[j].buflen) {
+	    k = 0;
+	    j++;
+	}
+    }
+
+    err = decode_ax25_addr(o, buf, &pos, 15, 0, &addr);
+    if (err)
+	return;
+    err = addr.r.funcs->addr_to_str(&addr.r, str, &pos2, sizeof(str));
+    if (err)
+	return;
+    printf(" %s", str);
+
+    printf(" ch=%d", addr.dest.ch);
+
+    if (pos < buflen) {
+	err = decode_ax25_control_field(str, sizeof(str),
+					buf + pos, buflen - pos);
+	if (err)
+	    return;
+	printf(" %s", str);
+    }
+}
+
+static void
+ax25_print_msg_sg(struct ax25_base *base, char *t,
+		  struct gensio_sg *sg, gensiods sglen)
+{
+    struct gensio_os_funcs *o = base->o;
+    struct gensio_fdump h;
+    unsigned int buflen = 0;
+    unsigned int i;
+
+    for (i = 0; i < sglen; i++) {
+	buflen += sg[i].buflen;
+    }
+
+    if (base->conf.debug & GENSIO_AX25_DEBUG_TIME) {
+	gensio_time time;
+
+	o->get_monotonic_time(o, &time);
+	printf("%lld:%6.6d: ",
+	       (long long) time.secs, (time.nsecs + 500) / 1000);
+    }
+
+    printf("%sMSG(%u):", t, buflen);
+    ax25_prmsg(o, sg, sglen, buflen);
+
+    printf("\n");
+    gensio_fdump_init(&h, 1);
+    for (i = 0; i < sglen; i++)
+	gensio_fdump_buf(stdout, sg[i].buf, sg[i].buflen, &h);
+    gensio_fdump_buf_finish(stdout, &h);
+    fflush(stdout);
+}
+
+static void
+ax25_print_msg(struct ax25_base *base, char *t,
+	       unsigned char *buf, unsigned int buflen)
+{
+    struct gensio_sg sg;
+
+    sg.buf = buf;
+    sg.buflen = buflen;
+    ax25_print_msg_sg(base, t, &sg, 1);
+}
 
 /*
  * Sequence number and window handling.  When dealing with sequence number, the
@@ -3638,10 +3769,16 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	crc = 0xffff;
 	crc16_ccitt(buf, buflen - 2, &crc);
 	crc ^= 0xffff;
-	if (msgcrc != crc)
+	if (msgcrc != crc) {
+	    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
+		printf("  CRC fails, was %4.4x, expected %4.4x", msgcrc, crc);
 	    return 0;
+	}
 	buflen -= 2;
     }
+
+    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
+	ax25_print_msg(base, "R", buf, *ibuflen);
 
     ax25_chan_report_raw(base, port, buf, buflen);
 
@@ -3948,6 +4085,9 @@ ax25_child_write_ready(struct ax25_base *base)
 		sglen++;
 		len += 2;
 	    }
+	    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
+		ax25_print_msg_sg(base, "W", sg, sglen);
+
 	    rv = gensio_write_sg(base->child, &sendcnt, sg, sglen, NULL);
 	    if (rv)
 		goto out_err_chan;
@@ -4025,6 +4165,9 @@ ax25_child_write_ready(struct ax25_base *base)
 		chan->curr_drop = 0;
 		sendcnt = len;
 	    } else {
+		if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
+		    ax25_print_msg_sg(base, "W", sg, sglen);
+
 		rv = gensio_write_sg(base->child, &sendcnt, sg, sglen, NULL);
 		chan->curr_drop++;
 	    }
@@ -4055,6 +4198,8 @@ ax25_child_write_ready(struct ax25_base *base)
 	    l = gensio_list_first(&chan->raws);
 	    raw = gensio_container_of(l, struct ax25_raw_data, link);
 	    buf = ((unsigned char *) raw) + sizeof(*raw);
+	    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
+		ax25_print_msg(base, "W", buf, raw->len);
 	    rv = gensio_write(base->child, &sendcnt, buf, raw->len, NULL);
 	    if (rv)
 		goto out_err_chan;
@@ -4994,6 +5139,8 @@ ax25_readconf(struct gensio_pparm_info *p,
 	    conf->writewindow_set = true;
 	    continue;
 	}
+	if (gensio_pparm_uint(p, args[i], "debug", &conf->debug) > 0)
+	    continue;
 	if (gensio_pparm_uint(p, args[i], "extended", &conf->extended) > 0) {
 	    if (conf->extended > 2)
 		goto out_err;
