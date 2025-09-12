@@ -1188,7 +1188,8 @@ class TestAccept:
                 tester(self.io1, self.io2)
             if do_close:
                 self.close()
-        except:
+        except Exception as e:
+            print("err: Unknown exception" + str(e))
             if do_close:
                 self.close()
             self.io1 = None
@@ -1207,7 +1208,9 @@ class TestAccept:
         # Close the accepter first.  Some accepters (like conacc) will
         # re-open when the child closes.
         if self.acc_started:
+            self.acc_started = False
             self.acc.shutdown_s()
+            pass
         io_close((self.io1, self.io2), timeout = self.close_timeout)
 
         # Break all the possible circular references.
@@ -1434,7 +1437,7 @@ class TestAcceptConnect:
                        gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
                 return gensio.GE_NOTSUP
             return gensio.GE_NOTSUP
-        except Exceptions as e:
+        except Exception as e:
             self.exception("read_callback: Unknown exception" + str(e))
 
     def password_verify(self, acc, io, password):
