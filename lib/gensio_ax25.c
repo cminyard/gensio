@@ -1524,17 +1524,13 @@ ax25_chan_move_to_closed(struct ax25_chan *chan, struct gensio_list *old_list)
 }
 
 static void
-ax25_chan_do_close(struct ax25_chan *chan, bool report)
+ax25_chan_do_close(struct ax25_chan *chan)
 {
     struct ax25_base *base = chan->base;
 
     ax25_chan_move_to_closed(chan, &base->chans);
-    if (report) {
-	ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
-	ax25_chan_check_close(chan);
-    } else {
-	ax25_chan_report_close(chan);
-    }
+    ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
+    ax25_chan_check_close(chan);
 }
 
 static void
@@ -2290,7 +2286,7 @@ ax25_t1_timeout(struct ax25_chan *chan)
     case AX25_CHAN_IN_CLOSE:
 	if (chan->retry_count >= chan->max_retries) {
 	    chan->err = GE_TIMEDOUT;
-	    ax25_chan_do_close(chan, true);
+	    ax25_chan_do_close(chan);
 	} else {
 	    chan->retry_count++;
 	    ax25_chan_send_cmd(chan, X25_DISC, 1);
@@ -2851,7 +2847,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_REM_DISC:
     case AX25_CHAN_REM_CLOSE:
 	ax25_chan_send_rsp(chan, X25_DM, pf);
-	ax25_chan_do_close(chan, true);
+	ax25_chan_do_close(chan);
 	break;
 
     default:
@@ -2879,7 +2875,7 @@ ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_IN_CLOSE:
 	/* Channel will be closed, used the base queue. */
 	ax25_base_send_rsp(base, chan->conf.addr, X25_UA, pf, NULL, 0);
-	ax25_chan_do_close(chan, true);
+	ax25_chan_do_close(chan);
 	break;
 
     case AX25_CHAN_OPEN:
@@ -2950,7 +2946,7 @@ ax25_chan_handle_dm(struct ax25_base *base, struct ax25_chan *chan,
 	ax25_chan_stop_t3(chan);
 	ax25_chan_stop_t1(chan);
 	if (chan->state == AX25_CHAN_CLOSE_WAIT_DRAIN)
-	    ax25_chan_do_close(chan, true);
+	    ax25_chan_do_close(chan);
 	else
 	    ax25_chan_do_err_close(chan, true);
 	break;
@@ -2961,7 +2957,7 @@ ax25_chan_handle_dm(struct ax25_base *base, struct ax25_chan *chan,
 	if (pf) {
 	    chan->err = GE_REMCLOSE;
 	    ax25_chan_stop_t1(chan);
-	    ax25_chan_do_close(chan, true);
+	    ax25_chan_do_close(chan);
 	}
 	break;
 
@@ -3017,7 +3013,7 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_IN_CLOSE:
 	if (pf) {
 	    ax25_chan_stop_t1(chan);
-	    ax25_chan_do_close(chan, true);
+	    ax25_chan_do_close(chan);
 	} else {
 	    ax25_proto_err(base, chan,
 		     "UA received without F=1 when SABM or DISC was sent P=1");
@@ -4105,7 +4101,7 @@ ax25_child_write_ready(struct ax25_base *base)
 		if (chan->state == AX25_CHAN_REM_DISC)
 		    ax25_chan_do_err_close(chan, true);
 		else if (chan->state == AX25_CHAN_REM_CLOSE)
-		    ax25_chan_do_close(chan, true);
+		    ax25_chan_do_close(chan);
 	    }
 	} else if (!chan->peer_rcv_bsy && chan->send_len > 0) {
 	    unsigned int pos = sub_seq(chan->write_pos, chan->send_len,
