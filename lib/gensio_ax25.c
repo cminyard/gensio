@@ -235,7 +235,7 @@ enum ax25_chan_state {
      * We have started the open process.
      *
      * open done -> AX25_CHAN_OPEN
-     * close -> start close && AX25_CHAN_REPORT_OPEN_CLOSE
+     * close -> start close && AX25_CHAN_REPORT_CLOSE
      * remote close -> report open error && AX25_CHAN_CLOSED
      * io err -> report open error && AX25_CHAN_CLOSED
      */
@@ -261,9 +261,10 @@ enum ax25_chan_state {
     AX25_CHAN_CLOSE_WAIT_DRAIN,
 
     /*
-     * A close has been requested and all data is delivered.  The
-     * filter close has been requested but it has not yet reported
-     * closed.
+     * A close has finished and needs to be reported.  It may be in a
+     * callback, or it may be waiting for the base to close if it's the
+     * last channel.  An open with an error may be pending, too, just
+     * do that at first opportunity if open_done is set.
      *
      * close done -> report close && AX25_CHAN_CLOSED
      * io err -> report close && AX25_CHAN_CLOSED
@@ -290,16 +291,7 @@ enum ax25_chan_state {
     AX25_CHAN_REM_CLOSE,
 
     /*
-     * We have started the open process and a close was requested.
-     *
-     * open done -> report open && AX25_CHAN_IN_CLOSE
-     * remote close -> report open error && report close && AX25_CHAN_CLOSED
-     * io err -> report open error && report close && AX25_CHAN_CLOSED
-     */
-    AX25_CHAN_REPORT_OPEN_CLOSE,
-
-    /*
-     * A close has finished and needs to be reported in the runner.
+     * A close has been requested finished and needs to be reported in the runner.
      *
      * runner -> report close && AX25_CHAN_CLOSED
      * io err ->  report close && AX25_CHAN_CLOSED
@@ -1485,6 +1477,7 @@ ax25_chan_report_close(struct ax25_chan *chan)
 static void
 ax25_chan_check_close(struct ax25_chan *chan)
 {
+    ax25_chan_report_open(chan);
     if (chan->in_read || chan->in_write || chan->in_ui)
 	return;
     ax25_chan_report_close(chan);
@@ -1528,8 +1521,8 @@ ax25_chan_do_close(struct ax25_chan *chan)
 {
     struct ax25_base *base = chan->base;
 
-    ax25_chan_move_to_closed(chan, &base->chans);
     ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
+    ax25_chan_move_to_closed(chan, &base->chans);
     ax25_chan_check_close(chan);
 }
 
@@ -1538,7 +1531,6 @@ ax25_chan_do_err_close(struct ax25_chan *chan, bool do_deferred_op)
 {
     struct ax25_base *base = chan->base;
 
-    ax25_chan_move_to_closed(chan, &base->chans);
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
 	ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
@@ -1547,14 +1539,8 @@ ax25_chan_do_err_close(struct ax25_chan *chan, bool do_deferred_op)
 
     case AX25_CHAN_IN_CLOSE:
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
-	ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
-	ax25_chan_report_close(chan);
-	break;
-
-    case AX25_CHAN_REPORT_OPEN_CLOSE:
-	ax25_chan_report_open(chan);
-	ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
-	ax25_chan_report_close(chan);
+	ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
+	ax25_chan_check_close(chan);
 	break;
 
     case AX25_CHAN_REPORT_CLOSE:
@@ -1566,6 +1552,7 @@ ax25_chan_do_err_close(struct ax25_chan *chan, bool do_deferred_op)
 	if (do_deferred_op)
 	    ax25_chan_sched_deferred_op(chan);
     }
+    ax25_chan_move_to_closed(chan, &base->chans);
 }
 
 static void
@@ -1704,11 +1691,6 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 	ax25_chan_set_state(chan, AX25_CHAN_NOCON);
 	ax25_chan_report_open(chan);
     }
-    if (chan->state == AX25_CHAN_REPORT_OPEN_CLOSE) {
-	ax25_chan_report_open(chan);
-	ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
-	ax25_chan_report_close(chan);
-    }
     if (chan->state == AX25_CHAN_REPORT_CLOSE)
 	ax25_chan_check_close(chan);
 
@@ -1764,8 +1746,8 @@ ax25_chan_report_open_err(struct ax25_chan *chan, struct gensio_list *old_list,
     void *open_data = chan->open_data;
 
     chan->open_done = NULL;
-    ax25_chan_move_to_closed(chan, old_list);
     ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
+    ax25_chan_move_to_closed(chan, old_list);
     if (open_done) {
 	ax25_chan_unlock(chan);
 	if (open_done)
@@ -4654,7 +4636,6 @@ i_ax25_chan_close(struct ax25_chan *chan,
     switch (chan->state) {
     case AX25_CHAN_CLOSED:
     case AX25_CHAN_IN_CLOSE:
-    case AX25_CHAN_REPORT_OPEN_CLOSE:
     case AX25_CHAN_REPORT_CLOSE:
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
     case AX25_CHAN_REM_CLOSE:
@@ -4673,8 +4654,11 @@ i_ax25_chan_close(struct ax25_chan *chan,
 
     case AX25_CHAN_NOCON_IN_OPEN:
     case AX25_CHAN_NOCON:
+	ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
 	ax25_chan_move_to_closed(chan, &base->chans);
-	/* Fallthrough */
+	ax25_chan_sched_deferred_op(chan);
+	break;
+
     case AX25_CHAN_IO_ERR:
 	ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
 	ax25_chan_sched_deferred_op(chan);
@@ -4691,7 +4675,7 @@ i_ax25_chan_close(struct ax25_chan *chan,
 		chan->retry_count = 0;
 		chan->err = GE_LOCALCLOSED;
 		ax25_chan_send_cmd(chan, X25_DM, 1);
-		ax25_chan_set_state(chan, AX25_CHAN_REPORT_OPEN_CLOSE);
+		ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
 		ax25_chan_move_to_closed(chan, &base->chans);
 		ax25_chan_sched_deferred_op(chan);
 	    } else if (chan->write_len > 0) {
@@ -4745,7 +4729,6 @@ ax25_chan_free(struct ax25_chan *chan)
     ax25_chan_lock(chan);
     switch (chan->state) {
     case AX25_CHAN_REPORT_CLOSE:
-    case AX25_CHAN_REPORT_OPEN_CLOSE:
 	/* Undo the close call and just free it. */
 	ax25_chan_deref(chan);
 	chan->open_done = NULL;
