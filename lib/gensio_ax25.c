@@ -368,18 +368,10 @@ static void i_ax25_base_lock_add_other(struct ax25_base *base,
 /*
  * LOCKING INFORMATION
  *
- * The code has three locks: the base lock, the channel lock, and the
- * channel deferred op lock.  The base lock protects the base data
- * strutures, primarily the list of channels.  The channel lock is
- * per-channel and protects the channel information.  The channel
- * deferred op lock is to protect the deferred op data, and is
- * separate so it can be called with the base lock held and not the
- * channel lock.
- *
- * The channel deferred op lock can be claimed at any time (when the
- * base and/or channel lock or no lock is locked), but you cannot
- * claim any other lock while it is held.  This is not a big deal, it
- * has limited use.
+ * The code has three locks: the base lock and the channel lock.  The
+ * base lock protects the base data strutures, primarily the list of
+ * channels.  The channel lock is per-channel and protects the channel
+ * information.
  *
  * If you hold a channel lock, you may lock the base lock.  They both
  * may be locked independently, but if you have the base locked, you
@@ -799,9 +791,11 @@ struct ax25_chan {
     /*
      * Used to run user callbacks from the selector to avoid running
      * it directly from user calls.
+     * Refcount is 1 if the deferred op is not pending, it is zero if
+     * pending.  dec_if_nz is used to decrement it and know if the
+     * deferred op needs to be started.
      */
-    struct gensio_lock *deferred_op_lock;
-    bool deferred_op_pending;
+    gensio_refcount deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
 
 #ifdef DEBUG_STATE
@@ -1065,10 +1059,9 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
     ax25_cleanup_conf(o, &chan->conf);
     if (chan->lock)
 	o->free_lock(chan->lock);
-    if (chan->deferred_op_lock)
-	o->free_lock(chan->deferred_op_lock);
     if (chan->timer)
 	o->free_timer(chan->timer);
+    gensio_refcount_cleanup(&chan->deferred_op_pending);
     if (chan->deferred_op_runner)
 	o->free_runner(chan->deferred_op_runner);
     gensio_refcount_cleanup(&chan->refcount);
@@ -1704,10 +1697,9 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct ax25_chan *chan = cbdata;
 
+    gensio_refcount_set(&chan->deferred_op_pending, 1);
+
     ax25_chan_lock(chan);
-    chan->o->lock(chan->deferred_op_lock);
-    chan->deferred_op_pending = false;
-    chan->o->unlock(chan->deferred_op_lock);
 
     if (chan->state == AX25_CHAN_NOCON_IN_OPEN) {
 	ax25_chan_set_state(chan, AX25_CHAN_NOCON);
@@ -1728,13 +1720,10 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 static void
 ax25_chan_sched_deferred_op(struct ax25_chan *chan)
 {
-    chan->o->lock(chan->deferred_op_lock);
-    if (!chan->deferred_op_pending) {
-	chan->deferred_op_pending = true;
+    if (gensio_refcount_dec_if_nz(&chan->deferred_op_pending)) {
 	ax25_chan_ref(chan);
 	chan->o->run(chan->deferred_op_runner);
     }
-    chan->o->unlock(chan->deferred_op_lock);
 }
 
 /* Must hold the base lock to call this. */
@@ -5381,9 +5370,9 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     if (!chan->lock)
 	goto out_nomem;
 
-    chan->deferred_op_lock = o->alloc_lock(o);
-    if (!chan->deferred_op_lock)
-	goto out_nomem;
+    rv = gensio_refcount_init(o, &chan->deferred_op_pending, 1);
+    if (rv)
+	goto out_err;
 
     chan->timer = o->alloc_timer(o, ax25_chan_timeout, chan);
     if (!chan->timer)
