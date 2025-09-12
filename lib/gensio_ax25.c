@@ -368,10 +368,18 @@ static void i_ax25_base_lock_add_other(struct ax25_base *base,
 /*
  * LOCKING INFORMATION
  *
- * The code has two locks: the base lock and the channel lock.  The
- * base lock protects the base data strutures, primarily the list of
- * channels.  The channel lock is per-channel and protects the channel
- * information.
+ * The code has three locks: the base lock, the channel lock, and the
+ * channel deferred op lock.  The base lock protects the base data
+ * strutures, primarily the list of channels.  The channel lock is
+ * per-channel and protects the channel information.  The channel
+ * deferred op lock is to protect the deferred op data, and is
+ * separate so it can be called with the base lock held and not the
+ * channel lock.
+ *
+ * The channel deferred op lock can be claimed at any time (when the
+ * base and/or channel lock or no lock is locked), but you cannot
+ * claim any other lock while it is held.  This is not a big deal, it
+ * has limited use.
  *
  * If you hold a channel lock, you may lock the base lock.  They both
  * may be locked independently, but if you have the base locked, you
@@ -477,6 +485,13 @@ struct ax25_base {
      * in.
      */
     bool waiting_first_open;
+
+    /*
+     * When closing the base, this will be set to the last channel
+     * that closed that cause the base to close.  The close of that
+     * channel will be delayed until the base closes.
+     */
+    struct ax25_chan *closing_chan;
 
     struct ax25_conf_data conf;
 
@@ -785,6 +800,7 @@ struct ax25_chan {
      * Used to run user callbacks from the selector to avoid running
      * it directly from user calls.
      */
+    struct gensio_lock *deferred_op_lock;
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
 
@@ -1049,6 +1065,8 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
     ax25_cleanup_conf(o, &chan->conf);
     if (chan->lock)
 	o->free_lock(chan->lock);
+    if (chan->deferred_op_lock)
+	o->free_lock(chan->deferred_op_lock);
     if (chan->timer)
 	o->free_timer(chan->timer);
     if (chan->deferred_op_runner)
@@ -1478,7 +1496,8 @@ static void
 ax25_chan_check_close(struct ax25_chan *chan)
 {
     ax25_chan_report_open(chan);
-    if (chan->in_read || chan->in_write || chan->in_ui)
+    if (chan->in_read || chan->in_write || chan->in_ui
+		|| chan->base->closing_chan == chan)
 	return;
     ax25_chan_report_close(chan);
 }
@@ -1506,6 +1525,7 @@ ax25_chan_move_to_closed(struct ax25_chan *chan, struct gensio_list *old_list)
     gensio_list_add_tail(&base->chans_closed, &chan->link);
     if (base->state == AX25_BASE_OPEN) {
 	if (gensio_list_empty(&base->chans)) {
+	    base->closing_chan = chan;
 	    if (base->cmdrsp_len > 0) {
 		ax25_base_set_state(base, AX25_BASE_CLOSE_WAIT_DRAIN);
 	    } else {
@@ -1685,7 +1705,9 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct ax25_chan *chan = cbdata;
 
     ax25_chan_lock(chan);
+    chan->o->lock(chan->deferred_op_lock);
     chan->deferred_op_pending = false;
+    chan->o->unlock(chan->deferred_op_lock);
 
     if (chan->state == AX25_CHAN_NOCON_IN_OPEN) {
 	ax25_chan_set_state(chan, AX25_CHAN_NOCON);
@@ -1703,16 +1725,16 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
     ax25_chan_deref_and_unlock(chan); /* Ref from ax25_chan_sched_deferred_op */
 }
 
-/* Must be called with the channel lock held. */
 static void
 ax25_chan_sched_deferred_op(struct ax25_chan *chan)
 {
-    assert(chan->locked);
+    chan->o->lock(chan->deferred_op_lock);
     if (!chan->deferred_op_pending) {
 	chan->deferred_op_pending = true;
 	ax25_chan_ref(chan);
 	chan->o->run(chan->deferred_op_runner);
     }
+    chan->o->unlock(chan->deferred_op_lock);
 }
 
 /* Must hold the base lock to call this. */
@@ -1847,9 +1869,18 @@ static int
 i_ax25_base_child_close_done(struct ax25_base *base)
 {
     int rv = 0;
+    struct ax25_chan *chan = base->closing_chan;
 
+    base->closing_chan = NULL;
     ax25_base_set_state(base, AX25_BASE_CLOSED);
     ax25_base_deref(base);
+    if (chan)
+	/*
+	 * Cause the close to be reported channel that caused the
+	 * base to close.
+	 */
+	ax25_chan_sched_deferred_op(chan);
+
     if (!gensio_list_empty(&base->chans_waiting_open)) {
 	rv = ax25_base_start_open(base);
 	if (rv)
@@ -5348,6 +5379,10 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 
     chan->lock = o->alloc_lock(o);
     if (!chan->lock)
+	goto out_nomem;
+
+    chan->deferred_op_lock = o->alloc_lock(o);
+    if (!chan->deferred_op_lock)
 	goto out_nomem;
 
     chan->timer = o->alloc_timer(o, ax25_chan_timeout, chan);
