@@ -12,7 +12,7 @@ AC_PROG_CXX
 # Per discussions with the Debian maintainer, it's best for
 # maintainers to have all the soname libary versions be the same if
 # they come from a single source.  So here it is.
-GENSIO_LIB_VERSION=13:3:3
+GENSIO_LIB_VERSION=14:0:0
 AC_SUBST(GENSIO_LIB_VERSION)
 
 AC_ARG_ENABLE([debug],
