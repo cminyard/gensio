@@ -6,7 +6,7 @@
 ; This should match "C - A" in the GENSIO_LIB_VERSION in the autoconf
 ; file.  So if GENSIO_LIB_VERSION is "12:0:2", this value will be "10".
 ; "C" is the first value in GENSIO_LIB_VERSION, "A" is the last.
-#define MyAppLibVersion "10"
+#define MyAppLibVersion "14"
 #define MyAppPublisher "Gensio"
 #define MyAppURL "https://github.com/cminyard/gensio"
 #define InstallDir "c:/msys64/home/cminyard/install/Gensio"
