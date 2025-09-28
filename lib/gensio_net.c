@@ -102,6 +102,7 @@ struct net_data {
     struct gensio_addr *lai; /* Local address, NULL if not set. */
 
     bool nodelay;
+    bool reuseaddr;
 
     int protocol;
     const char *typestr;
@@ -132,11 +133,12 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod,
 
     if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP) {
         setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
-		 GENSIO_OPENSOCK_REUSEADDR |
 		 GENSIO_SET_OPENSOCK_NODELAY);
 	setup |= GENSIO_SET_OPENSOCK_KEEPALIVE | GENSIO_OPENSOCK_KEEPALIVE;
 	if (tdata->nodelay)
 	    setup |= GENSIO_OPENSOCK_NODELAY;
+	if (tdata->reuseaddr)
+	    setup |= GENSIO_OPENSOCK_REUSEADDR;
     }
  retry:
     err = tdata->o->socket_open(tdata->o, tdata->ai, tdata->protocol, &new_iod);
@@ -432,10 +434,10 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     struct gensio_addr *laddr = NULL, *laddr2 = NULL, *addr = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    bool nodelay = false;
     unsigned int i;
     int ival, err;
     bool istcp = protocol == GENSIO_NET_PROTOCOL_TCP;
+    bool nodelay = false, reuseaddr = istcp;
     struct gensio_base_parms *parms;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, typestr, user_data);
 
@@ -452,6 +454,14 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     if (err)
 	goto out_err;
     nodelay = ival;
+
+    if (istcp) {
+	err = gensio_get_default(o, typestr, "reuseaddr", false,
+				 GENSIO_DEFAULT_BOOL, NULL, &ival);
+	if (err)
+	    goto out_err;
+	reuseaddr = ival;
+    }
 
     err = gensio_get_defaultaddr(o, typestr, "laddr", false,
 				 GENSIO_NET_PROTOCOL_TCP, true, false, &laddr);
@@ -480,6 +490,9 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 	}
 	if (istcp && gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
+	if (istcp && gensio_pparm_bool(&p, args[i], "reuseaddr",
+				       &reuseaddr) > 0)
+	    continue;
 
 	if (laddr)
 	    gensio_addr_free(laddr);
@@ -506,6 +519,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 
     tdata->o = o;
     tdata->nodelay = nodelay;
+    tdata->reuseaddr = reuseaddr;
 
     tdata->ll = fd_gensio_ll_alloc(o, NULL, &net_fd_ll_ops, tdata,
 				   max_read_size, false, false);
