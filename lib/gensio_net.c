@@ -429,7 +429,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		 struct gensio_base_parms **rparms, struct gensio **new_gensio)
 {
     struct net_data *tdata = NULL;
-    struct gensio_addr *laddr = NULL, *laddr2, *addr = NULL;
+    struct gensio_addr *laddr = NULL, *laddr2 = NULL, *addr = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool nodelay = false;
