@@ -1321,7 +1321,12 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 #ifdef SOCK_SEQPACKET
 	case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
 #endif
+	    /* Find the proper address for this family. */
 	    ai = gensio_addr_addrinfo_get_curr(bindaddr);
+	    while (ai && ai->ai_family != gsi->family)
+		ai = ai->ai_next;
+	    if (!ai)
+		return GE_INVAL;
 	    if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1)
 		return gensio_os_err_to_err(o, sock_errno);
 	    break;
