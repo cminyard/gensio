@@ -40,6 +40,7 @@ struct sctp_data {
     struct sctp_sack_info sackinfo;
 
     bool nodelay;
+    bool reuseaddr;
     bool do_oob;
     unsigned int instreams;
     unsigned int ostreams;
@@ -96,12 +97,13 @@ sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 {
     int err;
     unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
-			  GENSIO_OPENSOCK_REUSEADDR |
 			  GENSIO_SET_OPENSOCK_KEEPALIVE |
 			  GENSIO_OPENSOCK_KEEPALIVE |
 			  GENSIO_SET_OPENSOCK_NODELAY |
 			  GENSIO_OPENSOCK_BIND_ALLADDR);
 
+    if (tdata->reuseaddr)
+	setup |= GENSIO_OPENSOCK_REUSEADDR;
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;
     err = tdata->o->socket_set_setup(iod, setup, tdata->addr, tdata->laddr);
@@ -398,7 +400,7 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     unsigned int sack_freq = 1, sack_delay = 10;
     int i, err, ival;
     struct gensio_addr *addr, *laddr = NULL;
-    bool nodelay = false;
+    bool nodelay = false, reuseaddr = true;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "sctp", user_data);
 
     err = gensio_get_default(o, "sctp", "nodelay", false,
@@ -406,6 +408,12 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     if (err)
 	return err;
     nodelay = ival;
+
+    err = gensio_get_default(o, "sctp", "reuseaddr", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	goto out_err;
+    reuseaddr = ival;
 
     err = gensio_get_default(o, "sctp", "instreams", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
@@ -448,6 +456,8 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
 	    continue;
 	if (gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
+	if (gensio_pparm_bool(&p, args[i], "reuseaddr", &reuseaddr) > 0)
+	    continue;
 	if (gensio_pparm_uint(&p, args[i], "instreams", &instreams) > 0)
 	    continue;
 	if (gensio_pparm_uint(&p, args[i], "ostreams", &ostreams) > 0)
@@ -479,6 +489,7 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     tdata->sackinfo.sack_freq = sack_freq;
     tdata->sackinfo.sack_delay = sack_delay;
     tdata->nodelay = nodelay;
+    tdata->reuseaddr = reuseaddr;
 
     tdata->ll = fd_gensio_ll_alloc(o, NULL, &sctp_fd_ll_ops, tdata,
 				   max_read_size, false, false);

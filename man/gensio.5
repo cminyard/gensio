@@ -607,9 +607,17 @@ An address specification to bind to on the local socket to set the
 local address.
 .TP
 .B reuseaddr[=true|false]
-Set SO_REUSEADDR on the socket, good for accepting gensios only.
-Defaults to true.
+Set SO_REUSEADDR on the socket.  For accepting sockets, this lets
+the socket be reused as soon as it is closed.  If false, there will
+be a delay before it can be used.
 
+For connecting sockets, it lets the laddr set be used for multiple
+connections as long as they aren't to the same destination.  There
+are some restrictions here, see "SO_REUSEADDR" in "man 7 socket".
+
+Defaults to true.  This may not be the best default, there are some
+possible races from reusing sockets too fast.
+.TP 0
 Port 0 is supported just like TCP for accepters, see Dynamic Ports in
 the TCP section above for details.
 
