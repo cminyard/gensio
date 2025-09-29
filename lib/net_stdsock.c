@@ -1296,11 +1296,29 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     }
 
     if (addr) {
+	int family;
+
 	ai = gensio_addr_addrinfo_get(addr);
-	err = check_ipv6_only(ai->ai_family,
-			      ai->ai_protocol,
-			      ai->ai_flags,
-			      o->iod_get_fd(iod));
+	family = ai->ai_family;
+	if (opensock_flags & GENSIO_OPENSOCK_BIND_ALLADDR) {
+	    struct addrinfo *tai = ai->ai_next;
+
+	    while (tai) {
+		if (family != tai->ai_family) {
+		    /* Binding to multiple families it cannot be ipv6 only. */
+		    ai = NULL;
+		    break;
+		}
+		tai = tai->ai_next;
+	    }
+	}
+
+	if (ai) {
+	    err = check_ipv6_only(family,
+				  ai->ai_protocol,
+				  ai->ai_flags,
+				  o->iod_get_fd(iod));
+	}
     }
 
     if (bindaddr) {
@@ -1419,8 +1437,7 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 	return GE_NOMEM;
 
     ai = gensio_addr_addrinfo_get_curr(addr);
-    if (err == 0)
-	err = connect(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen);
+    err = connect(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen);
     if (err == -1)
 	return gensio_os_err_to_err(o, sock_errno);
     return 0;

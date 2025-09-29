@@ -99,7 +99,8 @@ sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 			  GENSIO_OPENSOCK_REUSEADDR |
 			  GENSIO_SET_OPENSOCK_KEEPALIVE |
 			  GENSIO_OPENSOCK_KEEPALIVE |
-			  GENSIO_SET_OPENSOCK_NODELAY);
+			  GENSIO_SET_OPENSOCK_NODELAY |
+			  GENSIO_OPENSOCK_BIND_ALLADDR);
 
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;

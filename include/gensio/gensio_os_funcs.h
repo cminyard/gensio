@@ -114,6 +114,12 @@ struct gensio_opensocks
 #define GENSIO_SET_OPENSOCK_KEEPALIVE	(1 << 3)
 #define GENSIO_OPENSOCK_NODELAY		(1 << 4)
 #define GENSIO_SET_OPENSOCK_NODELAY	(1 << 5)
+/*
+ * Doesn't have a "SET" option, this tells socket_set_setup that all
+ * addresses in the address list will be used for binding, so the IPV6
+ * check needs to take into account all addresses.
+ */
+#define GENSIO_OPENSOCK_BIND_ALLADDR	(1 << 6)
 
 /* For recv and send */
 #define GENSIO_MSG_OOB 1
