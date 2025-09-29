@@ -1249,11 +1249,13 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 static int
 gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 				unsigned int opensock_flags,
+				const struct gensio_addr *addr,
 				struct gensio_addr *bindaddr)
 {
     struct gensio_os_funcs *o = iod->f;
     struct gensio_stdsock_info *gsi = NULL;
     int err, val, fd;
+    struct addrinfo *ai;
 
     fd = o->iod_get_fd(iod);
 
@@ -1293,9 +1295,15 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	    return gensio_os_err_to_err(o, sock_errno);
     }
 
-    if (bindaddr) {
-	struct addrinfo *ai;
+    if (addr) {
+	ai = gensio_addr_addrinfo_get(addr);
+	err = check_ipv6_only(ai->ai_family,
+			      ai->ai_protocol,
+			      ai->ai_flags,
+			      o->iod_get_fd(iod));
+    }
 
+    if (bindaddr) {
 	if (!gsi) {
 	    err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
 				 (intptr_t) &gsi);
@@ -1411,10 +1419,6 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 	return GE_NOMEM;
 
     ai = gensio_addr_addrinfo_get_curr(addr);
-    err = check_ipv6_only(ai->ai_family,
-			  ai->ai_protocol,
-			  ai->ai_flags,
-			  o->iod_get_fd(iod));
     if (err == 0)
 	err = connect(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen);
     if (err == -1)

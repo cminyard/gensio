@@ -145,7 +145,7 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod,
     if (err)
 	goto out;
 
-    err = tdata->o->socket_set_setup(new_iod, setup, tdata->lai);
+    err = tdata->o->socket_set_setup(new_iod, setup, tdata->ai, tdata->lai);
     if (err)
 	goto out;
 
@@ -244,7 +244,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 		setup = GENSIO_SET_OPENSOCK_NODELAY;
 		if (val)
 		    setup |= GENSIO_OPENSOCK_NODELAY;
-		rv = tdata->o->socket_set_setup(iod, val, NULL);
+		rv = tdata->o->socket_set_setup(iod, val, NULL, NULL);
 		if (rv)
 		    return rv;
 	    }
@@ -897,7 +897,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 	setup |= GENSIO_OPENSOCK_KEEPALIVE;
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;
-    err = tdata->o->socket_set_setup(new_iod, setup, NULL);
+    err = tdata->o->socket_set_setup(new_iod, setup, NULL, NULL);
     if (err) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up net port: %s", gensio_err_to_str(err));

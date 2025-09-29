@@ -2230,7 +2230,7 @@ dgram_gensio_alloc(const void *gdata, const char * const args[],
     if (d.reuseaddr)
 	setup |= GENSIO_OPENSOCK_REUSEADDR;
 
-    err = o->socket_set_setup(new_iod, setup, laddr);
+    err = o->socket_set_setup(new_iod, setup, addr, laddr);
     if (err)
 	goto err_cleanup;
 

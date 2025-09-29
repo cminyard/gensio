@@ -773,6 +773,7 @@ struct gensio_os_funcs {
      */
     int (*socket_set_setup)(struct gensio_iod *iod,
 			    unsigned int opensock_flags,
+			    const struct gensio_addr *addr,
 			    struct gensio_addr *bindaddr);
     int (*socket_get_setup)(struct gensio_iod *iod,
 			    unsigned int *opensock_flags);
