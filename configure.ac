@@ -2172,7 +2172,7 @@ GTLSSHMAN=
 GTLSSYNCMAN=
 GTLSSHDMAN=
 GTLSSH_KEYGENMAN=
-if test $HAVE_OPENSSL -eq 1; then
+if test $BUILD_OPENSSL -eq 1; then
    if test $DISABLE_GTLSSHD = yes; then
       echo "gltsshD disabled"
    elif test $HAVE_PAM -eq 1; then
