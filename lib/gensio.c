@@ -2348,6 +2348,52 @@ gensio_pparm_argv(struct gensio_pparm_info *p,
     return 1;
 }
 
+int
+gensio_pparm_bufv(struct gensio_pparm_info *p,
+		  const char *str, const char *key, const char *seps,
+		  int *bufc, const unsigned char ***bufv, gensiods **lens)
+{
+    const char *sval;
+    int rv = gensio_pparm_value(p, str, key, &sval);
+
+    if (!rv)
+	return 0;
+
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
+	return -1;
+    }
+
+    rv = gensio_cstr_to_bufv(p->o, sval, bufc, bufv, lens, seps);
+    if (rv) {
+	gensio_pparm_log(p, "Error getting argv list for %s: %s", str,
+			 gensio_err_to_str(rv));
+	return -1;
+    }
+    return 1;
+}
+
+int
+gensio_pparm_cstr(struct gensio_pparm_info *p,
+		  const char *str, const char *key,
+		  unsigned char **buf, gensiods *len,
+		  const char *seps, const char *endchars)
+{
+    const char *sval;
+    int rv = gensio_pparm_value(p, str, key, &sval);
+
+    if (!rv)
+	return 0;
+
+    rv = gensio_cstr_to_buf(p->o, sval, buf, len);
+    if (rv) {
+	gensio_pparm_log(p, "Error getting c-string for %s: %s", str,
+			 gensio_err_to_str(rv));
+	return -1;
+    }
+    return 1;
+}
+
 void
 gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
 			  const char *arg)

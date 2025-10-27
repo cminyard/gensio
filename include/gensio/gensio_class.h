@@ -446,6 +446,27 @@ int gensio_pparm_argv(struct gensio_pparm_info *p,
 		      int *argc, const char ***argv);
 
 /*
+ * Like gensio_pparm_argv(), but does an array of buffers and lengths.
+ * This can be used to get nil characters.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_pparm_bufv(struct gensio_pparm_info *p,
+		      const char *str, const char *key, const char *seps,
+		      int *argc, const unsigned char ***bufv, gensiods **lens);
+
+/*
+ * Return a buffer holding the translation of a "C"-like string to a
+ * byte array.  buf must be freed with the gensio free function when
+ * done.  This may contain nil characters and will not be nil
+ * terminated, you must use the len field to determine the length.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_pparm_cstr(struct gensio_pparm_info *p,
+		      const char *str, const char *key,
+		      unsigned char **buf, gensiods *len,
+		      const char *seps, const char *endchars);
+
+/*
  * Report an unknown parameter when allocating a gensio.
  */
 GENSIO_DLL_PUBLIC

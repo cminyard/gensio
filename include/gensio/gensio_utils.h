@@ -42,6 +42,19 @@ GENSIOOSH_DLL_PUBLIC
 void gensio_u16_to_buf(unsigned char *data, uint16_t v);
 
 /*
+ * A function to take a "C"-style string in "s" and return the
+ * output in "outbuf" and the length of outbuf in "len".  Note
+ * that the string will *not* be nil terminated.  The output
+ * string may contain nil characters.
+ *
+ * You must free outbuf with gensio_os_funcs_free() when you
+ * are done.
+ */
+GENSIOOSH_DLL_PUBLIC
+int gensio_cstr_to_buf(struct gensio_os_funcs *o, const char *s,
+		       unsigned char **outbuf, gensiods *len);
+
+/*
  * A helper function, very useful for raddr handling.  Do an
  * snprintf() at buf + *pos, writing to up to buf + len.  If *pos > len,
  * then don't do anything, but always return the number of characters

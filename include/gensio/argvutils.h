@@ -121,6 +121,43 @@ GENSIOOSH_DLL_PUBLIC
 int gensio_scan_args(struct gensio_os_funcs *o,
 		     const char **rstr, int *argc, const char ***args);
 
+/*
+ * bufv's are like argv's, but they carry an array of lengths and are
+ * not strings but byte arrays.  Same basic operations apply as above,
+ * so see the above functions for details.
+ */
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_bufv_nappend(struct gensio_os_funcs *o,
+			const unsigned char ***bufv, gensiods **lens,
+			const unsigned char *buf, gensiods len,
+			gensiods *args, gensiods *bufc,
+			bool allocbuf);
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_bufv_append(struct gensio_os_funcs *o,
+		       const unsigned char ***bufv, gensiods **lens,
+		       const unsigned char *buf, gensiods len,
+		       gensiods *args, gensiods *bufc,
+		       bool allocbuf);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_bufv_free(struct gensio_os_funcs *o,
+		      const unsigned char **bufv, gensiods *lens);
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_cstr_to_bufv_endchar(struct gensio_os_funcs *o, const char *ins,
+				int *r_bufc,
+				const unsigned char ***r_bufv,
+				gensiods **r_lens,
+				const char *seps, const char *endchars,
+				const char **nextptr);
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_cstr_to_bufv(struct gensio_os_funcs *o, const char *s,
+			int *bufc, const unsigned char ***bufv, gensiods **lens,
+			const char *seps);
+
 #ifdef __cplusplus
 }
 #endif

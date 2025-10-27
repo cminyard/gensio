@@ -180,6 +180,90 @@ gensio_argv_free(struct gensio_os_funcs *o,
     o->free(o, (void *) argv);
 }
 
+int
+gensio_bufv_nappend(struct gensio_os_funcs *o,
+		    const unsigned char ***bufv, gensiods **lens,
+		    const unsigned char *buf, gensiods len,
+		    gensiods *args, gensiods *bufc,
+		    bool allocbuf)
+{
+    if (!*bufv) {
+	const unsigned char **newbufv;
+	gensiods *newlens;
+
+	*args = 10;
+	*bufc = 0;
+	newbufv = o->zalloc(o, *args * sizeof(unsigned char *));
+	if (!newbufv)
+	    return GE_NOMEM;
+	newlens = o->zalloc(o, *args * sizeof(gensiods));
+	if (!newlens) {
+	    o->free(o, newbufv);
+	    return GE_NOMEM;
+	}
+	*bufv = newbufv;
+	*lens = newlens;
+    }
+
+    /* + 1 to leave room for the ending NULL. */
+    if (*bufc + 1 >= *args) {
+	const unsigned char **nbufv;
+	gensiods *nlens;
+
+	nbufv = o->zalloc(o, sizeof(unsigned char *) * (*args + 10));
+	if (!nbufv)
+	    return GE_NOMEM;
+	nlens = o->zalloc(o, sizeof(gensiods) * (*args + 10));
+	memcpy((void *) nbufv, *bufv, sizeof(unsigned char *) * *args);
+	memcpy((void *) nlens, *lens, sizeof(gensiods) * *args);
+	o->free(o, (void *) *bufv);
+	o->free(o, (void *) *lens);
+	*bufv = nbufv;
+	*lens = nlens;
+	*args += 10;
+    }
+    if (buf) {
+	if (allocbuf) {
+	    unsigned char *s = o->zalloc(o, len);
+	    if (!s)
+		return GE_NOMEM;
+	    memcpy(s, buf, len);
+	    (*bufv)[*bufc] = s;
+	} else {
+	    (*bufv)[*bufc] = buf;
+	}
+	(*lens)[*bufc] = len;
+	(*bufc)++;
+    } else {
+	(*bufv)[*bufc] = NULL;
+    }
+    return 0;
+}
+
+int
+gensio_bufv_append(struct gensio_os_funcs *o,
+		   const unsigned char ***bufv, gensiods **lens,
+		   const unsigned char *buf, gensiods len,
+		   gensiods *args, gensiods *bufc,
+		   bool allocbuf)
+{
+    return gensio_bufv_nappend(o, bufv, lens, buf, len, args, bufc, allocbuf);
+}
+
+void
+gensio_bufv_free(struct gensio_os_funcs *o,
+		 const unsigned char **bufv, gensiods *lens)
+{
+    unsigned int i;
+
+    if (!bufv)
+	return;
+    for (i = 0; bufv[i]; i++)
+	o->free(o, (void *) bufv[i]);
+    o->free(o, (void *) bufv);
+    o->free(o, (void *) lens);
+}
+
 static bool
 is_sep(char c, const char *seps)
 {
@@ -243,8 +327,9 @@ set_out(struct strtobuf_info *info, char c)
  *
  * "endchars" is similar to "seps" but upon termination "s" will point
  * to the separator, not the next characters.  So, for instance, if
- * you have the string "a;b" and seps is "'", when strtobuf() finishes
- * "s" will point to ";b".
+ * you have the string "a;b" and seps is ";", when strtobuf() finishes
+ * "s" will point to ";b".  These are replaced with an empty string
+ * if NULL;
  */
 static void
 strtobuf_init(struct strtobuf_info *info,
@@ -255,8 +340,14 @@ strtobuf_init(struct strtobuf_info *info,
     info->cval = 0;
     info->escape = 0;
     info->base = 0;
-    info->seps = seps;
-    info->endchars = endchars;
+    if (seps)
+	info->seps = seps;
+    else
+	info->seps = "";
+    if (endchars)
+	info->endchars = endchars;
+    else
+	info->endchars = "";
     info->s = s;
     info->out = out;
     info->len = 0;
@@ -359,6 +450,143 @@ strtobuf_finish(struct strtobuf_info *info)
     return 0;
 }
 
+int
+gensio_cstr_to_buf(struct gensio_os_funcs *o, const char *s,
+		   unsigned char **outbuf, gensiods *len)
+{
+    char *out = NULL;
+    struct strtobuf_info info;
+    int rv;
+
+    /* Process it once to find out how long the output string is. */
+    strtobuf_init(&info, s, NULL, NULL, NULL);
+    strtobuf(&info);
+    rv = strtobuf_finish(&info);
+    if (rv)
+	return rv;
+
+    /* Now allocate the output string and process it again. */
+    out = o->zalloc(o, info.len);
+    if (!out)
+	return GE_NOMEM;
+    strtobuf_init(&info, s, out, NULL, NULL);
+    strtobuf(&info);
+    strtobuf_finish(&info);
+
+    *outbuf = (unsigned char *) out;
+    *len = info.len;
+
+    return 0;
+}
+
+/*
+ * Convert a string to a token, doing "C"-like string processing to the
+ * string, and returning a buffer and length.  nil characters are allowed.
+ * and the token is not nil terminated.
+ */
+static int
+cstr_gettok(struct gensio_os_funcs *o,
+	    const char **s, unsigned char **tok, gensiods *len,
+	    const char *seps, const char *endchars)
+{
+    const char *p = skip_seps(*s, seps);
+    char *out = NULL;
+    struct strtobuf_info info;
+    int rv;
+
+    if (!*p || strchr(endchars, *p)) {
+	*s = p;
+	*tok = NULL;
+	return 0;
+    }
+
+    /* Process it once to find out how long the output string is. */
+    strtobuf_init(&info, p, NULL, seps, endchars);
+    strtobuf(&info);
+    rv = strtobuf_finish(&info);
+    if (rv)
+	return rv;
+
+    /* Now allocate the output string and process it again. */
+    out = o->zalloc(o, info.len);
+    if (!out)
+	return GE_NOMEM;
+    strtobuf_init(&info, p, out, seps, endchars);
+    strtobuf(&info);
+    strtobuf_finish(&info);
+
+    *s = info.s;
+    *tok = (unsigned char *) out;
+    *len = info.len;
+
+    return 0;
+}
+
+int
+gensio_cstr_to_bufv_endchar(struct gensio_os_funcs *o, const char *ins,
+			    int *r_bufc,
+			    const unsigned char ***r_bufv, gensiods **r_lens,
+			    const char *seps, const char *endchars,
+			    const char **nextptr)
+{
+    const unsigned char **bufv = NULL;
+    gensiods *lens = NULL;
+    unsigned char *tok = NULL;
+    gensiods len;
+    gensiods bufc = 0;
+    gensiods bufs = 0;
+    int err;
+
+    if (!seps)
+	seps = " \f\n\r\t\v";
+
+    err = cstr_gettok(o, &ins, &tok, &len, seps, endchars);
+    while (tok && !err) {
+	err = gensio_bufv_append(o, &bufv, &lens, tok, len,
+				 &bufs, &bufc, false);
+	if (err)
+	    goto out;
+	tok = NULL;
+	err = cstr_gettok(o, &ins, &tok, &len, seps, endchars);
+    }
+
+    /* NULL terminate the array. */
+    if (!err)
+	err = gensio_bufv_append(o, &bufv, &lens, NULL, 0,
+				 &bufs, &bufc, false);
+
+ out:
+    if (err) {
+	if (tok)
+	    o->free(o, tok);
+	if (bufv) {
+	    while (bufc > 0) {
+		bufc--;
+		o->free(o, (void *) bufv[bufc]);
+	    }
+	    o->free(o, (void *) bufv);
+	    o->free(o, (void *) lens);
+	}
+    } else {
+	if (r_bufc)
+	    *r_bufc = bufc;
+	*r_bufv = bufv;
+	*r_lens = lens;
+	if (nextptr)
+	    *nextptr = ins;
+    }
+    return err;
+}
+
+int
+gensio_cstr_to_bufv(struct gensio_os_funcs *o, const char *s,
+		    int *bufc, const unsigned char ***bufv, gensiods **lens,
+		    const char *seps)
+{
+    return gensio_cstr_to_bufv_endchar(o, s, bufc, bufv, lens, seps, NULL,
+				       NULL);
+}
+
 /*
  * Convert a string to a token, doing "C"-like string processing to the
  * string.
@@ -414,9 +642,6 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 
     if (!seps)
 	seps = " \f\n\r\t\v";
-
-    if (!endchars)
-	endchars = "";
 
     err = gettok(o, &ins, &tok, seps, endchars);
     while (tok && !err) {
