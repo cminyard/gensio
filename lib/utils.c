@@ -200,124 +200,202 @@ isodigit(char c)
     return isdigit(c) && c != '8' && c != '9';
 }
 
+struct strtobuf_info {
+    char inquote;
+    char cval;
+    unsigned int escape;
+    unsigned int base;
+    const char *seps;
+    const char *endchars;
+
+    const char *s;
+    char *out;
+    gensiods len;
+};
+
+/*
+ * Add one character to the output buf (if not NULL) and increment
+ * the length.
+ */
 static void
-set_out(char **o, char s, unsigned int *len)
+set_out(struct strtobuf_info *info, char c)
 {
-    if (*o) {
-	**o = s;
-	(*o)++;
-    }
-    (*len)++;
+    if (info->out)
+	info->out[info->len] = c;
+    info->len++;
 }
 
-static int
-gettok(struct gensio_os_funcs *o,
-       const char **s, char **tok, const char *seps, const char *endchars)
+/*
+ * Initialize a strtobuf_info with the input string, the output string
+ * (may be NULL) and the separator and end characters.
+ *
+ * If "out" is NULL, the length in the info structure will still be
+ * updated to the length required to hold the output.  If out is not
+ * NULL, it must be long enough to hold the output.
+ *
+ * Generally you do this process twice, once to calculate the length
+ * and once to generate the actual output.
+ *
+ * "seps" is a list of characters that are used to terminate the
+ * input string and is skipped.  So, for instance, if you have the
+ * string "a b" and seps is " ", when strtobuf() finishes "s" will
+ * point to "b".
+ *
+ * "endchars" is similar to "seps" but upon termination "s" will point
+ * to the separator, not the next characters.  So, for instance, if
+ * you have the string "a;b" and seps is "'", when strtobuf() finishes
+ * "s" will point to ";b".
+ */
+static void
+strtobuf_init(struct strtobuf_info *info,
+	      const char *s, char *out,
+	      const char *seps, const char *endchars)
 {
-    const char *p = skip_seps(*s, seps);
-    const char *t = p;
-    char *out = NULL;
-    char inquote = '\0';
-    unsigned int escape = 0;
-    unsigned int base = 8;
-    char cval = 0;
-    unsigned int len = 0;
+    info->inquote = '\0';
+    info->cval = 0;
+    info->escape = 0;
+    info->base = 0;
+    info->seps = seps;
+    info->endchars = endchars;
+    info->s = s;
+    info->out = out;
+    info->len = 0;
+}
 
-    if (!*p || strchr(endchars, *p)) {
-	*s = p;
-	*tok = NULL;
-	return 0;
-    }
+/*
+ * Scan a "C"-like string and put the output into the output buffer.
+ */
+static void
+strtobuf(struct strtobuf_info *info)
+{
+    const char *p = info->s;
 
- restart:
     for (; *p; p++) {
-	if (escape) {
-	    if (escape == 1) {
-		cval = 0;
+	if (info->escape) {
+	    if (info->escape == 1) {
+		info->cval = 0;
 		if (isodigit(*p)) {
-		    base = 8;
-		    cval = *p - '0';
-		    escape++;
+		    info->base = 8;
+		    info->cval = *p - '0';
+		    info->escape++;
 		} else if (*p == 'x') {
-		    base = 16;
-		    escape++;
+		    info->base = 16;
+		    info->escape++;
 		} else {
 		    switch (*p) {
-		    case 'a': set_out(&out, '\a', &len); break;
-		    case 'b': set_out(&out, '\b', &len); break;
-		    case 'f': set_out(&out, '\f', &len); break;
-		    case 'n': set_out(&out, '\n', &len); break;
-		    case 'r': set_out(&out, '\r', &len); break;
-		    case 't': set_out(&out, '\t', &len); break;
-		    case 'v': set_out(&out, '\v', &len); break;
-		    default:  set_out(&out, *p, &len);
+		    case 'a': set_out(info, '\a'); break;
+		    case 'b': set_out(info, '\b'); break;
+		    case 'f': set_out(info, '\f'); break;
+		    case 'n': set_out(info, '\n'); break;
+		    case 'r': set_out(info, '\r'); break;
+		    case 't': set_out(info, '\t'); break;
+		    case 'v': set_out(info, '\v'); break;
+		    default:  set_out(info, *p);
 		    }
-		    escape = 0;
+		    info->escape = 0;
 		}
-	    } else if (escape >= 2) {
-		if ((base == 16 && isxdigit(*p)) || isodigit(*p)) {
+	    } else if (info->escape >= 2) {
+		if ((info->base == 16 && isxdigit(*p)) || isodigit(*p)) {
 		    if (isdigit(*p))
-			cval = cval * base + *p - '0';
+			info->cval = info->cval * info->base + *p - '0';
 		    else if (isupper(*p))
-			cval = cval * base + *p - 'A';
+			info->cval = info->cval * info->base + *p - 'A';
 		    else
-			cval = cval * base + *p - 'a';
-		    if (escape >= 3) {
-			set_out(&out, cval, &len);
-			escape = 0;
+			info->cval = info->cval * info->base + *p - 'a';
+		    if (info->escape >= 3) {
+			set_out(info, info->cval);
+			info->escape = 0;
 		    } else {
-			escape++;
+			info->escape++;
 		    }
 		} else {
-		    set_out(&out, cval, &len);
-		    escape = 0;
+		    set_out(info, info->cval);
+		    info->escape = 0;
 		    goto process_char;
 		}
 	    }
 	    continue;
 	}
     process_char:
-	if (*p == inquote) {
-	    inquote = '\0';
-	} else if (!inquote && (*p == '\'' || *p == '"')) {
-	    inquote = *p;
+	if (*p == info->inquote) {
+	    info->inquote = '\0';
+	} else if (!info->inquote && (*p == '\'' || *p == '"')) {
+	    info->inquote = *p;
 	} else if (*p == '\\') {
-	    escape = 1;
-	} else if (!inquote) {
-	    if (is_sep(*p, seps)) {
+	    info->escape = 1;
+	} else if (!info->inquote) {
+	    if (is_sep(*p, info->seps)) {
 		p++;
 		break;
-	    } else if (strchr(endchars, *p)) {
+	    } else if (strchr(info->endchars, *p)) {
 		/* Don't skip endchars. */
 		break;
 	    } else {
-		set_out(&out, *p, &len);
+		set_out(info, *p);
 	    }
 	} else {
-	    set_out(&out, *p, &len);
+	    set_out(info, *p);
 	}
     }
 
-    if ((base == 8 && escape > 1) || (base == 16 && escape > 2)) {
-	set_out(&out, cval, &len);
-	escape = 0;
+    info->s = p;
+}
+
+/*
+ * Handle the finish of strtobuf, making sure the end state is valid.
+ */
+static int
+strtobuf_finish(struct strtobuf_info *info)
+{
+    if ((info->base == 8 && info->escape > 1) ||
+		(info->base == 16 && info->escape > 2)) {
+	set_out(info, info->cval);
+	info->escape = 0;
     }
 
-    if (inquote || escape)
+    if (info->inquote || info->escape)
 	return GE_INVAL;
 
-    if (!out) {
-	out = o->zalloc(o, len + 1);
-	if (!out)
-	    return GE_NOMEM;
-	*tok = out;
-	len = 0;
-	p = t;
-	goto restart;
+    return 0;
+}
+
+/*
+ * Convert a string to a token, doing "C"-like string processing to the
+ * string.
+ */
+static int
+gettok(struct gensio_os_funcs *o,
+       const char **s, char **tok, const char *seps, const char *endchars)
+{
+    const char *p = skip_seps(*s, seps);
+    char *out = NULL;
+    struct strtobuf_info info;
+    int rv;
+
+    if (!*p || (endchars && strchr(endchars, *p))) {
+	*s = p;
+	*tok = NULL;
+	return 0;
     }
 
-    *s = p;
-    *out = '\0';
+    /* Process it once to find out how long the output string is. */
+    strtobuf_init(&info, p, NULL, seps, endchars);
+    strtobuf(&info);
+    rv = strtobuf_finish(&info);
+    if (rv)
+	return rv;
+
+    /* Now allocate the output string and process it again. */
+    out = o->zalloc(o, info.len + 1);
+    if (!out)
+	return GE_NOMEM;
+    strtobuf_init(&info, p, out, seps, endchars);
+    strtobuf(&info);
+    strtobuf_finish(&info);
+
+    *s = info.s;
+    info.out[info.len] = '\0';
+    *tok = out;
 
     return 0;
 }
