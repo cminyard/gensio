@@ -46,6 +46,8 @@ To fully build gensio, you need the following:
 
 The following sets everything except openipmi up on ubuntu 20.04:
 
+.. code-block:: bash
+
   sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
     libavahi-client-dev avahi-daemon libtool autoconf automake make	\
     libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
@@ -55,6 +57,8 @@ On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
 to be available, so you will have to build that yourself with at least go and
 python support.  Here's the command for Redhat-like systems:
 
+.. code-block:: bash
+
   sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
     pkg-config avahi-devel libtool autoconf automake make \
     lksctp-tools-devel pam-devel glib2-devel tcl-devel \
@@ -63,9 +67,13 @@ python support.  Here's the command for Redhat-like systems:
 You might have to do the following to enable access to the development
 packages:
 
+.. code-block:: bash
+
   sudo dnf config-manager --set-enabled devel
 
 And get the SCTP kernel modules, you might have to do:
+
+.. code-block:: bash
 
   sudo yum install kernel-modules-extra
 
@@ -161,6 +169,8 @@ Building on FreeBSD
 
 Install the necessary software:
 
+.. code-block:: bash
+
   pkg install gcc portaudio autoconf automake libtool mDNSResponder swig \
       go python3 gmake
 
@@ -172,7 +182,9 @@ following don't work and are not compiled::
 * ipmisol
 * cm108gpio
 
-Add the following to /etc/rc.conf::
+Add the following to /etc/rc.conf:
+
+.. code-block:: bash
 
   mdnsd_enable=YES
 
@@ -218,18 +230,24 @@ regular expressions in it.
 You need to get msys2 from https://msys2.org.  Then install autoconf,
 automake, libtool, git, make, and swig as host tools:
 
+.. code-block:: bash
+
   pacman -S autoconf automake libtool git make swig
 
 You have to install the mingw-w64-x86_64-xxx version of all the
 libraries or the mingw-w64-i686-xxx version of all the libraries.
-32-bit is not well tested::
+32-bit is not well tested:
+
+.. code-block:: bash
 
   pacman -S mingw-w64-x86_64-gcc \
     mingw-w64-x86_64-python3 \
     mingw-w64-x86_64-pcre \
     mingw-w64-x86_64-openssl
 
-for mingw64, or for ucrt64::
+for mingw64, or for ucrt64:
+
+.. code-block:: bash
 
   pacman -S mingw-w64-ucrt-x86_64-gcc \
     mingw-w64-ucrt-x86_64-python3 \
@@ -242,16 +260,22 @@ it to the PATH.  I haven't gotten go working on on mingw32, but I
 haven't tried a 32-bit version of go.
 
 For gtlsshd, --sysconfdir has no meaning on Windows.  Instead, the
-sysconf dir is relative to the patch of the executable, in
-../etc/gtlssh.  So if gtlsshd is in::
+sysconf dir is relative to the patch of the executable, in ../etc/gtlssh.
+So if gtlsshd is in:
+
+.. code-block:: bash
 
    C:/Program Files/Gensio/bin/gtlsshd
 
-the sysconfdir will be::
+the sysconfdir will be:
+
+.. code-block:: bash
 
    C:/Program Files/Gensio/etc/gtlssh
 
-For standard installation, you can run::
+For standard installation, you can run:
+
+.. code-block:: bash
 
    ../configure --sbindir=/Gensio/bin --libexecdir=/Gensio/bin \
       --mandir=/Gensio/man --includedir=/Gensio/include \
@@ -262,7 +286,9 @@ where you want it to go, like "C:/Program Files".  Then you can add
 that to the PATH using the control panel.  To use gtlsshd, you create
 an etc/gtlsshd directory in the Gensio directory.  You must set the
 permissions on this directory so only System and Administrators have
-access, like::
+access, like:
+
+.. code-block:: bash
 
   PS C:\Program Files (x86)\Gensio\etc> icacls gtlssh
   gtlssh NT AUTHORITY\SYSTEM:(OI)(CI)(F)
@@ -278,7 +304,9 @@ and then run Inno on gensio.iss.  It will create an executable installer
 for installing Gensio.
 
 Then you need to remove the .la files from the install directory, as
-they screw up linking with other things::
+they screw up linking with other things:
+
+.. code-block:: bash
 
     rm $HOME/install/Gensio/lib/*.la
 
