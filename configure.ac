@@ -1485,6 +1485,7 @@ AC_ARG_WITH(ssl,
       ssl=no
     fi,
 )
+BUILD_SSL=0
 BUILTIN_SSL=0
 DYNAMIC_SSL=
 case $ssl in
@@ -1494,6 +1495,7 @@ case $ssl in
       fi
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS ssl"
       BUILTIN_SSL=1
+      BUILD_SSL=1
       ;;
    dynamic)
       if test $HAVE_OPENSSL = 0; then
@@ -1501,6 +1503,7 @@ case $ssl in
       fi
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS ssl"
       DYNAMIC_SSL=libgensio_ssl.la
+      BUILD_SSL=1
       ;;
    no)
       ;;
@@ -2200,7 +2203,7 @@ GTLSSHMAN=
 GTLSSYNCMAN=
 GTLSSHDMAN=
 GTLSSH_KEYGENMAN=
-if test $BUILD_OPENSSL -eq 1; then
+if test $BUILD_SSL -eq 1; then
    if test $DISABLE_GTLSSHD = yes; then
       echo "gltsshD disabled"
    elif test $HAVE_PAM -eq 1; then
