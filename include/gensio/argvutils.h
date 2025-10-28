@@ -142,6 +142,12 @@ int gensio_bufv_append(struct gensio_os_funcs *o,
 		       bool allocbuf);
 
 GENSIOOSH_DLL_PUBLIC
+int gensio_bufv_copy(struct gensio_os_funcs *o,
+		     const unsigned char * const obufv[], const gensiods *olens,
+		     int *r_bufc,
+		     const unsigned char ***r_bufv, gensiods **r_lens);
+
+GENSIOOSH_DLL_PUBLIC
 void gensio_bufv_free(struct gensio_os_funcs *o,
 		      const unsigned char **bufv, gensiods *lens);
 

@@ -48,6 +48,21 @@ gensio_strndup(struct gensio_os_funcs *o, const char *str, gensiods len)
     return s;
 }
 
+unsigned char *
+gensio_bufdup(struct gensio_os_funcs *o, const unsigned char *buf, gensiods len)
+{
+    unsigned char *b;
+
+    if (!buf)
+	return NULL;
+
+    b = o->zalloc(o, len);
+    if (!b)
+	return NULL;
+    memcpy(b, buf, len);
+    return b;
+}
+
 int
 gensio_argv_copy(struct gensio_os_funcs *o,
 		 const char * const oargv[],
@@ -248,6 +263,52 @@ gensio_bufv_append(struct gensio_os_funcs *o,
 		   bool allocbuf)
 {
     return gensio_bufv_nappend(o, bufv, lens, buf, len, args, bufc, allocbuf);
+}
+
+int
+gensio_bufv_copy(struct gensio_os_funcs *o,
+		 const unsigned char * const obufv[], const gensiods *olens,
+		 int *r_bufc,
+		 const unsigned char ***r_bufv, gensiods **r_lens)
+{
+    unsigned int len;
+    const unsigned char **bufv;
+    gensiods *lens;
+
+    for (len = 0; obufv[len]; len++)
+	;
+    bufv = o->zalloc(o, (len + 1) * sizeof(*bufv));
+    if (!bufv)
+	return GE_NOMEM;
+    lens = o->zalloc(o, (len + 1) * sizeof(*lens));
+    if (!lens)
+	return GE_NOMEM;
+    for (len = 0; obufv[len]; len++) {
+	bufv[len] = gensio_bufdup(o, obufv[len], olens[len]);
+	if (!bufv[len])
+	    goto out_nomem;
+	lens[len] = olens[len];
+    }
+    bufv[len] = NULL;
+    if (r_bufc)
+	*r_bufc = len;
+    *r_bufv = bufv;
+    *r_lens = lens;
+    return 0;
+
+ out_nomem:
+    while (len > 0) {
+	len--;
+	if (bufv[len])
+	    o->free(o, (void *) bufv[len]);
+	if (lens[len])
+	    o->free(o, (void *) lens[len]);
+    }
+    if (bufv)
+	o->free(o, (void *) bufv);
+    if (lens)
+	o->free(o, (void *) lens);
+    return GE_NOMEM;
 }
 
 void
@@ -494,9 +555,10 @@ cstr_gettok(struct gensio_os_funcs *o,
     struct strtobuf_info info;
     int rv;
 
-    if (!*p || strchr(endchars, *p)) {
+    if (!*p || (endchars && strchr(endchars, *p))) {
 	*s = p;
 	*tok = NULL;
+	*len = 0;
 	return 0;
     }
 

@@ -90,6 +90,13 @@ GENSIOOSH_DLL_PUBLIC
 char *gensio_strndup(struct gensio_os_funcs *o, const char *str, gensiods len);
 
 /*
+ * Duplicate a buffer of memory.
+ */
+GENSIOOSH_DLL_PUBLIC
+unsigned char *gensio_bufdup(struct gensio_os_funcs *o,
+			     const unsigned char *buf, gensiods len);
+
+/*
  * Take the input string, put " around it, and put a \ infront of
  * every \ and ".  This allows you to take a string with " and \ in it
  * and have them pass through the str_to_gensio() and such functions
