@@ -301,8 +301,6 @@ gensio_bufv_copy(struct gensio_os_funcs *o,
 	len--;
 	if (bufv[len])
 	    o->free(o, (void *) bufv[len]);
-	if (lens[len])
-	    o->free(o, (void *) lens[len]);
     }
     if (bufv)
 	o->free(o, (void *) bufv);
