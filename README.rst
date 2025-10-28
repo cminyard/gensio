@@ -349,6 +349,11 @@ ax25
 ratelimit
     Limit the data throughput for a gensio stack.
 
+chardelay
+    Delay sending characters until a certain number have been received
+    or a certain amount of time has passed.  Used to avoid sending a
+    bunch of small packets on an interface.
+
 cm108gpio
     Allow a GPIO on a CMedia CM108 or equivalent sound device to be
     controlled.  Used with afskmdm for keying a transmitter.

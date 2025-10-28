@@ -1746,6 +1746,63 @@ be limited to this length.  Defaults to one.
 .B xmit_delay=<gtime>
 The amount of time to wait between writes.  See the "gtime" section
 for information for this time specification.  This must be supplied.
+.SH "chardelay"
+accepter =
+.B chardelay[(options)]
+.br
+connecting =
+.B chardelay[(options)]
+.P
+Collect characters being transmitted and hold them until a certain
+amount of time has passed, a certain number of characters are
+received, or optionally one of a set of strings is transmitted.
+.P
+Note that this only applies to transmitted data.  Received data is
+passed through transparently.
+.SS Options
+.TP
+The chardelay gensio takes the following options:
+.B drain_timeout=<n>
+See the section on Drain Timeout.
+.TP
+.B min-delay=<gtime>
+After a character is received, wait the given amount of time until
+sending any stored characters.  A new character will reset this timer,
+so basically this sets the amount of time when no characters are sent
+before what is in the buffer is sent.  Default is 1 millisecond.
+.TP
+.B max-delay=<gtime>
+Sets the maximum amount of time after a character is received before
+the write buffer is sent.  This is not reset by new characters, so any
+character added to the write buffer is guaranteed to be sent after
+this delay.  Default is 20 milliseconds.
+.TP
+.B writebuf=<n>
+The output buffer size.  When this many characters are queued in the
+write buffer, the buffer is sent immediately.  Default is 1024.
+.TP
+.B sendon=<str>
+This is one or more strings, separated by space characters, that cause
+the buffer to be sent immediately.  This is a standard C-like string.
+Note that a space character is the
+.B only
+character that separates strings.  Tabs, newline, etc. do not.  If you
+want to send a space, you must use two \\ characters to escape it.
+Note that this only does a simple comparison, it does not generate a
+finite state automata or anything like that, so strings in strings
+might be missed.
+.SS Examples
+Assume we have the following:
+.IP
+chardelay(min-delay=5s,max-delay=10s,sendon="\\r \\\\  \\n")
+.P
+This means that if a characters is sent, this will wait 5 seconds
+until that character is sent, unless another character is received in
+that time, then the 5 second timer is restarted.  However, that
+character will be sent within 10 seconds no matter what.  If a
+carraige return (\\r), a newline (\\n) or a space character (notice
+the double \\ as discussed above) is transmitted, whatever is in the
+buffer is sent immediately.
 .SH "trace"
 accepter =
 .B trace[(options)]
