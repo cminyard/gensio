@@ -444,6 +444,7 @@ class HandleData:
                 wrdata = self.to_write[self.wrpos:]
             else:
                 wrdata = self.to_write[self.wrpos:self.wrpos + self.chunksize]
+                pass
             count = io.write(wrdata, self.write_auxdata)
             if (debug or self.debug):
                 print(self.name + ": wrote %d bytes" % count)
@@ -457,6 +458,7 @@ class HandleData:
                 self.wake("write_done")
             else:
                 self.wrpos += count
+                pass
             return
         except Exception as e:
             io.write_cb_enable(False)
