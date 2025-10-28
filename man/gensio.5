@@ -1696,6 +1696,11 @@ will connect to each other, if they are started relatively close in
 time to avoid one timing out.  A relpkt server will simply wait
 forever for an incoming connection on an open.
 
+Because it's packet-oriented, when using relpkt as a stream it might
+need the chardelay gensio on top of it to collect individual small
+writes into a group to make it more efficient.  If you write
+individual bytes, it will be extremely inefficient.
+
 relpkt does not support readbuf.  It supports the following:
 .TP
 .B max_pktsize=<n>
