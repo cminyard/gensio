@@ -33,7 +33,8 @@ gensios_enabled = {
     "perf": 1,
     "mdns": @HAVE_MDNS@,
     "ax25": 1,
-    "ratelimit": 1
+    "ratelimit": 1,
+    "chardelay": 1
 }
 
 # Gensios that are always last in the list.

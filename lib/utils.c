@@ -718,24 +718,6 @@ gensio_scan_args(struct gensio_os_funcs *o,
     return err;
 }
 
-int
-gensio_time_cmp(gensio_time *t1, gensio_time *t2)
-{
-    if (t1->secs < t2->secs)
-	return -1;
-
-    if (t1->secs > t2->secs)
-	return 1;
-
-    if (t1->nsecs < t2->nsecs)
-	return -1;
-
-    if (t1->nsecs > t2->nsecs)
-	return 1;
-
-    return 0;
-}
-
 bool
 gensio_str_in_auxdata(const char *const *auxdata, const char *str)
 {

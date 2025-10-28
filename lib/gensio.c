@@ -2248,51 +2248,17 @@ gensio_pparm_time(struct gensio_pparm_info *p,
 		  gensio_time *rgt)
 {
     const char *sval;
-    char *end;
     int rv = gensio_pparm_value(p, str, key, &sval);
-    gensio_time gt = { 0, 0 };
-    int64_t v;
-    int64_t nsecs = 0; /* Use this to avoid overflows. */
 
     if (!rv)
 	return 0;
 
-    while (true) {
-	v = strtoul(sval, &end, 0);
-	if (end == sval) {
-	    gensio_pparm_log(p, "Invalid time in parameter %s", str);
-	    return -1;
-	}
-	if (*end) {
-	    mod = *end;
-	    end++;
-	}
-	switch (mod) {
-	case 'D': gt.secs += v * 24 * 3600; break;
-	case 'H': gt.secs += v * 3600; break;
-	case 'M': gt.secs += v * 60; break;
-	case 's': gt.secs += v; break;
-	case 'm': nsecs += GENSIO_MSECS_TO_NSECS(v); goto done;
-	case 'u': nsecs += GENSIO_USECS_TO_NSECS(v); goto done;
-	case 'n': nsecs += v; goto done;
-	default:
-	    return -1;
-	}
-	gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
-	nsecs = nsecs % GENSIO_NSECS_IN_SEC;
-	if (!*end)
-	    break;
-	mod = 0;
-	sval = end;
-    }
- done:
-    gt.nsecs = nsecs;
-    if (*end) {
+    rv = gensio_str_to_time(sval, rgt, mod);
+    if (rv) {
 	gensio_pparm_log(p, "Invalid time in parameter %s", str);
 	return -1;
     }
 
-    *rgt = gt;
     return 1;
 }
 
@@ -3191,6 +3157,45 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
     return 1;
 }
 
+int
+gensio_get_default_uint(struct gensio_os_funcs *o,
+			const char *class, const char *name, bool classonly,
+			unsigned int *val)
+{
+    int intval;
+    int err;
+
+    err = gensio_get_default(o, class, name, classonly, GENSIO_DEFAULT_INT,
+			     NULL, &intval);
+    if (err)
+	return err;
+    if (intval < 0)
+	return GE_INVAL;
+    *val = intval;
+    return 0;
+}
+
+int
+gensio_get_default_time(struct gensio_os_funcs *o,
+			const char *class, const char *name, bool classonly,
+			gensio_time *val)
+{
+    char *str;
+    int err;
+
+    err = gensio_get_default(o, class, name, classonly, GENSIO_DEFAULT_STR,
+			     &str, NULL);
+    if (err)
+	return err;
+
+    if (!str)
+	return GE_NOTSUP;
+
+    err = gensio_str_to_time(str, val, 0);
+    o->free(o, str);
+    return err;
+}
+
 static int
 gensio_wait_no_cb(struct gensio *io, struct gensio_waiter *waiter,
 		  gensio_time *timeout)
@@ -3703,6 +3708,53 @@ gensio_fdump_buf_finish(FILE *f, struct gensio_fdump *h)
     fputc('\n', f);
 }
 
+int
+gensio_str_to_time(const char *sval, gensio_time *time, char mod)
+{
+    gensio_time gt = { 0, 0 };
+    int64_t v;
+    int64_t nsecs = 0; /* Use this to avoid overflows. */
+    char *end;
+
+    while (true) {
+	v = strtoll(sval, &end, 0);
+	if (end == sval)
+	    /* Nothing was there, so not a valid number. */
+	    return GE_INVAL;
+	if (*end) {
+	    mod = *end;
+	    end++;
+	}
+	switch (mod) {
+	case 'D': gt.secs += v * 24 * 3600; break;
+	case 'H': gt.secs += v * 3600; break;
+	case 'M': gt.secs += v * 60; break;
+	case 's': gt.secs += v; break;
+	case 'm': nsecs += GENSIO_MSECS_TO_NSECS(v); goto done;
+	case 'u': nsecs += GENSIO_USECS_TO_NSECS(v); goto done;
+	case 'n': nsecs += v; goto done;
+	default:
+	    return -1;
+	}
+	gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
+	nsecs = nsecs % GENSIO_NSECS_IN_SEC;
+	if (!*end)
+	    break;
+	mod = 0;
+	sval = end;
+    }
+ done:
+    gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
+    nsecs = nsecs % GENSIO_NSECS_IN_SEC;
+    gt.nsecs = nsecs;
+
+    if (*end)
+	return GE_INVAL;
+
+    *time = gt;
+    return 0;
+}
+
 void
 gensio_time_add(gensio_time *t, gensio_time *v)
 {
@@ -3789,6 +3841,20 @@ gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2)
     v *= GENSIO_NSECS_IN_SEC;
     v += (int64_t) t1->nsecs - (int64_t) t2->nsecs;
     return v;
+}
+
+int
+gensio_time_cmp(gensio_time *t1, gensio_time *t2)
+{
+    if (t1->secs < t2->secs)
+	return -1;
+    if (t1->secs > t2->secs)
+	return 1;
+    if (t1->nsecs < t2->nsecs)
+	return -1;
+    if (t1->nsecs > t2->nsecs)
+	return 1;
+    return 0;
 }
 
 const char *

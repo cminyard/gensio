@@ -604,6 +604,18 @@ int gensio_get_defaultaddr(struct gensio_os_funcs *o,
 			   struct gensio_addr **rai);
 
 GENSIO_DLL_PUBLIC
+int gensio_get_default_uint(struct gensio_os_funcs *o,
+			    const char *classstr, const char *name,
+			    bool classonly,
+			    unsigned int *val);
+
+GENSIO_DLL_PUBLIC
+int gensio_get_default_time(struct gensio_os_funcs *o,
+			    const char *classstr, const char *name,
+			    bool classonly,
+			    gensio_time *val);
+
+GENSIO_DLL_PUBLIC
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *classstr, const char *name, bool delclasses);
 
