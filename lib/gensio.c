@@ -2540,6 +2540,10 @@ struct gensio_def_entry builtin_defaults[] = {
     { "nostack",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "mdnstimeout",	GENSIO_DEFAULT_INT,	.def.intval = 1000 },
     { "ignore-v6-link-local",GENSIO_DEFAULT_BOOL,.def.intval = 0 },
+
+    /* For chardelay */
+    { "min-delay",	GENSIO_DEFAULT_STR,	.def.strval = "1m" },
+    { "max-delay",	GENSIO_DEFAULT_STR,	.def.strval = "20m" },
     { NULL }
 };
 

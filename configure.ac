@@ -1882,6 +1882,34 @@ esac
 AM_CONDITIONAL([BUILTIN_RATELIMIT], [test ${BUILTIN_RATELIMIT} = 1])
 AC_SUBST(DYNAMIC_RATELIMIT)
 
+chardelay=$default_all
+AC_ARG_WITH(chardelay,
+ [AS_HELP_STRING([--with-chardelay=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      chardelay=yes
+    elif test "x$withval" = "xdynamic"; then
+      chardelay=dynamic
+    elif test "x$withval" = "xno"; then
+      chardelay=no
+    fi,
+)
+BUILTIN_CHARDELAY=0
+DYNAMIC_CHARDELAY=
+case $chardelay in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS chardelay"
+      BUILTIN_CHARDELAY=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS chardelay"
+      DYNAMIC_CHARDELAY=libgensio_chardelay.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_CHARDELAY], [test ${BUILTIN_CHARDELAY} = 1])
+AC_SUBST(DYNAMIC_CHARDELAY)
+
 afskmdm=$default_all
 AC_ARG_WITH(afskmdm,
  [AS_HELP_STRING([--with-afskmdm=yes|dynamic|no], [Enable tcp/unix gensio])],
@@ -2445,6 +2473,7 @@ echo   "  xlt:		" $xlt
 echo   "  keepopen:	" $keepopen
 echo   "  script:	" $script
 echo   "  ratelimit:	" $ratelimit
+echo   "  chardelay:	" $chardelay
 echo   "  afskmdm:	" $afskmdm
 echo
 echo "**************************************************"

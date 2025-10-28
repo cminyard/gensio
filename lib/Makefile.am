@@ -350,6 +350,16 @@ libgensio_ratelimit_la_SOURCES = gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
+if BUILTIN_CHARDELAY
+libgensio_la_SOURCES += gensio_chardelay.c
+else
+EXTRA_LTLIBRARIES += libgensio_chardelay.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_CHARDELAY)
+libgensio_chardelay_la_SOURCES = gensio_chardelay.c
+libgensio_chardelay_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_chardelay_la_LIBADD = $(DYNAMIC_LIBS)
+
 if BUILTIN_AFSKMDM
 libgensio_la_SOURCES += gensio_afskmdm.c
 libgensio_la_LIBADD += -lm
