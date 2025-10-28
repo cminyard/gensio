@@ -16,6 +16,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
+#include <gensio/gensio_time.h>
 
 #include "utils.h"
 #include "telnet.h"

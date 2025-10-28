@@ -16,9 +16,6 @@ extern "C" {
 #include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
-GENSIOOSH_DLL_PUBLIC
-int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
-
 /*
  * Helper functions that don't fit anywhere else.
  */
