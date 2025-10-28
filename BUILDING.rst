@@ -148,9 +148,10 @@ location.
 Building on MacOS
 =================
 
-MacOS, being a sort of *nix, builds pretty cleanly with Homebrew
-(https://brew.sh).  You have to, of course, install all the libraries
-you need.  Most everything works, with the following exceptions::
+MacOS, being a sort of *nix, builds gensio pretty cleanly with
+Homebrew (https://brew.sh).  You have to, of course, install all the
+libraries you need.  Most everything works, with the following
+exceptions::
 
 * cm108gpio
 * sctp
@@ -182,7 +183,7 @@ following don't work and are not compiled::
 * ipmisol
 * cm108gpio
 
-Add the following to /etc/rc.conf:
+To get MDNS working, add the following to /etc/rc.conf:
 
 .. code-block:: bash
 
@@ -195,7 +196,6 @@ something up with the BSD PTYs. I'm seeing a 07 character inserted into
 the data stream in cases.  I haven't spent too much time on it,
 though, but since this is heavily tested on Linux and MacOS, I don't
 think the problem is in the gensio code.
-
 
 Building on Windows
 ===================
@@ -211,17 +211,21 @@ The following things don't work::
 You also don't need to install alsa, it uses the Windows sound interface for
 sound.
 
-The cm108gpio uses native windows interfaces, so udev is not required.
+cm108gpio uses native windows interfaces, so udev is not required.
 
-You can compile under msys, which is there primarily to support file
-transfers with gtlssync and gtlssh.  It uses the native Windows
-interfaces MDNS and sound, but those are not well tested.  Outside of
-that, things may or may not work.  In particular, gtlsshd will not
-compile.  You can specify serial ports with //./COM<n>, but there are
-issues.  Python maybe sort of works.  Tests do not run.  For anything
-besides running gtlssh and doing file transfers, you should probably
-use the native version.  These things can be fixed, but they will take
-some work.
+The ucrt64 and mingw64 interfaces work very well on Windows.  These are
+native interfaces and binaries from these will run without the msys
+structure (though you will need some DLLs from them).
+
+You can compile under msys (Unix emulation under Windows), which is
+there primarily to support file transfers with gtlssync and gtlssh.
+It uses the native Windows interfaces MDNS and sound, but those are
+not well tested.  Outside of that, things may or may not work.  In
+particular, gtlsshd will not compile.  You can specify serial ports
+with //./COM<n>, but there are issues.  Python maybe sort of works.
+Tests do not run.  For anything besides running gtlssh and doing file
+transfers, you should probably use the native version.  These things
+can be fixed, but they will take some work.
 
 The Windows built-in MDNS interfaces are used, so you don't need avahi
 or DNSSD.  You will need to install the pcre library if you want
