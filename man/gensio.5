@@ -15,9 +15,9 @@ The
 library specifies a connection (gensio) using a string format.  This
 consists of a gensio type, optional options in parenthesis.  For a
 terminal gensio (one that is at the bottom of the stack), it may take
-more options separated by a comma.  For filter gensios (ones not on
-the bottom of the stack) another gensio must be specified after the
-comma.  For instance:
+more terminaloptions separated by a comma.  For filter gensios (ones
+not on the bottom of the stack) another gensio must be specified after
+the comma.  For instance:
 .IP
 serialdev,/dev/ttyS0
 .PP
@@ -31,6 +31,9 @@ port 4000 on localhost.  Or:
 telnet,tcp,localhost,4000
 .PP
 specifies a telnet filter on top of a TCP connection.
+
+Note that regular options always go in the parenthesis.  Only
+terminaloptions go after a comma on a terminal gensio.
 
 When specifying a gensio, you can add quotes (single or double) to
 remove the special meaning for some characters, so you can have commas
@@ -1289,7 +1292,7 @@ the server has a certificate authority (CA).  This also supports password
 authentication.
 
 Once authentication occurs, this gensio acts as a passthrough.  The
-readbuf option is not available in the gensio.
+readbuf option is not available in this gensio.
 .SS Options
 The certauth gensio takes the following options:
 .TP
@@ -1730,7 +1733,8 @@ connecting =
 Limit the transmit rate of data going through this filter gensio.  A
 number of bytes is let through, then transmit is delayed until the
 given delay has passed.  Receive is not currently rate limited, but
-that may be added in the future.
+that may be added in the future.  The readbuf option is not currently
+available in this gensio.
 .SS Options
 The ratelimit gensio takes the following options:
 .TP
@@ -1758,7 +1762,8 @@ amount of time has passed, a certain number of characters are
 received, or optionally one of a set of strings is transmitted.
 .P
 Note that this only applies to transmitted data.  Received data is
-passed through transparently.
+passed through transparently.  The readbuf option is not available in
+this gensio.
 .SS Options
 .TP
 The chardelay gensio takes the following options:
