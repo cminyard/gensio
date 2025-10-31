@@ -133,9 +133,9 @@ where x is "no (don't build), yes (build into library) or dynamic
 build the tcp gensio into the library and make the rest dynamic, you
 could set up for all dynamic gensios and then add "--with-net=yes".
 
-These modules are put by default into $(moduleinstalldir) (specified
-with --with-moduleinstall on the configure line) which defaults to
-$(pkglibexecdir) (which is generally /usr/libexec/gensio).
+These modules are put by default into ``$(moduleinstalldir)``
+(specified with --with-moduleinstall on the configure line) which
+defaults to $(pkglibexecdir) (which is generally /usr/libexec/gensio).
 
 Note that dynamic loading is always available, even if you build in
 all the gensios in the library.  So you can still add your own gensios
