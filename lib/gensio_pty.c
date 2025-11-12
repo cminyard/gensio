@@ -773,13 +773,6 @@ pty_gensio_alloc(const void *gdata, const char * const args[],
 #endif
 
     if (argv && argv[0]) {
-#if HAVE_PTSNAME_R
-	if (mode_set || owner || group) {
-	    /* These are only for non-subprogram ptys. */
-	    err = GE_INCONSISTENT;
-	    goto out_err;
-	}
-#endif
 	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
 	if (err)
 	    goto out_nomem;
