@@ -2378,9 +2378,11 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	s = gensio_alloc_sprintf(o, "pty,%s", auth->ushell);
 #else
 	if (use_login)
-	    s = gensio_alloc_sprintf(o, "pty,login -f %s", auth->username);
+	    s = gensio_alloc_sprintf(o, "pty(owner=%s),login -f %s",
+				     auth->username, auth->username);
 	else
-	    s = gensio_alloc_sprintf(o, "pty,-%s -i", auth->ushell);
+	    s = gensio_alloc_sprintf(o, "pty(owner=%s),-%s -i",
+				     auth->username, auth->ushell);
 #endif
 	login = true;
 	do_chdir = true;
