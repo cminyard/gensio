@@ -1526,14 +1526,14 @@ connecting =
 
 Create a pty and optionally run a program on the other end of it.
 With a program specified, this is sort of like stdio, but the program
-is running on a terminal.  Only connection gensios are supported.
+is running on a terminal.  Only connecting gensios are supported.
 
 pty has some unusual handling to allow execution of login shells of
 users from root.
 
-In Unix type systems, if the first character of the program is '-', it
-is removed from the execution of the command but left in argv[0].
-This will cause a shell to act as a login shell.
+In Unix type systems, if the first character of the program is '-',
+the '-' is removed from the execution of the command but left in
+argv[0].  This will cause a shell to act as a login shell.
 
 On Unix type systems, in the forked process, the code will set the
 effective (and saved) uid and guid to the current real uid and guid if
@@ -1585,16 +1585,16 @@ causes the pty to be set in raw mode at startup.  This is important for
 anything that will start writing immediately to the pty.  If you don't
 set this, echo will be on and writes on the master will be echoed back.
 In general, this is useful for unattached ptys.  It was added for testing,
-but will be usedful in many situations.
+but will be useful in many situations.
 .TP
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the pty slave.  This is the usual
 read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
 portion.  If a mode is specified, all other modes default to "6" (rw)
-+unless they are specified, and the final mode is modified by the umask
-+per standard *nix semantics.  If no mode is specified, it is set to
-+the default and not modified.  Note that the perm option below is
-+probably a better way to set this.
+unless they are specified, and the final mode is modified by the umask
+per standard *nix semantics.  If no mode is specified, it is set to
+the default and not modified.  Note that the perm option below is
+probably a better way to set this.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the pty slave, see umode for details.
