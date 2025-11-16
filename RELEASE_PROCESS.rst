@@ -88,6 +88,9 @@ on Windows, after doing a get pull to get everything:
 Now on github, create the release and upload Gensio-x.x.x-windows.exe
 and gensio-x.x.x.tar.gz as part of the release.
 
+If the MyAppLibVersion on Windows has changed, a new binary version of
+ser2net will need to be released.
+
 Now we can check homebrew on MacOS.  On a MacOS system, do:
 
 * Do a sha256sum on the gensio-x-x-x.tar.gz file.

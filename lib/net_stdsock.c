@@ -1298,7 +1298,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     if (addr) {
 	int family;
 
-	ai = gensio_addr_addrinfo_get(addr);
+	ai = gensio_addr_addrinfo_get_curr(addr);
 	family = ai->ai_family;
 	if (opensock_flags & GENSIO_OPENSOCK_BIND_ALLADDR) {
 	    struct addrinfo *tai = ai->ai_next;
@@ -1318,6 +1318,8 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 				  ai->ai_protocol,
 				  ai->ai_flags,
 				  o->iod_get_fd(iod));
+	    if (err)
+		return gensio_os_err_to_err(o, sock_errno);
 	}
     }
 
