@@ -794,9 +794,6 @@ pty_gensio_alloc(const void *gdata, const char * const args[],
 
  out_nomem:
     err = GE_NOMEM;
-#if HAVE_PTSNAME_R
- out_err:
-#endif
     if (tdata->ll)
 	gensio_ll_free(tdata->ll);
     else
