@@ -61,10 +61,11 @@ gtlsshd
     document for more details, as there are a few tricky things you
     have to handle.
 
-gtlssh
+gtlssh (or gsh)
     An ssh-like program that can connect to gtlsshd.  It can also
     be used with ser2net to make establishing encrypted and
     authenticated connections easier.  See gtlssh(1) for details.
+    gsh is a synonym for a shorter command.
 
 gtlssh-keygen
     Used for handling keys for gtlssh and gtlsshd.  See gtlssh-keygen(1)
