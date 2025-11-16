@@ -1,16 +1,23 @@
 .TH gtlssh 1 01/02/19  "Shell connection over TLS"
 
 .SH NAME
-gtlssh \- Shell connection  over TLS
+gtlssh / gsh \- Shell connection  over TLS
 
 .SH SYNOPSIS
 .B gtlssh [options] <host> [<program>]
+or
+.B gsh [options] <host> [<program>]
 
 .SH DESCRIPTION
 The
 .BR gtlssh
 program connects to a remote server, authenticates the remote server
 using SSL, then authenticates itself with the server.
+
+.BR gsh
+is a synonym for
+.BR gtlssh
+and at some point may replace it.
 
 .BR gtlsshd
 will attempt an SCTP connection first, and fall back to TCP if that

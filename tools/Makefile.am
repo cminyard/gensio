@@ -76,6 +76,15 @@ if INSTALL_DOC
 man1_MANS = gensiot.1 @GTLSSHMAN@ @GTLSSH_KEYGENMAN@ @GTLSSYNCMAN@ @GMDNSMAN@ \
 	greflector.1 gsound.1
 man8_MANS = @GTLSSHDMAN@
+if GTLSSH
+install-data-hook:
+	$(LN_SF) gtlssh.1 $(DESTDIR)$(man1dir)/gsh.1
+endif
+endif
+
+if GTLSSH
+install-exec-hook:
+	$(LN_SF) gtlssh$(EXEEXT) $(DESTDIR)$(bindir)/gsh$(EXEEXT)
 endif
 
 EXTRA_DIST = $(manpages) gtlssync gtlsshd.service.in
