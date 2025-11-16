@@ -1210,7 +1210,7 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
    if test "$HAVE_WINMDNS" = "1"; then
       mdns=$default_all
       MDNS_LIBS="-ldnsapi"
-      if test $target_os = msys; then
+      if test $target_os = msys -o $target_os = cygwin; then
 	  # We are using Windows MDNS on MSYS2
 	  MDNS_LIBS="-liphlpapi $MDNS_LIBS"
       fi
