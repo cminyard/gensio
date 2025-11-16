@@ -107,8 +107,10 @@ DISABLE_GO=no
 
 DISABLE_GTLSSHD=no
 
+MSYS_CYGWIN=0
+
 case $target_os in
-	msys)
+	msys | cygwin*)
 		# MSYS presents some challenges.  We hack things to
 		# get them to compile, but not much works well.  See
 		# the README file for details.
@@ -119,6 +121,7 @@ case $target_os in
 		HAVE_WIN32SOUND=1
 		DISABLE_GO=yes
 		DISABLE_GTLSSHD=yes
+		MSYS_CYGWIN=1
 		;;
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -132,11 +135,6 @@ case $target_os in
 		PYTHON_EXT_EXT_SET="-shrext .pyd"
 		PYTHON_UNDEF_FLAG=-no-undefined
 		HAVE_WIN32SOUND=1
-		;;
-	cygwin*)
-		OSH_LIBS="$OSH_LIBS -ldl"
-		uucp_locking_flag=no
-		flock_locking_flag=no
 		;;
 	linux*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -1210,7 +1208,7 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
    if test "$HAVE_WINMDNS" = "1"; then
       mdns=$default_all
       MDNS_LIBS="-ldnsapi"
-      if test $target_os = msys -o $target_os = cygwin; then
+      if test "$MSYS_CYGWIN" = "1"; then
 	  # We are using Windows MDNS on MSYS2
 	  MDNS_LIBS="-liphlpapi $MDNS_LIBS"
       fi
@@ -2267,7 +2265,7 @@ AC_SUBST(HAVE_UNIX)
 AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket file handling])
 
 GENSIO_PTY_HELPER=
-if test "$version_type" = "windows" -a "$target_os" != "msys"; then
+if test "$version_type" = "windows" -a "$MSYS_CYGWIN" != "1"; then
    # We have PTY support for windows.
    HAVE_PTY=1
    GENSIO_PTY_HELPER="gensio_pty_helper\$(EXEEXT)"

@@ -12,9 +12,9 @@
 /* This fails to compile without including this, has to do with Python.h */
 #include <windows.h>
 #endif
+#include <Python.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <Python.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_swig.h>
 #include "python_swig_internals.h"
