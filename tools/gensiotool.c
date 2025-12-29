@@ -234,15 +234,23 @@ setup_dummyrand(const char *filename)
  * Set a dummy random input file, for reproducable openssl usage for
  * fuzz testing.
  */
+#include <openssl/opensslv.h>
 #include <openssl/rand.h>
 
 static FILE *dummyrnd_file;
 
+#if defined(LIBRESSL_VERSION_NUMBER)
+static void
+dummyrnd_seed(const void *buf, int num)
+{
+}
+#else
 static int
 dummyrnd_seed(const void *buf, int num)
 {
     return 1;
 }
+#endif
 
 static int
 dummyrnd_bytes(unsigned char *buf, int num)
@@ -274,11 +282,18 @@ dummyrnd_cleanup(void)
 {
 }
 
+#if defined(LIBRESSL_VERSION_NUMBER)
+static void
+dummyrnd_add(const void *buf, int num, double randomness)
+{
+}
+#else
 static int
 dummyrnd_add(const void *buf, int num, double randomness)
 {
     return 1;
 }
+#endif
 
 static int
 dummyrnd_pseudorand(unsigned char *buf, int num)
