@@ -130,9 +130,11 @@ mdns_rawstr_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
 	o->free(o, sdata->extdata);
 }
 
-#if defined(HAVE_REGEXEC) || defined(HAVE_PCRE_POSIX)
+#if defined(HAVE_REGEXEC) || defined(HAVE_PCRE_POSIX) || defined(HAVE_PCRE2_POSIX)
 #include <sys/types.h>
-#ifdef HAVE_PCRE_POSIX
+#ifdef HAVE_PCRE2_POSIX
+#include <pcre2posix.h>
+#elif HAVE_PCRE_POSIX
 #include <pcreposix.h>
 #else
 #include <regex.h>
