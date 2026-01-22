@@ -649,11 +649,11 @@ static void
 cm108gpio_unlock_and_deref(struct cm108gpio_data *ndata)
 {
     assert(ndata->refcount > 0);
-    if (ndata->refcount == 1) {
+    ndata->refcount--;
+    if (ndata->refcount == 0) {
 	cm108gpio_unlock(ndata);
 	cm108gpio_finish_free(ndata);
     } else {
-	ndata->refcount--;
 	cm108gpio_unlock(ndata);
     }
 }
@@ -696,7 +696,7 @@ cm108gpio_deferred_op(struct gensio_runner *runner, void *cb_data)
 	if (ndata->close_done) {
 	    cm108gpio_unlock(ndata);
 	    ndata->close_done(ndata->io, ndata->close_data);
-	    cm108gpio_unlock(ndata);
+	    cm108gpio_lock(ndata);
 	}
 
 	if (ndata->state != CM108GPIO_CLOSED)
