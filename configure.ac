@@ -661,11 +661,17 @@ AC_SUBST(TCL_DIR)
 
 AC_CHECK_FUNCS(regexec)
 AC_CHECK_FUNCS(fnmatch)
+have_pcre2_posix=no
 have_pcre_posix=no
 REGEX_LIB=
 if test "x$ac_cv_func_regexec" != xyes; then
+   AC_CHECK_LIB(pcre2-posix, pcre2_regexec, have_pcre2_posix=yes)
    AC_CHECK_LIB(pcreposix, regexec, have_pcre_posix=yes)
-   if test $have_pcre_posix = yes; then
+   if test $have_pcre2_posix = yes; then
+      REGEX_LIB=-lpcre2-posix
+      AC_DEFINE([HAVE_PCRE2_POSIX], [], [Have PCRE2 POSIX regex])
+      ac_cv_func_regexec=pcre2
+   elif test $have_pcre_posix = yes; then
       REGEX_LIB=-lpcreposix
       AC_DEFINE([HAVE_PCRE_POSIX], [], [Have PCRE POSIX regex])
       ac_cv_func_regexec=pcre
