@@ -228,7 +228,7 @@ transfers, you should probably use the native version.  These things
 can be fixed, but they will take some work.
 
 The Windows built-in MDNS interfaces are used, so you don't need avahi
-or DNSSD.  You will need to install the pcre library if you want
+or DNSSD.  You will need to install the pcre or pcre2 library if you want
 regular expressions in it.
 
 You need to get msys2 from https://msys2.org.  Then install autoconf,
@@ -246,7 +246,7 @@ libraries or the mingw-w64-i686-xxx version of all the libraries.
 
   pacman -S mingw-w64-x86_64-gcc \
     mingw-w64-x86_64-python3 \
-    mingw-w64-x86_64-pcre \
+    mingw-w64-x86_64-pcre2 \
     mingw-w64-x86_64-openssl
 
 for mingw64, or for ucrt64:
@@ -255,7 +255,7 @@ for mingw64, or for ucrt64:
 
   pacman -S mingw-w64-ucrt-x86_64-gcc \
     mingw-w64-ucrt-x86_64-python3 \
-    mingw-w64-ucrt-x86_64-pcre \
+    mingw-w64-ucrt-x86_64-pcre2 \
     mingw-w64-ucrt-x86_64-openssl
 
 For go, install go from https://go.dev and log out and log back in.
