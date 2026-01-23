@@ -771,6 +771,26 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
     struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
     int err;
 
+    if (sfilter->transmit_state == WAITING_ENDXMIT &&
+		    sfilter->xmit_buf_len == 0) {
+	unsigned long frames_left = 0;
+	struct gensio_filter_cb_control_data cd;
+	char buf[20] = "0";
+	gensiods buflen = sizeof(buf);
+
+	cd.depth = GENSIO_CONTROL_DEPTH_FIRST;
+	cd.get = true;
+	cd.option = GENSIO_CONTROL_DRAIN_COUNT;
+	cd.data = buf;
+	cd.datalen = &buflen;
+	sfilter->filter_cb(sfilter->filter_cb_data,
+			   GENSIO_FILTER_CB_CONTROL, &cd);
+	frames_left = strtoul(buf, NULL, 0);
+	if (frames_left != 0)
+	    return GE_INPROGRESS;
+    } else if (sfilter->transmit_state != NOT_SENDING)
+	return GE_INPROGRESS;
+
     if (sfilter->key_io_state == KEY_OPEN) {
 	afskmdm_do_keyoff(sfilter);
 	err = gensio_close(sfilter->key_io, key_close_done, sfilter);
@@ -788,8 +808,6 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	timeout->nsecs = GENSIO_MSECS_TO_NSECS(10);
 	return GE_RETRY;
     }
-    if (sfilter->transmit_state != NOT_SENDING)
-	return GE_INPROGRESS;
     return 0;
 }
 
