@@ -764,6 +764,22 @@ key_close_done(struct gensio *io, void *close_data)
     sfilter->key_io_state = KEY_CLOSED;
 }
 
+static unsigned long get_frames_left(struct afskmdm_filter *sfilter)
+{
+    struct gensio_filter_cb_control_data cd;
+    char buf[20] = "0";
+    gensiods buflen = sizeof(buf);
+
+    cd.depth = GENSIO_CONTROL_DEPTH_FIRST;
+    cd.get = true;
+    cd.option = GENSIO_CONTROL_DRAIN_COUNT;
+    cd.data = buf;
+    cd.datalen = &buflen;
+    sfilter->filter_cb(sfilter->filter_cb_data,
+		       GENSIO_FILTER_CB_CONTROL, &cd);
+    return strtoul(buf, NULL, 0);
+}
+
 static int
 afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 		       bool was_timeout)
@@ -773,20 +789,7 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 
     if (sfilter->transmit_state == WAITING_ENDXMIT &&
 		    sfilter->xmit_buf_len == 0) {
-	unsigned long frames_left = 0;
-	struct gensio_filter_cb_control_data cd;
-	char buf[20] = "0";
-	gensiods buflen = sizeof(buf);
-
-	cd.depth = GENSIO_CONTROL_DEPTH_FIRST;
-	cd.get = true;
-	cd.option = GENSIO_CONTROL_DRAIN_COUNT;
-	cd.data = buf;
-	cd.datalen = &buflen;
-	sfilter->filter_cb(sfilter->filter_cb_data,
-			   GENSIO_FILTER_CB_CONTROL, &cd);
-	frames_left = strtoul(buf, NULL, 0);
-	if (frames_left != 0)
+	if (get_frames_left(sfilter) != 0)
 	    return GE_INPROGRESS;
     } else if (sfilter->transmit_state != NOT_SENDING)
 	return GE_INPROGRESS;
@@ -829,20 +832,10 @@ static void
 afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
 {
     unsigned long frames_left = 0;
-    struct gensio_filter_cb_control_data cd;
-    char buf[20] = "0";
-    gensiods buflen = sizeof(buf);
     uint64_t timeoutns;
     gensio_time timeout;
 
-    cd.depth = GENSIO_CONTROL_DEPTH_FIRST;
-    cd.get = true;
-    cd.option = GENSIO_CONTROL_DRAIN_COUNT;
-    cd.data = buf;
-    cd.datalen = &buflen;
-    sfilter->filter_cb(sfilter->filter_cb_data,
-		       GENSIO_FILTER_CB_CONTROL, &cd);
-    frames_left = strtoul(buf, NULL, 0);
+    frames_left = get_frames_left(sfilter);
 
     /*
      * Set a timer to know when we are done transmitting.
