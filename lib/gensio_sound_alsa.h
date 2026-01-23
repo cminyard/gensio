@@ -549,7 +549,8 @@ gensio_sound_alsa_drain_count(struct sound_info *si)
     struct alsa_info *a = si->pinfo;
     snd_pcm_sframes_t frames_left;
 
-    snd_pcm_delay(a->pcm, &frames_left);
+    if (snd_pcm_delay(a->pcm, &frames_left) < 0)
+	return 0;
     return frames_left;
 }
 
