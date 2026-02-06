@@ -41,7 +41,8 @@ except Exception as e:
 
 print("Cause a break")
 
-io2.handler.set_expected_linestate(gensio.GENSIO_SER_LINESTATE_BREAK)
+io2.handler.set_expected_linestate(gensio.GENSIO_SER_LINESTATE_BREAK,
+                                   gensio.GENSIO_SER_LINESTATE_BREAK)
 
 io2.read_cb_enable(True);
 

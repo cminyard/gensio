@@ -565,7 +565,10 @@ class HandleData:
                     print("Got unexpected linestate %x" % linestate)
                 self.enqueue("unexpected linestate", linestate)
                 return
-            if linestate != self.expected_linestate:
+            # May be more bits in the linestate than we expect, just check
+            # for the ones we want.
+            if ((linestate & self.expected_linestate_wanted)
+                        != self.expected_linestate):
                 raise Exception("%s: Expecting linestate 0x%x, got 0x%x" %
                                 (self.name, self.expected_linestate,
                                  linestate))
@@ -577,8 +580,9 @@ class HandleData:
             self.exception("linestate: Unknown exception " + str(e))
         return
 
-    def set_expected_linestate(self, linestate):
+    def set_expected_linestate(self, linestate, wanted=0xff):
         self.expecting_linestate = True
+        self.expected_linestate_wanted = wanted
         self.expected_linestate = linestate
         return
 
