@@ -60,7 +60,7 @@ Then create the new version.  To do this:
 * Tag the current version with "git tag -s vx.x.x".  I usually just
   use "Gensio x.x.x" for the tag text, as it's not that important.
 
-* Do a "git push" then "git push origin vx.x.x" to get it into git.
+* Do a "git push".
 
 * Create the tarball.  I do "make distcheck" on Linux and make sure
   everything builds, installs, uninstalls, etc. ok.
@@ -85,11 +85,19 @@ on Windows, after doing a get pull to get everything:
   it "Gensio-x.x.x-windows.exe" and copy that to the Linux system
   where you upload everything.
 
-Now on github, create the release and upload Gensio-x.x.x-windows.exe
-and gensio-x.x.x.tar.gz as part of the release.
-
 If the MyAppLibVersion on Windows has changed, a new binary version of
 ser2net will need to be released.
+
+Once everything is complete, push up the tag:
+
+* git push origin vx.x.x
+
+Now on github, create the release and upload Gensio-x.x.x-windows.exe
+and gensio-x.x.x.tar.gz as part of the release.  Upload the tarball to
+sourceforge.
+
+Note that homebrew on MacOS handles the updates for us.  The info
+below is preserved for posterity.
 
 Now we can check homebrew on MacOS.  On a MacOS system, do:
 
