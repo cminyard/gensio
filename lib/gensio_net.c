@@ -1345,10 +1345,14 @@ netna_disable(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     unsigned int i;
 
-    for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
-    for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->close(&nadata->acceptfds[i].iod);
+    nadata->o->lock(nadata->lock);
+    for (i = 0; i < nadata->nr_acceptfds; i++) {
+	if (nadata->acceptfds[i].iod) {
+	    nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
+	    nadata->o->close(&nadata->acceptfds[i].iod);
+	}
+    }
+    nadata->o->unlock(nadata->lock);
 }
 
 static int
