@@ -601,7 +601,7 @@ ssl_ul_write(struct gensio_filter *filter,
 	sfilter->want_write = false;
 	err = SSL_peek(sfilter->ssl, buf, 1);
 	if (err <= 0) {
-	    err = ssl_handle_err(sfilter, err, "SSL write");
+	    err = ssl_handle_err(sfilter, err, "SSL peek");
 	    if (err)
 		sfilter->write_data_len = 0;
 	}
