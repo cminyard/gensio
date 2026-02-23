@@ -475,6 +475,39 @@ ssl_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 }
 
 static int
+ssl_handle_err(struct ssl_filter *sfilter, int err, const char *srcstr)
+{
+    err = SSL_get_error(sfilter->ssl, err);
+
+    switch (err) {
+    case SSL_ERROR_WANT_READ:
+	sfilter->want_read = true;
+	err = 0;
+	break;
+
+    case SSL_ERROR_WANT_WRITE:
+	sfilter->want_write = true;
+	err = 0;
+	break;
+
+    case SSL_ERROR_SSL:
+	gssl_logs_err(sfilter, "Failed %s", srcstr);
+	err = GE_PROTOERR;
+	break;
+
+    case SSL_ERROR_ZERO_RETURN:
+	err = GE_REMCLOSE;
+	break;
+
+    default:
+	gssl_log_err(sfilter, "Failed %s: %d", srcstr, err);
+	err = GE_COMMERR;
+    }
+
+    return err;
+}
+
+static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     gensiods *rcount,
@@ -544,38 +577,33 @@ ssl_ul_write(struct gensio_filter *filter,
 	err = SSL_write(sfilter->ssl, sfilter->write_data,
 			sfilter->write_data_len);
 	if (err <= 0) {
-	    err = SSL_get_error(sfilter->ssl, err);
-	    switch (err) {
-	    case SSL_ERROR_WANT_READ:
-		sfilter->want_read = true;
-		err = 0;
-		break;
-
-	    case SSL_ERROR_WANT_WRITE:
-		sfilter->want_write = true;
-		err = 0;
-		break;
-
-	    case SSL_ERROR_SSL:
-		gssl_logs_err(sfilter, "Failed SSL write");
-		err = GE_PROTOERR;
+	    err = ssl_handle_err(sfilter, err, "SSL write");
+	    if (err)
 		sfilter->write_data_len = 0;
-		break;
-
-	    case SSL_ERROR_ZERO_RETURN:
-		err = GE_REMCLOSE;
-		sfilter->write_data_len = 0;
-		break;
-
-	    default:
-		gssl_log_err(sfilter, "Failed SSL write: %d", err);
-		err = GE_COMMERR;
-		sfilter->write_data_len = 0;
-	    }
 	} else {
 	    assert((gensiods) err == sfilter->write_data_len);
 	    sfilter->write_data_len = 0;
 	    err = 0;
+	}
+    } else if (sfilter->want_write) {
+	/*
+	 * We may have gotten an SSL_ERROR_WANT_WRITE from a read
+	 * operation.  We cannot call SSL_write in this case because
+	 * there is no data to write.  But SSL needs to be called to
+	 * complete some operation, so call SSL_peek() to complete any
+	 * pending handshakes without causing any change to the data
+	 * handling.  See the section on SSL_ERROR_WANT_WRITE in the
+	 * SSL_get_error() man page.
+	 */
+	char buf[1];
+
+	sfilter->want_read = false;
+	sfilter->want_write = false;
+	err = SSL_peek(sfilter->ssl, buf, 1);
+	if (err <= 0) {
+	    err = ssl_handle_err(sfilter, err, "SSL write");
+	    if (err)
+		sfilter->write_data_len = 0;
 	}
     }
 
@@ -652,20 +680,7 @@ ssl_ll_write(struct gensio_filter *filter,
 	rlen = SSL_read(sfilter->ssl, sfilter->read_data,
 			sfilter->max_read_size);
 	if (rlen <= 0) {
-	    err = SSL_get_error(sfilter->ssl, rlen);
-	    switch (err) {
-	    case SSL_ERROR_WANT_READ:
-		sfilter->want_read = true;
-		err = 0;
-		break;
-
-	    case SSL_ERROR_WANT_WRITE:
-		sfilter->want_write = true;
-		err = 0;
-		break;
-
-	    case SSL_ERROR_SSL:
-		gssl_logs_err(sfilter, "Failed SSL read");
+	    err = ssl_handle_err(sfilter, err, "SSL read");
 #ifdef ENABLE_INTERNAL_TRACE
 		/*
 		 * Report these as REMCLOSE when testing.  These can
@@ -674,20 +689,9 @@ ssl_ll_write(struct gensio_filter *filter,
 		 * some tests, and we want protocol errors elsewhere
 		 * to actually fail the tests.
 		 */
+	    if (err == GE_PROTOERR)
 		err = GE_REMCLOSE;
-#else
-		err = GE_PROTOERR;
 #endif
-		break;
-
-	    case SSL_ERROR_ZERO_RETURN:
-		err = GE_REMCLOSE;
-		break;
-
-	    default:
-		gssl_log_err(sfilter, "Failed SSL read: %d", err);
-		err = GE_COMMERR;
-	    }
 	} else {
 	    sfilter->read_data_len = rlen;
 	}
