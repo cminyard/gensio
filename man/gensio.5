@@ -2723,27 +2723,27 @@ Sets the transmit volume, from 0.0-1.0.  Values above 1.0 will clip.
 Default is .75.
 .TP
 .B key=<gensio string>
-.TP
 This creates a gensio that will be used to key the transmitter on and
 off.  See the discussion above on keying for more details.
+.TP
 .B keytype=rw|rts|rtsinv|dtr|dtrinv|cm108
 This sets the type of keying done, per the discussion above.
 This is
 .B rw
 by default.
-.B keyon=<string>, keyoff=<string>
 .TP
+.B keyon=<string>, keyoff=<string>
 The strings to send to the key gensio to turn the transmitter on and
 off.  For
 .B keytype=rw
 only.  The default to "T 1\n" and "T 0\n" by default, which is what
 rigctld takes.
-.B keybit=<n>
 .TP
+.B keybit=<n>
 This sets the bit number to use on the cm108 keytype.  This is 3 by
 default.
-.B full-duplex[=yes|no]
 .TP
+.B full-duplex[=yes|no]
 Treat the read and write streams as completely independent.  Transmit
 does not check if something is being received before sending, all
 sends just start immediately.
