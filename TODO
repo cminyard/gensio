@@ -27,6 +27,18 @@ Add an AGWPE client.
 
 Add AGWPE server heard list, UI and raw data handling.
 
+Add a TX/RX splitter to split data between two different gensio
+stacks, one just for RX and one just for TX.  The main gensio could be
+RX, then use "tx='xxxx'" to set the TX gensio.  Controls are an issue,
+you could have a different range of control numbers for TX that get
+translated down to the normal values and RX could go through.
+
+Add a sound splitter much like the above.  It wouldn't have the same
+control issue as the above since sound operations have separate RX and
+TX values.
+
+Add controls for frequency, modulation type, etc.
+
 Add a sound mux to support multiple modems on the same radio.
 * mux would control the key.
 * mux can use the carrier indication from the radio if available.
