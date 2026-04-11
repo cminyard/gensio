@@ -2562,6 +2562,8 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 
     sfilter->wmsgsets = o->zalloc(o, (sizeof(struct wmsgset) *
 				      sfilter->wmsg_sets));
+    if (!sfilter->wmsgsets)
+	goto out_nomem;
     for (i = 0; i < sfilter->wmsg_sets; i++) {
 	sfilter->wmsgsets[i].wmsgs =
 	    o->zalloc(o, sizeof(struct wmsg) * sfilter->max_wmsgs);
