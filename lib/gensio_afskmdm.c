@@ -2118,6 +2118,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    uncert += sfilter->deliver_data_pos * 8;
 	    pos = sprintf(buf, "uncert=");
 	    memcpy(buf + pos, &uncert, sizeof(uncert));
+	    buf[15] = '\0'; /* Just in case. */
 	    ad[0] = buf;
 	    ad[1] = NULL;
 	    auxdata = ad;
