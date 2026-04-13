@@ -2109,7 +2109,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (sfilter->deliver_data_len > 0) {
 	gensiods count = 0;
 	const char **auxdata = NULL, *ad[2];
-	char buf[16];
+	char buf[8 + sizeof(unsigned char *)];
 
 	if (sfilter->do_uncert) {
 	    unsigned char *uncert = sfilter->deliver_raw_uncertainty;
@@ -2118,7 +2118,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    uncert += sfilter->deliver_data_pos * 8;
 	    pos = sprintf(buf, "uncert=");
 	    memcpy(buf + pos, &uncert, sizeof(uncert));
-	    buf[15] = '\0'; /* Just in case. */
+	    buf[sizeof(buf) - 1] = '\0'; /* Just in case. */
 	    ad[0] = buf;
 	    ad[1] = NULL;
 	    auxdata = ad;

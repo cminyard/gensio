@@ -2687,11 +2687,12 @@ high certainty that the bit is correct.  A 50 means there is only a
 
 To get the array, do something like:
 
+unsigned char *uncertarray = NULL;
 for (i = 0; auxdata && auxdata[i]; i++) {
 .br
    if (strncmp(auxdata[i], "uncert=") == 0) {
 .br
-       uncertarray = *((unsigned char **) (auxdata[i] + 7));
+       memcpy(&uncertarray, auxdata[i] + 7, sizeof(uncertarray));
 .br
        break;
 .br
