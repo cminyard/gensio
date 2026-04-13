@@ -141,6 +141,7 @@ struct wmsg {
     /* Current message in assembly. */
     unsigned char *read_data;
     gensiods read_data_len;
+    unsigned char *raw_uncertainty;
 };
 
 struct wmsgset {
@@ -252,6 +253,7 @@ struct afskmdm_filter {
     bool do_raw;
     bool do_inv;
     bool do_diff;
+    bool do_uncert;
     gensiods framecount;
     gensiods framenr;
 
@@ -268,6 +270,7 @@ struct afskmdm_filter {
      */
     gensiods max_read_size;
     unsigned char *deliver_data;
+    unsigned char *deliver_raw_uncertainty;
     gensiods deliver_data_pos;
     gensiods deliver_data_len;
 
@@ -1276,18 +1279,22 @@ static void
 afskmdm_deliver_data(struct afskmdm_filter *sfilter, struct wmsg *w)
 {
     if (sfilter->deliver_data_len == 0) {
-	unsigned char *tmp;
+	unsigned char *tmp, *tmp_uncert;
 
 	tmp = w->read_data;
+	tmp_uncert = w->raw_uncertainty;
 	w->read_data = sfilter->deliver_data;
+	w->raw_uncertainty = sfilter->deliver_raw_uncertainty;
 	sfilter->deliver_data = tmp;
+	sfilter->deliver_raw_uncertainty = tmp_uncert;
 	sfilter->deliver_data_len = w->read_data_len;
 	sfilter->deliver_data_pos = 0;
     }
 }
 
 static void
-afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit)
+afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
+			float certainty)
 {
     struct wmsg *w = &sfilter->wmsgsets[0].wmsgs[0];
 
@@ -1295,6 +1302,15 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit)
 	bit = sfilter->prev_recv_level != bit;
     bit ^= sfilter->do_inv;
     w->curr_byte |= bit << w->curr_bit_pos;
+    if (sfilter->do_uncert) {
+	/*
+	 * Convert the certainty to an uncertainty value ranging from
+	 * 0 to 100.  certainty comes in 1-11, invert that and convert
+	 * it to 0-10 level of uncertainty, then go to 0-50 integer.
+	 */
+	w->raw_uncertainty[w->read_data_len * 8 + w->curr_bit_pos] =
+	    (11.0 - certainty) * 5.0 + 0.5;
+    }
     if (w->curr_bit_pos == 7) {
 	w->read_data[w->read_data_len] = w->curr_byte;
 	w->curr_byte = 0;
@@ -1737,7 +1753,9 @@ process_powers(struct afskmdm_filter *sfilter,
 	    tcertainty = pmark[i] / pspace[i];
 	}
 	if (isnan(tcertainty) || isinf(tcertainty))
-	    tcertainty = 0.0;
+	    tcertainty = 11.0;
+	if (tcertainty > 11.0) /* Certainty ranges from 1 to 11. */
+	    tcertainty = 11.0;
 	if (tcertainty >= *rcertainty) {
 	    *rbest_pos = i;
 	    *rlevel = tlevel;
@@ -1799,7 +1817,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 
     sfilter->prev_best_pos = best_pos;
     if (sfilter->do_raw) {
-	afskmdm_process_raw_bit(sfilter, level);
+	afskmdm_process_raw_bit(sfilter, level, certainty);
 	sfilter->prev_recv_level = level;
 	return;
     }
@@ -2090,12 +2108,26 @@ afskmdm_ll_write(struct gensio_filter *filter,
  try_deliver:
     if (sfilter->deliver_data_len > 0) {
 	gensiods count = 0;
+	const char **auxdata = NULL, *ad[2];
+	char buf[16];
+
+	if (sfilter->do_uncert) {
+	    unsigned char *uncert = sfilter->deliver_raw_uncertainty;
+	    unsigned int pos;
+
+	    uncert += sfilter->deliver_data_pos * 8;
+	    pos = sprintf(buf, "uncert=");
+	    memcpy(buf + pos, &uncert, sizeof(uncert));
+	    ad[0] = buf;
+	    ad[1] = NULL;
+	    auxdata = ad;
+	}
 
 	afskmdm_unlock(sfilter);
 	err = handler(cb_data, &count,
 		      sfilter->deliver_data + sfilter->deliver_data_pos,
 		      sfilter->deliver_data_len - sfilter->deliver_data_pos,
-		      NULL);
+		      auxdata);
 	afskmdm_lock(sfilter);
 	if (!err) {
 	    if (count + sfilter->deliver_data_pos >= sfilter->deliver_data_len)
@@ -2186,6 +2218,8 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 		for (j = 0; j < sfilter->max_wmsgs; j++) {
 		    if (sfilter->wmsgsets[i].wmsgs[j].read_data)
 			o->free(o, sfilter->wmsgsets[i].wmsgs[j].read_data);
+		    if (sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty)
+			o->free(o, sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty);
 		}
 	    }
 	    o->free(o, sfilter->wmsgsets[i].wmsgs);
@@ -2194,6 +2228,8 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
     }
     if (sfilter->deliver_data)
 	o->free(o, sfilter->deliver_data);
+    if (sfilter->deliver_raw_uncertainty)
+	o->free(o, sfilter->deliver_raw_uncertainty);
     if (sfilter->xmit_buf)
 	o->free(o, sfilter->xmit_buf);
     for (i = 0; i < NR_WRITE_BUFS; i++) {
@@ -2433,6 +2469,7 @@ struct gensio_afskmdm_data {
     unsigned int debug;
     bool check_ax25;
     bool do_raw;
+    bool do_uncert;
     bool do_inv;
     bool do_diff;
     bool do_crc;
@@ -2536,6 +2573,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->check_ax25 = data->check_ax25;
     sfilter->do_crc = data->do_crc;
     sfilter->do_raw = data->do_raw;
+    sfilter->do_uncert = data->do_uncert;
     sfilter->do_inv = data->do_inv;
     sfilter->do_diff = data->do_diff;
     sfilter->prev_xmit_level = 0;
@@ -2712,6 +2750,12 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 		o->zalloc(o, sfilter->max_read_size);
 	    if (!sfilter->wmsgsets[i].wmsgs[j].read_data)
 		goto out_nomem;
+	    if (sfilter->do_uncert) {
+		sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty =
+		    o->zalloc(o, sfilter->max_read_size * 8);
+		if (!sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty)
+		    goto out_nomem;
+	    }
 	}
 	sfilter->wmsgsets[i].wmsgs[0].in_use = true;
 	sfilter->wmsgsets[i].wmsgs[0].state = AFSKMDM_STATE_PREAMBLE_FIRST_0;
@@ -2720,6 +2764,10 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 
     sfilter->deliver_data = o->zalloc(o, sfilter->max_read_size);
     if (!sfilter->deliver_data)
+	goto out_nomem;
+
+    sfilter->deliver_raw_uncertainty = o->zalloc(o, sfilter->max_read_size * 8);
+    if (!sfilter->deliver_raw_uncertainty)
 	goto out_nomem;
 
     for (i = 0; i < NR_WRITE_BUFS; i++) {
@@ -3020,6 +3068,8 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "raw", &data.do_raw) > 0)
 	    continue;
+	if (gensio_pparm_bool(p, args[i], "uncert", &data.do_uncert) > 0)
+	    continue;
 	if (gensio_pparm_bool(p, args[i], "inv", &data.do_inv) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "diff", &data.do_diff) > 0)
@@ -3030,8 +3080,11 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	return GE_INVAL;
     }
 
+    /* Force things off that don't make sense. */
     if (data.do_raw)
 	data.do_crc = false;
+    else
+	data.do_uncert = false;
 
 #define MY_STRINGIZE(s) #s
 #define CHECK_VAL(d, cmp, v)						\

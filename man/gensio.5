@@ -2676,6 +2676,34 @@ This forces crc to false.
 
 Defaults to false.
 .TP
+.B uncert[=true|false]
+In raw mode, provide certainty data about each bit that is received in
+the auxdata.  If this is set, auxdata will have a string starting with
+"uncert=" followed by a raw void pointer.  That pointer will be an
+array of unsigned chars, each ranging from 0-50, giving the
+uncertainty of the particular bit it is associated with.  A 0 means a
+high certainty that the bit is correct.  A 50 means there is only a
+50% chance the bit is correct.
+
+To get the array, do something like:
+
+for (i = 0; auxdata && auxdata[i]; i++) {
+.br
+   if (strncmp(auxdata[i], "uncert=") == 0) {
+.br
+       uncertarray = *((unsigned char **) (auxdata[i] + 7));
+.br
+       break;
+.br
+   }
+.br
+}
+
+The array is for each bit in the incoming data, indexed LSB first.  So
+it will be 8 times the size of the incoming data.
+
+This is ignored if not raw.  Defaults to false.
+.TP
 .B wmsgs=<n>
 The number of working messages at the same time.  If the bit fails the
 certainty test (see below), for every current working message, two are
