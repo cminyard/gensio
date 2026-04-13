@@ -249,6 +249,9 @@ struct afskmdm_filter {
     unsigned int debug;
     bool check_ax25;
     bool do_crc;
+    bool do_raw;
+    bool do_inv;
+    bool do_diff;
     gensiods framecount;
     gensiods framenr;
 
@@ -397,6 +400,9 @@ struct afskmdm_filter {
 };
 
 #include "crc.h"
+
+static void afskmdm_start_xmit(struct afskmdm_filter *sfilter);
+static void afskmdm_stop_drain_timer(struct afskmdm_filter *sfilter);
 
 #define filter_to_afskmdm(v) ((struct afskmdm_filter *)		\
 			      gensio_filter_get_user_data(v))
@@ -780,6 +786,17 @@ static unsigned long get_frames_left(struct afskmdm_filter *sfilter)
     return strtoul(buf, NULL, 0);
 }
 
+static void
+get_drain_timeout(struct afskmdm_filter *sfilter, gensio_time *timeout)
+{
+    unsigned long frames_left = get_frames_left(sfilter);
+    uint64_t timeoutns;
+
+    timeoutns = (uint64_t) frames_left * sfilter->nsec_per_frame;
+    timeout->secs = timeoutns / GENSIO_NSECS_IN_SEC;
+    timeout->nsecs = timeoutns % GENSIO_NSECS_IN_SEC;
+}
+
 static int
 afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 		       bool was_timeout)
@@ -787,12 +804,20 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
     struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
     int err;
 
-    if (sfilter->transmit_state == WAITING_ENDXMIT &&
-		    sfilter->xmit_buf_len == 0) {
-	if (get_frames_left(sfilter) != 0)
-	    return GE_INPROGRESS;
-    } else if (sfilter->transmit_state != NOT_SENDING)
+    if (sfilter->transmit_state == WAITING_ENDXMIT) {
+	if (!was_timeout) {
+	    get_drain_timeout(sfilter, timeout);
+	    return GE_RETRY;
+	}
+	if (sfilter->nr_wrbufs > 0) {
+	    sfilter->transmit_state = WAITING_TRANSMIT;
+	    afskmdm_start_xmit(sfilter);
+	} else {
+	    sfilter->transmit_state = NOT_SENDING;
+	}
+    } else if (sfilter->transmit_state != NOT_SENDING) {
 	return GE_INPROGRESS;
+    }
 
     if (sfilter->key_io_state == KEY_OPEN) {
 	afskmdm_do_keyoff(sfilter);
@@ -817,59 +842,38 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 static void
 afskmdm_start_xmit(struct afskmdm_filter *sfilter)
 {
+    bool was_in_endxmit = sfilter->transmit_state == WAITING_ENDXMIT;
+
     sfilter->num_bytes_sent_this_xmit = 0;
-    sfilter->transmit_state = SENDING_PREAMBLE;
-    sfilter->wrbyte = 0x7e;
+    if (sfilter->do_raw) {
+	sfilter->transmit_state = SENDING_MSG;
+	sfilter->wrbyte = sfilter->wrbufs[sfilter->curr_wrbuf].data[0];
+	sfilter->write_pos = 1;
+    } else {
+	sfilter->transmit_state = SENDING_PREAMBLE;
+	sfilter->wrbyte = 0x7e;
+	sfilter->send_count = (sfilter->tx_preamble_time /
+			       sfilter->out_bit_time / 8);
+    }
     sfilter->wrbyte_bit = 0;
-    sfilter->send_count = (sfilter->tx_preamble_time /
-			   sfilter->out_bit_time / 8);
     sfilter->bitstuff = false;
     sfilter->starting_output_ready = true;
-    afskmdm_do_keyon(sfilter);
-}
-
-static void
-afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
-{
-    unsigned long frames_left = 0;
-    uint64_t timeoutns;
-    gensio_time timeout;
-
-    frames_left = get_frames_left(sfilter);
-
-    /*
-     * Set a timer to know when we are done transmitting.
-     */
-    timeoutns = (uint64_t) frames_left * sfilter->nsec_per_frame;
-    timeout.secs = timeoutns / GENSIO_NSECS_IN_SEC;
-    timeout.nsecs = timeoutns % GENSIO_NSECS_IN_SEC;
-    sfilter->filter_cb(sfilter->filter_cb_data,
-		       GENSIO_FILTER_CB_START_TIMER,
-		       &timeout);
-}
-
-static int
-afskmdm_timeout_done(struct gensio_filter *filter)
-{
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
-
-    afskmdm_lock(sfilter);
-    if (sfilter->nr_wrbufs > 0) {
-	sfilter->transmit_state = WAITING_TRANSMIT;
+    if (was_in_endxmit) {
+	afskmdm_stop_drain_timer(sfilter);
     } else {
-	sfilter->transmit_state = NOT_SENDING;
+	afskmdm_do_keyon(sfilter);
     }
-    if (sfilter->keyed)
-	afskmdm_do_keyoff(sfilter);
-    afskmdm_unlock(sfilter);
-
-    return 0;
 }
 
 static void
 afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
 {
     unsigned int randv;
+
+    if (sfilter->do_raw) {
+	afskmdm_start_xmit(sfilter);
+	return;
+    }
 
     /* Some primitive randomness.  Could be improved. */
     sfilter->o->get_random(sfilter->o, &randv, sizeof(randv));
@@ -884,6 +888,50 @@ afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
 	else
 	    sfilter->curr_in_pos -= sfilter->tx_delay / 10;
     }
+}
+
+static void
+afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
+{
+    gensio_time timeout;
+
+    /*
+     * Set a timer to know when we are done transmitting.
+     */
+    get_drain_timeout(sfilter, &timeout);
+    sfilter->filter_cb(sfilter->filter_cb_data,
+		       GENSIO_FILTER_CB_START_TIMER,
+		       &timeout);
+}
+
+static void
+afskmdm_stop_drain_timer(struct afskmdm_filter *sfilter)
+{
+    sfilter->filter_cb(sfilter->filter_cb_data,
+		       GENSIO_FILTER_CB_STOP_TIMER,
+		       NULL);
+}
+
+static int
+afskmdm_timeout_done(struct gensio_filter *filter)
+{
+    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+
+    afskmdm_lock(sfilter);
+    if (sfilter->transmit_state != WAITING_ENDXMIT)
+	goto out;
+    if (sfilter->nr_wrbufs > 0) {
+	sfilter->transmit_state = WAITING_TRANSMIT;
+	afskmdm_check_start_xmit(sfilter);
+    } else {
+	sfilter->transmit_state = NOT_SENDING;
+    }
+    if (sfilter->keyed)
+	afskmdm_do_keyoff(sfilter);
+ out:
+    afskmdm_unlock(sfilter);
+
+    return 0;
 }
 
 static void
@@ -931,7 +979,7 @@ afskmdm_add_wrbit(struct afskmdm_filter *sfilter)
 	}
     }
 
-    if (sfilter->transmit_state == SENDING_MSG) {
+    if (sfilter->transmit_state == SENDING_MSG && !sfilter->do_raw) {
 	if (sfilter->bitstuff) {
 	    sfilter->bitstuff = false;
 	    sfilter->num_xmit_1 = 0;
@@ -950,9 +998,15 @@ afskmdm_add_wrbit(struct afskmdm_filter *sfilter)
     sfilter->wrbyte_bit++;
 
  skip_increment:
-    /* If the bit is 0, change the frequency.  1 leaves it the same. */
-    if (!bit)
-	level = !level;
+    if (sfilter->do_inv)
+	bit = !bit;
+    if (sfilter->do_diff) {
+	/* If the bit is 1, change the frequency.  0 leaves it the same. */
+	if (bit)
+	    level = !level;
+    } else {
+	level = bit;
+    }
     sfilter->prev_xmit_level = level;
 
     curr = curr->next_send[level + send_alt];
@@ -994,6 +1048,38 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		if (sfilter->xmit_buf_len > 0)
 		    goto out;
 	    }
+	}
+
+	if (sfilter->do_raw) {
+	    unsigned int cbuf = sfilter->curr_wrbuf;
+
+	    if (sfilter->wrbyte_bit < 8)
+		continue;
+
+	    sfilter->wrbyte_bit = 0;
+	    if (sfilter->write_pos >= sfilter->wrbufs[cbuf].len) {
+		sfilter->write_pos = 0;
+		sfilter->curr_wrbuf = (cbuf + 1) % NR_WRITE_BUFS;
+		sfilter->nr_wrbufs--;
+		if (sfilter->nr_wrbufs > 0) {
+		    cbuf = sfilter->curr_wrbuf;
+		    sfilter->wrbyte = sfilter->wrbufs[cbuf].data[0];
+		    sfilter->write_pos = 1;
+		    sfilter->transmit_state = SENDING_MSG;
+		} else {
+		    sfilter->transmit_state = WAITING_ENDXMIT;
+		    if (sfilter->xmit_buf_len == 0)
+			/*
+			 * No more data to send, start the timer now.
+			 */
+			afskmdm_start_drain_timer(sfilter);
+		}
+	    } else {
+		unsigned int pos = sfilter->write_pos++;
+
+		sfilter->wrbyte = sfilter->wrbufs[cbuf].data[pos];
+	    }
+	    continue;
 	}
 
 	/* Make sure to send the last bitstuff. */
@@ -1132,9 +1218,14 @@ afskmdm_ul_write(struct gensio_filter *filter,
     }
 
     sfilter->nr_wrbufs++;
+    if (sfilter->transmit_state == WAITING_ENDXMIT) {
+	afskmdm_check_start_xmit(sfilter);
+	goto out_process;
+    }
     if (sfilter->transmit_state != NOT_SENDING)
 	goto out_process;
-    if (sfilter->full_duplex || sfilter->nr_out_sync >= sfilter->tx_delay) {
+    if (sfilter->full_duplex || sfilter->nr_out_sync >= sfilter->tx_delay ||
+		sfilter->do_raw) {
 	afskmdm_start_xmit(sfilter);
     } else {
 	sfilter->transmit_state = WAITING_TRANSMIT;
@@ -1180,6 +1271,43 @@ afskmdm_measure_power(struct afskmdm_filter *sfilter,
     return power;
 }
 #endif
+
+static void
+afskmdm_deliver_data(struct afskmdm_filter *sfilter, struct wmsg *w)
+{
+    if (sfilter->deliver_data_len == 0) {
+	unsigned char *tmp;
+
+	tmp = w->read_data;
+	w->read_data = sfilter->deliver_data;
+	sfilter->deliver_data = tmp;
+	sfilter->deliver_data_len = w->read_data_len;
+	sfilter->deliver_data_pos = 0;
+    }
+}
+
+static void
+afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit)
+{
+    struct wmsg *w = &sfilter->wmsgsets[0].wmsgs[0];
+
+    if (sfilter->do_diff)
+	bit = sfilter->prev_recv_level != bit;
+    bit ^= sfilter->do_inv;
+    w->curr_byte |= bit << w->curr_bit_pos;
+    if (w->curr_bit_pos == 7) {
+	w->read_data[w->read_data_len] = w->curr_byte;
+	w->curr_byte = 0;
+	w->curr_bit_pos = 0;
+	w->read_data_len++;
+	if (w->read_data_len >= sfilter->max_read_size) {
+	    afskmdm_deliver_data(sfilter, w);
+	    w->read_data_len = 0;
+	}
+    } else {
+	w->curr_bit_pos++;
+    }
+}
 
 /*
  * Do a double correlation.  You generally do this against a sine and
@@ -1396,15 +1524,8 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 			  false);
     }
 
-    if (sfilter->deliver_data_len == 0) {
-	unsigned char *tmp;
-
-	tmp = w->read_data;
-	w->read_data = sfilter->deliver_data;
-	sfilter->deliver_data = tmp;
-	sfilter->deliver_data_len = w->read_data_len;
-	sfilter->deliver_data_pos = 0;
-    }
+    if (sfilter->deliver_data_len == 0)
+	afskmdm_deliver_data(sfilter, w);
 
     /* Cancel all working messages. */
     for (i = 0; i < sfilter->wmsg_sets; i++) {
@@ -1511,7 +1632,11 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
      * The bit is 0 if the frequency changed, 1 if the frequency
      * stayed the same.
      */
-    bit = level == w->prev_recv_level;
+    if (sfilter->do_diff)
+	bit = level != w->prev_recv_level;
+    else
+	bit = level;
+    bit ^= sfilter->do_inv;
     w->prev_recv_level = level;
 
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
@@ -1671,8 +1796,15 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	else if (best_pos < CORRMIDDLE)
 	    *curpos -= 1;
     }
-    sfilter->prev_recv_level = level;
+
     sfilter->prev_best_pos = best_pos;
+    if (sfilter->do_raw) {
+	afskmdm_process_raw_bit(sfilter, level);
+	sfilter->prev_recv_level = level;
+	return;
+    }
+
+    sfilter->prev_recv_level = level;
 
     sfilter->wmsgsets[0].got_flag = false;
     for (i = 0; i < sfilter->max_wmsgs; i++)
@@ -1995,7 +2127,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
 	gensio_close(sfilter->key_io, NULL, NULL);
     sfilter->key_io_state = KEY_CLOSED;
     sfilter->key_err = 0;
-    sfilter->prev_xmit_level = -1;
+    sfilter->prev_xmit_level = 0;
     sfilter->prev_recv_level = 0;
     for (i = 0; i < sfilter->wmsg_sets; i++) {
 	sfilter->wmsgsets[i].wmsgs[0].in_use = true;
@@ -2300,6 +2432,9 @@ struct gensio_afskmdm_data {
     unsigned int data_rate;
     unsigned int debug;
     bool check_ax25;
+    bool do_raw;
+    bool do_inv;
+    bool do_diff;
     bool do_crc;
     unsigned int in_framerate;
     unsigned int out_framerate;
@@ -2400,7 +2535,10 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->debug = data->debug;
     sfilter->check_ax25 = data->check_ax25;
     sfilter->do_crc = data->do_crc;
-    sfilter->prev_xmit_level = -1;
+    sfilter->do_raw = data->do_raw;
+    sfilter->do_inv = data->do_inv;
+    sfilter->do_diff = data->do_diff;
+    sfilter->prev_xmit_level = 0;
     sfilter->prev_recv_level = 0;
     sfilter->in_chunksize = data->in_chunksize;
     sfilter->out_chunksize = data->out_chunksize;
@@ -2735,7 +2873,9 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	.keybit = 3,
 	.keyon = "T 1\n",
 	.keyoff = "T 0\n",
-	.do_crc = true
+	.do_crc = true,
+	.do_inv = true,
+	.do_diff = true,
     };
     unsigned int i;
     int err;
@@ -2878,11 +3018,20 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "crc", &data.do_crc) > 0)
 	    continue;
+	if (gensio_pparm_bool(p, args[i], "raw", &data.do_raw) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "inv", &data.do_inv) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "diff", &data.do_diff) > 0)
+	    continue;
 	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
+
+    if (data.do_raw)
+	data.do_crc = false;
 
 #define MY_STRINGIZE(s) #s
 #define CHECK_VAL(d, cmp, v)						\

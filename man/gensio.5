@@ -2657,7 +2657,24 @@ to false, this option will not work.
 .TP
 .B crc[=true|false]
 Check and send CRCs on packets.  Normally you want the afskmdm code to
-do this, but can be useful for testing.  Default to true.
+do this, but can be useful for testing.  Defaults to true.
+.TP
+.B inv[=true|false]
+Inverts the data on transmit and receive.  Default is true.
+.TP
+.B diff[=true|false]
+Do differential encoding, where the values are driven by frequency
+changes, not by frequency values.  Default is true.
+.TP
+.B raw[=true|false]
+Instead of doing HDLC processing, just stream up the FSK bits to the
+layer above and accepts streamed FSK bits to transmit.  no wmsg
+processing is done with this option.  The transmitter is keyed
+whenever bits are being transmitted.
+
+This forces crc to false.
+
+Defaults to false.
 .TP
 .B wmsgs=<n>
 The number of working messages at the same time.  If the bit fails the
@@ -2707,7 +2724,7 @@ make a sharper cutoff but result in more CPU being used.
 .TP
 .B tx-preamble=<n>
 The time in milliseconds at the beginning of a message that is just
-flags.  This lets the receiver turn on and the other end synchronize.
+flags.  This lets the transmitter turn on and the other end synchronize.
 Default is 300.
 .TP
 .B tx-tail=<n>
