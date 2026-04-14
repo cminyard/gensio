@@ -585,39 +585,6 @@ afskmdm_try_connect(struct gensio_filter *filter, gensio_time *timeout,
     return key_try_open(&sfilter->keyinfo, timeout);
 }
 
-static void
-key_close_done(struct gensio *io, void *close_data)
-{
-    struct keyinfo *keyinfo = close_data;
-
-    keyinfo->key_io_state = KEY_CLOSED;
-}
-
-static int
-key_close(struct keyinfo *keyinfo, gensio_time *timeout)
-{
-    int err;
-
-    if (keyinfo->key_io_state == KEY_OPEN) {
-	key_do_keyoff(keyinfo);
-	err = gensio_close(keyinfo->key_io, key_close_done, keyinfo);
-	if (err) {
-	    keyinfo->key_io_state = KEY_CLOSED;
-	    keyinfo->report_key_log(keyinfo->cb_data, GENSIO_LOG_WARNING,
-				   "afskmdm: Error from close key I/O '%s': %s",
-				   keyinfo->key, gensio_err_to_str(err));
-	} else {
-	    keyinfo->key_io_state = KEY_IN_CLOSE;
-	}
-    }
-    if (keyinfo->key_io_state == KEY_IN_CLOSE) {
-	timeout->secs = 0;
-	timeout->nsecs = GENSIO_MSECS_TO_NSECS(10);
-	return GE_RETRY;
-    }
-    return 0;
-}
-
 static unsigned long get_frames_left(struct afskmdm_filter *sfilter)
 {
     struct gensio_filter_cb_control_data cd;
@@ -666,7 +633,7 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	return GE_INPROGRESS;
     }
 
-    return key_close(&sfilter->keyinfo, timeout);
+    return key_try_close(&sfilter->keyinfo, timeout);
 }
 
 static void

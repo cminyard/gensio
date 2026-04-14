@@ -212,6 +212,8 @@ key_open_done(struct gensio *io, int err, void *open_data)
 				keyinfo->key, gensio_err_to_str(err));
     } else {
 	keyinfo->key_io_state = KEY_OPEN;
+	/* Some keytypes come up on.  Make sure it's off. */
+	keyinfo->keyed = true; /* Force keyoff to work. */
 	key_do_keyoff(keyinfo);
     }
     keyinfo->key_err = err;
@@ -241,6 +243,39 @@ key_try_open(struct keyinfo *keyinfo, gensio_time *timeout)
 	keyinfo->key_io_state = KEY_IN_OPEN;
     }
     if (keyinfo->key_io_state == KEY_IN_OPEN) {
+	timeout->secs = 0;
+	timeout->nsecs = GENSIO_MSECS_TO_NSECS(10);
+	return GE_RETRY;
+    }
+    return 0;
+}
+
+static void
+key_close_done(struct gensio *io, void *close_data)
+{
+    struct keyinfo *keyinfo = close_data;
+
+    keyinfo->key_io_state = KEY_CLOSED;
+}
+
+static int
+key_try_close(struct keyinfo *keyinfo, gensio_time *timeout)
+{
+    int err;
+
+    if (keyinfo->key_io_state == KEY_OPEN) {
+	key_do_keyoff(keyinfo);
+	err = gensio_close(keyinfo->key_io, key_close_done, keyinfo);
+	if (err) {
+	    keyinfo->key_io_state = KEY_CLOSED;
+	    keyinfo->report_key_log(keyinfo->cb_data, GENSIO_LOG_WARNING,
+				   "afskmdm: Error from close key I/O '%s': %s",
+				   keyinfo->key, gensio_err_to_str(err));
+	} else {
+	    keyinfo->key_io_state = KEY_IN_CLOSE;
+	}
+    }
+    if (keyinfo->key_io_state == KEY_IN_CLOSE) {
 	timeout->secs = 0;
 	timeout->nsecs = GENSIO_MSECS_TO_NSECS(10);
 	return GE_RETRY;
