@@ -2706,11 +2706,11 @@ it will be 8 times the size of the incoming data.
 This is ignored if not raw.  Defaults to false.
 .TP
 .B wmsgs=<n>
-The number of working messages at the same time.  If the bit fails the
-certainty test (see below), for every current working message, two are
-created, one with each bit possibility, up to the count specified in
-this option.  These are kept until a message is correctly received
-(with CRC) or the series of bits is not valid.
+The number of working receive messages at the same time.  If the bit
+fails the certainty test (see below), for every current working
+message, two are created, one with each bit possibility, up to the
+count specified in this option.  These are kept until a message is
+correctly received (with CRC) or the series of bits is not valid.
 
 This way, if wmsg is 2^n, a message can be correctly decoded if up to
 n bits are wrong.  So it's sort of an error correction code without a
@@ -2793,6 +2793,77 @@ default.
 Treat the read and write streams as completely independent.  Transmit
 does not check if something is being received before sending, all
 sends just start immediately.
+.SH "hdlc"
+connecting =
+.B hdlc[(options)]
+
+This is an HDLC coder/decoder.  It's designed to sit on top of a modem
+like afskmdm in raw mode and do HDLC.  Note that the data coming out
+of the bottom of this will be larger than what goes in the top because
+a preamble, postamble, and bit stuffing is done.  The equation to
+calculate the size below is:
+
+  size = (<max_size> + 2) + (((<max_size> + 2) * 8) / 5 + 7) / 8
+
+The "+ 2" is for the CRC, then convert to bits and divide by 5 to get
+the maximum total number of stuffed zero bits, then add 7 for proper
+rounding when converting back to bytes, and then convert to bytes.
+This is for both read and write.
+.SS Options
+.TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read.  Defaults to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B checkax25[=true|false]
+Check that the packet is a valid AX.25 packet, that it has valid AX25
+length and address.  Normally the AX.25 layer does this, but this can
+be used when testing without an AX.25 layer to reject bad packets.
+Default to false.  Note that if you set
+.B crc
+to false, this option will not work.
+.TP
+.B crc[=true|false]
+Check and send CRCs on packets.  Normally you want the afskmdm code to
+do this, but can be useful for testing.  Defaults to true.
+.TP
+.B wmsgs=<n>
+The number of working receive messages at the same time.  If the bit
+fails the certainty test (see below), for every current working
+message, two are created, one with each bit possibility, up to the
+count specified in this option.  These are kept until a message is
+correctly received (with CRC) or the series of bits is not valid.
+
+This way, if wmsg is 2^n, a message can be correctly decoded if up to
+n bits are wrong.  So it's sort of an error correction code without a
+code.
+
+Note that you have to have uncertainty values from the layer below for
+this to be meaningful.  If you don't have that, values above 1 here
+don't have any meaning.
+
+Defaults to 32.
+.TP
+.B max-uncertainty
+The maximum uncertainty from the modem that makes the bit questionable
+and invokes the wmsg processing.  Any value below this is considered
+good.
+
+Uncertainty from the modem is a value from 0-100, where 0 means the
+value is sure (0% uncertain, or 100% certain).  Values will only range
+from 0-50, though, because if it were more than 50% uncertain it would
+chose the other value.  Defaults to 25.
+.TP
+.B tx-preamble
+The number of sync characters (0x7e) to send at the beginning of a
+packet to allow the receiver to detect the packet and align itself.
+Defaults to 25.
+.TP
+.B tx-postamble
+The number of sync characters to send at the end of a packet to mark
+the end.  Defaults to 2.
 .SH "cm108gpio"
 connecting =
 .B cm108gpio[(options)],<soundcard>

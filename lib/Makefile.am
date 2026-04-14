@@ -371,6 +371,17 @@ libgensio_afskmdm_la_SOURCES = gensio_afskmdm.c
 libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
+if BUILTIN_HDLC
+libgensio_la_SOURCES += gensio_hdlc.c
+libgensio_la_LIBADD += -lm
+else
+EXTRA_LTLIBRARIES += libgensio_hdlc.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_HDLC)
+libgensio_hdlc_la_SOURCES = gensio_hdlc.c
+libgensio_hdlc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_hdlc_la_LIBADD = $(DYNAMIC_LIBS) -lm
+
 # We need to make sure the main libraries are compiled and ready before
 # doing the plugins, since the plugins link against them.
 $(gensiolibexec_LTLIBRARIES): $(lib_LTLIBRARIES)

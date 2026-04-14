@@ -1945,6 +1945,34 @@ esac
 AM_CONDITIONAL([BUILTIN_AFSKMDM], [test ${BUILTIN_AFSKMDM} = 1])
 AC_SUBST(DYNAMIC_AFSKMDM)
 
+hdlc=$default_all
+AC_ARG_WITH(hdlc,
+ [AS_HELP_STRING([--with-hdlc=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      hdlc=yes
+    elif test "x$withval" = "xdynamic"; then
+      hdlc=dynamic
+    elif test "x$withval" = "xno"; then
+      hdlc=no
+    fi,
+)
+BUILTIN_HDLC=0
+DYNAMIC_HDLC=
+case $hdlc in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS hdlc"
+      BUILTIN_HDLC=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS hdlc"
+      DYNAMIC_HDLC=libgensio_hdlc.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_HDLC], [test ${BUILTIN_HDLC} = 1])
+AC_SUBST(DYNAMIC_HDLC)
+
 echo "creating builtin_gensios.h"
 rm -f "$ac_pwd/lib/builtin_gensios.h"
 if ! test -e "$ac_pwd/lib"; then
@@ -2483,6 +2511,7 @@ echo   "  script:	" $script
 echo   "  ratelimit:	" $ratelimit
 echo   "  chardelay:	" $chardelay
 echo   "  afskmdm:	" $afskmdm
+echo   "  hdlc:		" $hdlc
 echo
 echo "**************************************************"
 echo
