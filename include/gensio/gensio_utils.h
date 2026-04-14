@@ -27,6 +27,40 @@ GENSIOOSH_DLL_PUBLIC
 bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
 
 /*
+ * If an auxdata item begins with str, return a pointer to the string
+ * after that in the auxdata.  For instance, if str is "val=" and
+ * "val=1234" is an auxdata string, this will return a pointer to the
+ * "1234".
+ */
+GENSIOOSH_DLL_PUBLIC
+const char *gensio_find_auxdata(const char *const *auxdata, const char *str);
+
+/*
+ * Like the above, but this is for passing pointers.  For instance,
+ * if you need to pass a pointer to an array in the auxdata, you would
+ * do something like on the data provider side:
+ *
+ *      void *data; // pointer to pass.
+ *	const char *auxdata[2];
+ *	char buf[6 + sizeof(unsigned char *)];
+ *
+ *	pos = sprintf(buf, "data=");
+ *	memcpy(buf + pos, &data, sizeof(data));
+ *	buf[sizeof(buf) - 1] = '\0'; // Terminate just in case
+ *	auxdata[0] = buf;
+ *	auxdata[1] = NULL;
+ *
+ *
+ * On the user side you could call:
+ *
+ *	void *data = gensio_find_auxdata_ptr(auxdata, "data=")
+ *
+ * and you would get a pointer to this data.
+ */
+GENSIOOSH_DLL_PUBLIC
+void *gensio_find_auxdata_ptr(const char *const *auxdata, const char *str);
+
+/*
  * Various conversion helpers.  These may become inline someday...
  */
 GENSIOOSH_DLL_PUBLIC

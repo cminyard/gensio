@@ -792,6 +792,34 @@ gensio_str_in_auxdata(const char *const *auxdata, const char *str)
     return false;
 }
 
+const char *
+gensio_find_auxdata(const char *const *auxdata, const char *str)
+{
+    unsigned int i, len;
+
+    if (!auxdata)
+	return NULL;
+    len = strlen(str);
+    for (i = 0; auxdata[i]; i++) {
+	if (strncmp(auxdata[i], str, len) == 0)
+	    return auxdata[i] + len;
+    }
+    return NULL;
+}
+
+void *
+gensio_find_auxdata_ptr(const char *const *auxdata, const char *str)
+{
+    const char *d = gensio_find_auxdata(auxdata, str);
+    void *rv;
+
+    if (!d)
+	return NULL;
+    /* Don't to a direct access, there may be alignment issues. */
+    memcpy(&rv, d, sizeof(rv));
+    return rv;
+}
+
 uint32_t
 gensio_buf_to_u32(unsigned char *data)
 {
