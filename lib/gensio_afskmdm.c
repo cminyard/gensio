@@ -1400,7 +1400,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 		if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
 		    printf("WMSG: add %u %u\n", wset, i);
 		sfilter->wmsgsets[wset].curr_wmsgs++;
-		w2->new_wmsg = true;
+		w2->new_wmsg = true; /* Don't process this again on this run. */
 
 		if (i < msgn) {
 		    /* Process this bit, since we won't get it in the main. */
