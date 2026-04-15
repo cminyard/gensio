@@ -71,23 +71,6 @@ enum hdlc_state {
 };
 
 /*
- * This is the maximum adjust period we will allow.  If it reaches
- * this value, we assume that the small adjustments can be handled by
- * the correlation code.
- */
-#define ADJ_PERIOD 10
-
-/*
- * Give the number of values on each side of the correlation to
- * compute another correlation for.  Having values for 6 different
- * areas around the correlation seems to give the best bang for the
- * buck.
- */
-#define CORREDGE 3
-#define CORRMIDDLE (CORREDGE + 1)
-#define CORREXTRA ((2 * CORREDGE) + 1)
-
-/*
  * A working receive buffer.
  */
 struct wmsg {
@@ -116,32 +99,6 @@ struct wrbuf {
     unsigned char *data;
     gensiods len;
     gensiods outpos;
-};
-
-/*
- * These are the entries in a digraph used to send data.  Each of
- * these has a data item (pointing into a sine array), a size (either
- * corrsize or corrsize +/- 1 for the alternate size that may be
- * periodically sent).
- *
- * It also has pointers to the next entry to send based upon if the
- * next entry is a mark or space and if the next entry is corrsize or
- * corrsize +/- 1.
- */
-struct xmit_entry {
-    float *data;
-    unsigned int size; /* in bytes. */
-    bool is_mark;
-
-    /*
-     * If we just send this, the first two are the next entries to
-     * send if the next is a space or a mark.  The second two are
-     * space and mark for alternate entries
-     */
-    struct xmit_entry *next_send[4];
-
-    /* A linked list of all of the entries is kept for cleanup and searching */
-    struct xmit_entry *next;
 };
 
 struct delivermsg {
@@ -191,13 +148,6 @@ struct hdlc_filter {
     struct wrbuf wrbufs[NR_WRITE_BUFS];
     unsigned int curr_wrbuf;
     unsigned int nr_wrbufs;
-    unsigned char wrbyte;
-    unsigned char wrbyte_bit;
-    unsigned int send_countdown;
-
-    /* Count the message 1's transmitted to know when to bit stuff. */
-    unsigned int num_xmit_1;
-    bool bitstuff;
 };
 
 #include "crc.h"
