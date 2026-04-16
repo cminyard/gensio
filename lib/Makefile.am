@@ -8,7 +8,7 @@ noinst_HEADERS = telnet.h heap.h utils.h seriallock.h crc.h \
 	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_sound_alsa.h gensio_sound_win.h \
 	gensio_sound_portaudio.h gensio_sound_file.h \
-	gensio_base_parms.h xmitkey.h
+	gensio_base_parms.h xmitkey.h convcode.h
 
 libgensioosh_la_SOURCES = \
 	os_osops.c circbuf.c os_osops_env.c net_addrinfo.c \
@@ -373,14 +373,23 @@ libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
 if BUILTIN_HDLC
 libgensio_la_SOURCES += gensio_hdlc.c
-libgensio_la_LIBADD += -lm
 else
 EXTRA_LTLIBRARIES += libgensio_hdlc.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_HDLC)
 libgensio_hdlc_la_SOURCES = gensio_hdlc.c
 libgensio_hdlc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
-libgensio_hdlc_la_LIBADD = $(DYNAMIC_LIBS) -lm
+libgensio_hdlc_la_LIBADD = $(DYNAMIC_LIBS)
+
+if BUILTIN_CONVCODE
+libgensio_la_SOURCES += gensio_convcode.c convcode.c
+else
+EXTRA_LTLIBRARIES += libgensio_convcode.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_CONVCODE)
+libgensio_convcode_la_SOURCES = gensio_convcode.c convcode.c
+libgensio_convcode_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_convcode_la_LIBADD = $(DYNAMIC_LIBS)
 
 # We need to make sure the main libraries are compiled and ready before
 # doing the plugins, since the plugins link against them.

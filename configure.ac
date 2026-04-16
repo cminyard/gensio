@@ -1973,6 +1973,34 @@ esac
 AM_CONDITIONAL([BUILTIN_HDLC], [test ${BUILTIN_HDLC} = 1])
 AC_SUBST(DYNAMIC_HDLC)
 
+convcode=$default_all
+AC_ARG_WITH(convcode,
+ [AS_HELP_STRING([--with-convcode=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      convcode=yes
+    elif test "x$withval" = "xdynamic"; then
+      convcode=dynamic
+    elif test "x$withval" = "xno"; then
+      convcode=no
+    fi,
+)
+BUILTIN_CONVCODE=0
+DYNAMIC_CONVCODE=
+case $convcode in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS convcode"
+      BUILTIN_CONVCODE=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS convcode"
+      DYNAMIC_CONVCODE=libgensio_convcode.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_CONVCODE], [test ${BUILTIN_CONVCODE} = 1])
+AC_SUBST(DYNAMIC_CONVCODE)
+
 echo "creating builtin_gensios.h"
 rm -f "$ac_pwd/lib/builtin_gensios.h"
 if ! test -e "$ac_pwd/lib"; then
@@ -2512,6 +2540,7 @@ echo   "  ratelimit:	" $ratelimit
 echo   "  chardelay:	" $chardelay
 echo   "  afskmdm:	" $afskmdm
 echo   "  hdlc:		" $hdlc
+echo   "  convcode:	" $convcode
 echo
 echo "**************************************************"
 echo

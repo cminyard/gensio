@@ -35,8 +35,11 @@ typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
 #define GENSIO_FILTER_CB_OUTPUT_READY	1
 
 /*
- * Tell gensio base to start it's timer and call the timeout
- * at the appropriate interval.
+ * Tell gensio base to start it's timer and call the timeout at the
+ * appropriate interval.  Note that if the timer is running when a
+ * disconnect starts, the timer will come through the disconnect
+ * callback, not the timeout callback.
+ *
  * timeout => data (a pointer to gensio_time)
  */
 #define GENSIO_FILTER_CB_START_TIMER	2

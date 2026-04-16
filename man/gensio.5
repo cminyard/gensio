@@ -2864,6 +2864,46 @@ Defaults to 25.
 .B tx-postamble
 The number of sync characters to send at the end of a packet to mark
 the end.  Defaults to 2.
+.SH "convcode"
+connecting =
+.B convcode(options)
+
+This is an convolutional coder/decoder.  It's designed to sit on top
+of a packet receiver/transmitter.  It deals with packets, not
+streaming data.
+
+You must set "k" and the polynomials with "p".
+
+The data coming into/out of the bottom of the coder will be more than
+double the size of the data on the top.  The equation is:
+
+  <size in bits> = (<top size in bytes> + (k - 1)) * 8 * 2
+
+On the interface to the lower layer, an auxdata value named "nbits"
+will specify the exact number of bits in the packet.  The number of
+bits generated may not fall on a byte boundary.  "nbits" will be the
+actual number of bits.
+
+If "nbits" is not in the auxdata on receive, the coder assumes it was
+rounded up to a multiple of bytes and calculates the proper value
+assuming that.
+
+The interface to the top of this also uses "nbits" auxdata.  It
+supplies it on read data, and it accepts it on sent data.  If not
+supplied on the sent data, it set it to the sent bytes * 8.
+.SS Options
+.TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read.  Defaults to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B k=<n>
+Set the polynomial length for the coding.
+.B p=<n>
+Add a polynomial to the set of polynomials.  You can have a coder with
+up to 8 polynomials.
 .SH "cm108gpio"
 connecting =
 .B cm108gpio[(options)],<soundcard>
