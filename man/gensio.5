@@ -331,6 +331,32 @@ drain before shutting down with pending data.  If you set this to a
 negative value, it will wait forever, which is the default.  Though
 not really forever, some lower layer is going to time out and shut the
 connection down before you reach this.
+.SH "nbits in auxdata"
+Some gensios have the ability to transfer data in numbers of bits that
+are not a multiple of 8.  Ones that to bit-level processing, like
+.B hdlc
+and
+.B convcode
+do this.
+
+These gensios will have receive an "nbits" parameter in auxdata on an
+interface they get data from, and they will supply "nbits" to data
+they supply to the next layer.  This is in the form "nbits=n" where
+n is a number.
+
+"nbits" must always be between 1 and 7 smaller than the supplied
+buffer length (in bytes) times 8.  So if you have a 10 byte buffer
+length, nbits can range from 79 and 73.  Or, in other words, the
+buffer length is always rounded up to the next byte from the number of
+bits, ((nbits + 7) / 8).
+
+If an interface takes "nbits", if it is not supplied it assumes that
+nbits is (<buffer length> * 8).
+
+This does mean that if an interface receives data, it must always take
+a multiple of 8 bits if it does not consume the entire buffer.  There
+is no way to pass the number of bits consumed back, only the number of
+bytes.
 .SH "TCP"
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -2809,6 +2835,9 @@ The "+ 2" is for the CRC, then convert to bits and divide by 5 to get
 the maximum total number of stuffed zero bits, then add 7 for proper
 rounding when converting back to bytes, and then convert to bytes.
 This is for both read and write.
+
+This gensio supports nbits on the lower interface only.  See the
+"nbits in auxdata" section of this document for details.
 .SS Options
 .TP
 .B readbuf=<n>
@@ -2879,18 +2908,8 @@ double the size of the data on the top.  The equation is:
 
   <size in bits> = (<top size in bytes> + (k - 1)) * 8 * 2
 
-On the interface to the lower layer, an auxdata value named "nbits"
-will specify the exact number of bits in the packet.  The number of
-bits generated may not fall on a byte boundary.  "nbits" will be the
-actual number of bits.
-
-If "nbits" is not in the auxdata on receive, the coder assumes it was
-rounded up to a multiple of bytes and calculates the proper value
-assuming that.
-
-The interface to the top of this also uses "nbits" auxdata.  It
-supplies it on read data, and it accepts it on sent data.  If not
-supplied on the sent data, it set it to the sent bytes * 8.
+This gensio supports nbits on the upper and lower interface.  See the
+"nbits in auxdata" section of this document for details.
 .SS Options
 .TP
 .B readbuf=<n>
