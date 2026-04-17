@@ -96,6 +96,7 @@ struct wrbuf {
     unsigned char *data;
     gensiods len;
     gensiods outpos;
+    gensiods bitlen;
 };
 
 struct delivermsg {
@@ -335,24 +336,26 @@ hdlc_handle_send(struct hdlc_filter *sfilter,
     int rv;
     gensiods count;
     struct gensio_sg sg;
+    char auxbuf[20];
+    const char *auxdata[2] = { auxbuf, NULL };
     struct wrbuf *wrbuf;
 
     wrbuf = &sfilter->wrbufs[sfilter->curr_wrbuf];
     sg.buf = wrbuf->data + wrbuf->outpos;
     sg.buflen = wrbuf->len - wrbuf->outpos;
-    rv = handler(cb_data, &count, &sg, 1, NULL);
+    snprintf(auxbuf, sizeof(auxbuf), "nbits=%lu", wrbuf->bitlen);
+    rv = handler(cb_data, &count, &sg, 1, auxdata);
     if (rv) {
 	sfilter->err = rv;
 	sfilter->nr_wrbufs = 0;
+    } else if (count + wrbuf->outpos >= wrbuf->len) {
+	sfilter->curr_wrbuf++;
+	if (sfilter->curr_wrbuf >= NR_WRITE_BUFS)
+	    sfilter->curr_wrbuf = 0;
+	sfilter->nr_wrbufs--;
     } else {
-	if (count + wrbuf->outpos >= wrbuf->len) {
-	    sfilter->curr_wrbuf++;
-	    if (sfilter->curr_wrbuf >= NR_WRITE_BUFS)
-		sfilter->curr_wrbuf = 0;
-	    sfilter->nr_wrbufs--;
-	} else {
-	    wrbuf->outpos += count;
-	}
+	wrbuf->outpos += count;
+	wrbuf->bitlen -= count * 8;
     }
     return rv;
 }
@@ -469,6 +472,7 @@ hdlc_ul_write(struct gensio_filter *filter,
     }
     for (i = 0; i < sfilter->tx_postamble_count; i++)
 	hdlc_add_out_byte_ns(outbuf, &pos, &outbitpos, 0x7e);
+    sfilter->wrbufs[cbuf].bitlen = pos * 8 + outbitpos;
     if (outbitpos > 0)
 	pos++; /* Bits in the last byte. */
     sfilter->wrbufs[cbuf].len = pos;
@@ -801,23 +805,33 @@ hdlc_ll_write(struct gensio_filter *filter,
 	goto out_err;
     }
     if (buflen > 0) {
+	const char *nbitstr = gensio_find_auxdata(auxdata, "nbits=");
+	unsigned int nbits;
+
+	if (nbitstr)
+	    nbits = strtoul(nbitstr, NULL, 0);
+	else
+	    nbits = buflen * 8;
+
 	if (uncertainty) {
-	    for (i = 0; i < buflen; i++) {
+	    for (i = 0; i < buflen && nbits > 0; i++) {
 		unsigned char byte = buf[i];
 
-		for (j = 0; j < 8; j++) {
+		for (j = 0; j < 8 && nbits > 0; j++) {
 		    uncert = uncertainty[i * 8 + j];
 		    hdlc_process_bit(sfilter, byte & 1, uncert);
 		    byte >>= 1;
+		    nbits--;
 		}
 	    }
 	} else {
-	    for (i = 0; i < buflen; i++) {
+	    for (i = 0; i < buflen && nbits > 0; i++) {
 		unsigned char byte = buf[i];
 
-		for (j = 0; j < 8; j++) {
+		for (j = 0; j < 8 && nbits > 0; j++) {
 		    hdlc_process_bit(sfilter, byte & 1, 0);
 		    byte >>= 1;
+		    nbits++;
 		}
 	    }
 	}
