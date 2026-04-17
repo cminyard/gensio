@@ -13,9 +13,6 @@
 #include <limits.h>
 #include <string.h>
 #include <assert.h>
-#include <string.h>
-#include <math.h>
-#include <float.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
