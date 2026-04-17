@@ -70,7 +70,7 @@ gagwpe_LDADD = $(top_builddir)/lib/libgensioosh.la \
 gensio_pty_helper_SOURCES = gensio_pty_helper.c
 
 manpages = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1 gmdns.1 \
-	greflector.1 gsound.1
+	greflector.1 gsound.1 gagwpe.1
 
 if INSTALL_DOC
 man1_MANS = gensiot.1 @GTLSSHMAN@ @GTLSSH_KEYGENMAN@ @GTLSSYNCMAN@ @GMDNSMAN@ \
