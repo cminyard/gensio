@@ -164,7 +164,7 @@ libgensio_file_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_file_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_IPMISOL
-libgensio_la_SOURCES += sergensio_ipmisol.c
+libgensio_la_SOURCES += sergensio_ipmisol.c gensio_openipmi_oshandler.c
 else
 EXTRA_LTLIBRARIES += libgensio_ipmisol.la
 endif
@@ -381,8 +381,14 @@ libgensio_hdlc_la_SOURCES = gensio_hdlc.c
 libgensio_hdlc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_hdlc_la_LIBADD = $(DYNAMIC_LIBS)
 
+# convcode.c is used in multiple gensios, but we only want once copy
+# linked.
+if BUILTIN_CONVCODE_C
+libgensio_la_SOURCES += convcode.c
+endif
+
 if BUILTIN_CONVCODE
-libgensio_la_SOURCES += gensio_convcode.c convcode.c
+libgensio_la_SOURCES += gensio_convcode.c
 else
 EXTRA_LTLIBRARIES += libgensio_convcode.la
 endif

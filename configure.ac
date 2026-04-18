@@ -2001,6 +2001,9 @@ esac
 AM_CONDITIONAL([BUILTIN_CONVCODE], [test ${BUILTIN_CONVCODE} = 1])
 AC_SUBST(DYNAMIC_CONVCODE)
 
+BUILTIN_CONVCODE_C=${BUILTIN_CONVCODE}
+AM_CONDITIONAL([BUILTIN_CONVCODE_C], [test ${BUILTIN_CONVCODE_C} = 1])
+
 echo "creating builtin_gensios.h"
 rm -f "$ac_pwd/lib/builtin_gensios.h"
 if ! test -e "$ac_pwd/lib"; then
