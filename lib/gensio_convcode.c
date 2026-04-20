@@ -164,6 +164,7 @@ convcode_ul_write(struct gensio_filter *filter,
 	rv = sfilter->err;
 	goto out;
     }
+
     if (sfilter->num_writemsgs >= MAX_WRITE_DELIVER_MSGS || sglen == 0)
 	goto out_process;
 
@@ -197,7 +198,7 @@ convcode_ul_write(struct gensio_filter *filter,
     for (i = 0; i < sglen; i++)
 	convencode_block_partial(sfilter->ce, sg[i].buf, sg[i].buflen * 8,
 				 &outbuf, &outbitpos);
-    convencode_block_final(sfilter->ce, outbuf, outbitpos);
+    convencode_block_final(sfilter->ce, &outbuf, &outbitpos);
     sfilter->writemsgs[cbuf].len = nbytes;
     sfilter->writemsgs[cbuf].bitlen = nbits;
     sfilter->writemsgs[cbuf].pos = 0;
@@ -247,6 +248,7 @@ convcode_ll_write(struct gensio_filter *filter,
     unsigned char *uncertainty;
     unsigned int nbits, ndecbits, nbytes, cbuf;
     gensiods count;
+    const char *nbitstr;
     struct delivermsg *d;
     int err = 0;
 
@@ -257,47 +259,50 @@ convcode_ll_write(struct gensio_filter *filter,
 	return 0;
     }
 
-    uncertainty = gensio_find_auxdata_ptr(auxdata, "uncert=");
-
     convcode_lock(sfilter);
     if (sfilter->err) {
 	err = sfilter->err;
 	goto out;
     }
 
-    if (sfilter->num_readmsgs < MAX_READ_DELIVER_MSGS && buflen != 0) {
-	const char *nbitstr = gensio_find_auxdata(auxdata, "nbits=");
-
-	if (nbitstr) {
-	    nbits = strtoul(nbitstr, NULL, 0);
-	} else {
-	    if (convcode_encoded_bits_from_encoded_bytes(buflen,
-							 sfilter->ce->num_polys,
-							 sfilter->ce->k,
-							 true, &nbits,
-							 NULL, 0))
-		goto out_process;
-	}
-
-	if (convcode_decoded_size(nbits, sfilter->ce->num_polys,
-				  sfilter->ce->k, true, NULL, 0, &ndecbits))
-	    goto out_process;
-	nbytes = CONVCODE_ROUND_UP_BYTE(ndecbits);
-	if (nbytes > sfilter->max_read_size)
-	    goto out_process;
-
-	cbuf = ((sfilter->curr_readmsg + sfilter->num_readmsgs)
-		% MAX_READ_DELIVER_MSGS);
-	d = &sfilter->readmsgs[cbuf];
-	reinit_convdecode(sfilter->ce);
-	if (convdecode_block(sfilter->ce, buf, nbits, uncertainty, d->data,
-			     NULL, NULL))
-	    goto out_process;
-	d->len = nbytes;
-	d->bitlen = ndecbits;
-	d->pos = 0;
-	sfilter->num_readmsgs++;
+    if (sfilter->num_readmsgs >= MAX_READ_DELIVER_MSGS || buflen == 0) {
+	buflen = 0; /* Didn't accept any data. */
+	goto out_process;
     }
+
+    nbitstr = gensio_find_auxdata(auxdata, "nbits=");
+
+    if (nbitstr) {
+	nbits = strtoul(nbitstr, NULL, 0);
+    } else {
+	if (convcode_encoded_bits_from_encoded_bytes(buflen,
+						     sfilter->ce->num_polys,
+						     sfilter->ce->k,
+						     true, &nbits,
+						     NULL, 0))
+	    goto out_process;
+    }
+
+    if (convcode_decoded_size(nbits, sfilter->ce->num_polys,
+			      sfilter->ce->k, true, NULL, 0, &ndecbits))
+	goto out_process;
+    nbytes = CONVCODE_ROUND_UP_BYTE(ndecbits);
+    if (nbytes > sfilter->max_read_size)
+	goto out_process;
+
+    uncertainty = gensio_find_auxdata_ptr(auxdata, "uncert=");
+
+    cbuf = ((sfilter->curr_readmsg + sfilter->num_readmsgs)
+	    % MAX_READ_DELIVER_MSGS);
+    d = &sfilter->readmsgs[cbuf];
+    reinit_convdecode(sfilter->ce);
+    if (convdecode_block(sfilter->ce, buf, nbits, uncertainty, d->data,
+			 NULL, NULL))
+	goto out_process;
+    d->len = nbytes;
+    d->bitlen = ndecbits;
+    d->pos = 0;
+    sfilter->num_readmsgs++;
 
  out_process:
     if (sfilter->num_readmsgs > 0) {

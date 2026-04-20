@@ -1973,6 +1973,34 @@ esac
 AM_CONDITIONAL([BUILTIN_HDLC], [test ${BUILTIN_HDLC} = 1])
 AC_SUBST(DYNAMIC_HDLC)
 
+axfec=$default_all
+AC_ARG_WITH(axfec,
+ [AS_HELP_STRING([--with-axfec=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      axfec=yes
+    elif test "x$withval" = "xdynamic"; then
+      axfec=dynamic
+    elif test "x$withval" = "xno"; then
+      axfec=no
+    fi,
+)
+BUILTIN_AXFEC=0
+DYNAMIC_AXFEC=
+case $axfec in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS axfec"
+      BUILTIN_AXFEC=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS axfec"
+      DYNAMIC_AXFEC=libgensio_axfec.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_AXFEC], [test ${BUILTIN_AXFEC} = 1])
+AC_SUBST(DYNAMIC_AXFEC)
+
 convcode=$default_all
 AC_ARG_WITH(convcode,
  [AS_HELP_STRING([--with-convcode=yes|dynamic|no], [Enable tcp/unix gensio])],
@@ -2001,7 +2029,7 @@ esac
 AM_CONDITIONAL([BUILTIN_CONVCODE], [test ${BUILTIN_CONVCODE} = 1])
 AC_SUBST(DYNAMIC_CONVCODE)
 
-BUILTIN_CONVCODE_C=${BUILTIN_CONVCODE}
+BUILTIN_CONVCODE_C=`expr ${BUILTIN_CONVCODE} \| ${BUILTIN_AXFEC}`
 AM_CONDITIONAL([BUILTIN_CONVCODE_C], [test ${BUILTIN_CONVCODE_C} = 1])
 
 echo "creating builtin_gensios.h"
@@ -2544,6 +2572,7 @@ echo   "  chardelay:	" $chardelay
 echo   "  afskmdm:	" $afskmdm
 echo   "  hdlc:		" $hdlc
 echo   "  convcode:	" $convcode
+echo   "  axfec:	" $acfec
 echo
 echo "**************************************************"
 echo

@@ -17,7 +17,7 @@
 #include <limits.h>
 
 #include <gensio/gensio_os_funcs.h>
-#define convcode_os_funcs struct gensio_os_funcs
+typedef struct gensio_os_funcs convcode_os_funcs;
 
 /*
  * Maximum number of polynomials. I've never seen one with more than
@@ -319,6 +319,12 @@ int reinit_convdecode(struct convcode *ce);
 int reinit_convdecode_tail_bite(struct convcode *ce);
 
 /*
+ * Like the above, but preserve last_bits trellis entries at the end
+ * of the trellis.
+ */
+int reinit_convdecode_last_bits(struct convcode *ce, unsigned int last_bits);
+
+/*
  * Call both of the the above functions.
  */
 void reinit_convcode(struct convcode *ce);
@@ -417,7 +423,7 @@ void convencode_block_partial(struct convcode *ce,
 			      unsigned char **outbytes,
 			      unsigned int *outbitpos);
 void convencode_block_final(struct convcode *ce,
-			    unsigned char *outbytes, unsigned int outbitpos);
+			    unsigned char **outbytes, unsigned int *outbitpos);
 
 /*
  * Feed some data into decoder.  The size is given in bits, the data
@@ -477,6 +483,12 @@ int convdecode_data_u(struct convcode *ce,
  * You cannot use this to get output uncertainties.  Use the
  * convdecode_block() function below for that.
  *
+ * The call is destructive to the trellis as it stores the output data
+ * in the trellis to play it forward later.  If you need a
+ * non-destructive one, use one of the block operations below.  This
+ * doesn't have a buffer to store the data in, if you have that you
+ * can just use the block version.
+ *
  * Returns nonzero on an error.
  */
 int convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
@@ -487,25 +499,26 @@ int convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
  * full block all at once and does not use the output function.  See
  * convdecode_data for an explaination of the first four parameters.
  *
- * Note that you can feed data into the decoder using
+ * Note that you cannot feed data into the decoder using
  * convdecode_symbol() and/or convdecode_data() before calling this
- * function.  You can also use this instead of convdecode_final() to
- * get the output in a block and get output uncertainties.
+ * function.  It must have all the data in the bytes array because it
+ * needs it when calculating the uncertainties to avoid having to
+ * store huge amounts of data..
  *
- * The output data is stored in outbits, in the normal bit format
+ * The output data is stored in outbytes, in the normal bit format
  * everything else uses.  With a tail, the output array must be at
  * least (nbits / num_polynomials - k - 1) *bits* long.  If tail is
  * off, it must be (nbits / num_polynomials) long.
  *
  * If output_uncertainty is not NULL, the uncertainty of each output
  * bit is stored in this array.  It must be the same length as the
- * number of bits in outbytes.  This is basically a full BCJR
- * algorithm; the output uncertainty can be used to compute the
- * probabilities of each output bit.  (Output uncertainties are not
- * provided in the standard output routine because that would require
- * keeping a lot of extra data in the convcode structure.  You would
- * only really use this if you were using blocks, anyway, so there's
- * no value in having it in the output routine.)
+ * number of bits in outbytes.  This is BCJR-like algorithm; the
+ * output uncertainty can be used to compute the probabilities of each
+ * output bit.  (Output uncertainties are not provided in the standard
+ * output routine because that would require keeping a lot of extra
+ * data in the convcode structure.  You would only really use this if
+ * you were using blocks, anyway, so there's no value in having it in
+ * the output routine.)
  *
  * The output uncertainty for each bit is the total uncertainty value
  * for all bits up to that point.  To convert that to an uncertainty
@@ -520,7 +533,7 @@ int convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
  *
  * NOTE: If you have trellis_width set to < num_states, then
  * output_uncertainty will not be correct.  The previous state data is
- * lost because paths are discarding, and keeping that data around
+ * lost because paths are discarded, and keeping that data around
  * would use a lot of memory.
  *
  * Note that the outbytes buffer must be zero-ed before you call this.
@@ -532,6 +545,32 @@ int convdecode_block(struct convcode *ce, const unsigned char *bytes,
 		     unsigned char *outbytes, unsigned int *output_uncertainty,
 		     unsigned int *num_errs);
 
+/*
+ * Do a decode but only return the last noutbits of the data in
+ * outbytes.  This is the *last* bits, not the first.  The data is
+ * still in forward order in outbytes.  This is useful if you are
+ * looking for something, like a termination byte in the data, or a
+ * length, or something of that nature.
+ *
+ * Note that the outbytes buffer must be zero-ed before you call this.
+ *
+ * This call is not destructive to the trellis.  You can put more bits
+ * in and call this again.
+ *
+ * If you call this with noutbits larger than the trellis size, it
+ * will only output the trellis size.  The actual number of bits output
+ * is returned in total_out_bits.  So you can use this to extract the
+ * whole buffer.  Just be sure noutbits is big enough.
+ *
+ * If tail is enabled, then the last k - 1 entries of the trellis is
+ * used as a tail, like normal processing.
+ *
+ * Returns nonzero on an error.
+ */
+int convdecode_last_n_block(struct convcode *ce,
+			    unsigned char *outbytes, unsigned int noutbits,
+			    unsigned int *total_out_bits,
+			    unsigned int *num_errs);
     
 /***********************************************************************
  * Here and below is more internal stuff.  You can sort of use this,
