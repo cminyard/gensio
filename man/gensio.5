@@ -2923,6 +2923,34 @@ Set the polynomial length for the coding.
 .B p=<n>
 Add a polynomial to the set of polynomials.  You can have a coder with
 up to 8 polynomials.
+.SH "axfec"
+connecting =
+.B axfec(options)
+
+This is an interleaver, convolutional coder, and HDLC processor
+designed to work with Onsemi's AX5043 radio in FEC mode.  It's pretty
+specific, and there are lots of caveats to making it work properly
+here and on the AX5043.  These pieces cannot be easily separated.  End
+of packet detection, alignment, and initial synchronization all kind
+of tie together into one state machine and require all the parts to
+interchange information pretty tightly.  The coupling is just too high
+to split it up.
+
+This is here primarily for the AMSAT PacSat satellites which use the
+AX5043 with FEC.  But if you are using the AX5043 with FEC, well, you
+don't want to have to write all this code yourself.
+.SS Options
+.TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read.  Defaults to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B tx-preamble
+The number of sync characters (0x7e) to send at the beginning of a
+packet to allow the receiver to detect the packet and align itself.
+Defaults to 15.
 .SH "cm108gpio"
 connecting =
 .B cm108gpio[(options)],<soundcard>

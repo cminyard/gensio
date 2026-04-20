@@ -381,7 +381,17 @@ libgensio_hdlc_la_SOURCES = gensio_hdlc.c
 libgensio_hdlc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_hdlc_la_LIBADD = $(DYNAMIC_LIBS)
 
-# convcode.c is used in multiple gensios, but we only want once copy
+if BUILTIN_AXFEC
+libgensio_la_SOURCES += gensio_axfec.c
+else
+EXTRA_LTLIBRARIES += libgensio_axfec.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_AXFEC)
+libgensio_axfec_la_SOURCES = gensio_axfec.c convcode.c
+libgensio_axfec_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_axfec_la_LIBADD = $(DYNAMIC_LIBS)
+
+# convcode.c is used in multiple gensios, but we only want one copy
 # linked.
 if BUILTIN_CONVCODE_C
 libgensio_la_SOURCES += convcode.c

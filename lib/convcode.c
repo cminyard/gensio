@@ -234,9 +234,10 @@ get_min_pos(struct convcode *ce)
 }
 
 static int
-reinit_convdecode_i(struct convcode *ce, bool tail_bite)
+reinit_convdecode_i(struct convcode *ce, bool tail_bite,
+		    unsigned int last_bits)
 {
-    unsigned int i, cstate;
+    unsigned int i, j, cstate;
 
     if (!ce->prev_path_values)
 	return 1;
@@ -245,11 +246,16 @@ reinit_convdecode_i(struct convcode *ce, bool tail_bite)
     ce->dec_out.out_bit_pos = 0;
     ce->dec_out.total_out_bits = 0;
 
-    if (tail_bite) {
+    if (tail_bite || last_bits) {
 	cstate = get_min_pos(ce);
 	if (ce->trelmap)
 	    ce->trelmap[cstate] = 0;
 	ce->prev_path_values[cstate] = 0;
+	for (i = 0; i < last_bits; i++) {
+	    for (j = 0; j < ce->trelw; j++)
+		set_trellis_entry(ce, i, j,
+			get_trellis_entry(ce, i + ce->ctrellis - last_bits, j));
+	}
     } else {
 	ce->prev_path_values[CONVCODE_DEFAULT_START_STATE] = 0;
 	for (i = 0; i < ce->num_states; i++) {
@@ -271,18 +277,8 @@ reinit_convdecode_i(struct convcode *ce, bool tail_bite)
 	    for (i = 0; i < ce->trelw; i++)
 		ce->tmptrel[i] = 0;
 	}
-	for (i = 0; i < ce->num_states; i++) {
-	    if (i == CONVCODE_DEFAULT_START_STATE) {
-		if (ce->trelmap)
-		    ce->trelmap[i] = 0;
-	    } else {
-		ce->prev_path_values[i] = CONVCODE_DEFAULT_INIT_OTHER_STATES;
-		if (ce->trelmap)
-		    ce->trelmap[i] = CONVCODE_PSTATE_SET_BIT(i, 1);
-	    }
-	}
     }
-    ce->ctrellis = 0;
+    ce->ctrellis = last_bits;
     ce->leftover_bits = 0;
     ce->dec_puncture_pos = 0;
     return 0;
@@ -291,13 +287,19 @@ reinit_convdecode_i(struct convcode *ce, bool tail_bite)
 int
 reinit_convdecode(struct convcode *ce)
 {
-    return reinit_convdecode_i(ce, false);
+    return reinit_convdecode_i(ce, false, 0);
 }
 
 int
 reinit_convdecode_tail_bite(struct convcode *ce)
 {
-    return reinit_convdecode_i(ce, true);
+    return reinit_convdecode_i(ce, true, 0);
+}
+
+int
+reinit_convdecode_last_bits(struct convcode *ce, unsigned int last_bits)
+{
+    return reinit_convdecode_i(ce, false, last_bits);
 }
 
 void
@@ -960,19 +962,19 @@ convencode_block_partial(struct convcode *ce,
 
 void
 convencode_block_final(struct convcode *ce,
-		       unsigned char *outbytes, unsigned int outbitpos)
+		       unsigned char **outbytes, unsigned int *outbitpos)
 {
     unsigned int i;
 
     if (ce->puncture_len > 0) {
 	for (i = 0; i < ce->tail_bits; i++)
-	    convencode_block_bit(ce, 0, false, true, &outbytes, &outbitpos);
+	    convencode_block_bit(ce, 0, false, true, outbytes, outbitpos);
     } else if (ce->optimize_no_span) {
 	for (i = 0; i < ce->tail_bits; i++)
-	    convencode_block_bit(ce, 0, false, false, &outbytes, &outbitpos);
+	    convencode_block_bit(ce, 0, false, false, outbytes, outbitpos);
     } else {
 	for (i = 0; i < ce->tail_bits; i++)
-	    convencode_block_bit(ce, 0, true, false, &outbytes, &outbitpos);
+	    convencode_block_bit(ce, 0, true, false, outbytes, outbitpos);
     }
 }
 
@@ -1670,7 +1672,11 @@ convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
 		  unsigned int *num_errs)
 {
     unsigned int i, extra_bits = ce->tail_bits;
-    unsigned int min_val = ce->prev_path_values[0], cstate = 0;
+    unsigned int min_val = 0, cstate;
+
+    if (ce->ctrellis < ce->tail_bits)
+	/* Not enough data input to do anything. */
+	goto out;
 
     if (ce->puncture_len > 0) {
 	/*
@@ -1690,10 +1696,12 @@ convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
 	}
     }
 
+    min_val = ce->prev_path_values[0];
+    cstate = 0;
+
     /* Find the minimum value in the final path. */
     if (ce->trelmap) {
 	/* Minimum value is always at 0 because it's sorted. */
-	cstate = 0;
     } else {
 	for (i = 1; i < ce->num_states; i++) {
 	    if (ce->prev_path_values[i] < min_val) {
@@ -1734,6 +1742,7 @@ convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
     if (ce->dec_out.out_bit_pos > 0)
 	ce->dec_out.output(ce, ce->dec_out.user_data,
 			   ce->dec_out.out_bits, ce->dec_out.out_bit_pos);
+ out:
     if (num_errs)
 	*num_errs = min_val;
     if (total_out_bits)
@@ -1747,7 +1756,7 @@ convdecode_finish(struct convcode *ce, unsigned int *total_out_bits,
  * do_output_uncertainty checks since we pass in constants there.
  */
 static FORCE_INLINE unsigned int
-backwards_one_level(struct convcode *ce, const unsigned char *bytes,
+backwards_one_level(struct convcode *ce,
 		    const uint8_t *uncertainty, unsigned int cstate,
 		    bool do_uncertainty, convcode_symsize sym,
 		    unsigned int i, bool do_output,
@@ -1880,7 +1889,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 	i--;
 	get_last_sym_info(ce, bytes, &inpos, uncertainty,
 			  &sym, tmp_uncertainty);
-	cstate = backwards_one_level(ce, bytes, tmp_uncertainty, cstate,
+	cstate = backwards_one_level(ce, tmp_uncertainty, cstate,
 				     uncertainty != NULL, sym,
 				     i, extra_bits == 0, &cuncertainty,
 				     outbytes,
@@ -1903,7 +1912,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 		i--;
 		get_last_sym_info(ce, bytes, &inpos, uncertainty,
 				  &sym, tmp_uncertainty);
-		cstate = backwards_one_level(ce, bytes, tmp_uncertainty, cstate,
+		cstate = backwards_one_level(ce, tmp_uncertainty, cstate,
 					     true, sym,
 					     i, false, &cuncertainty, outbytes,
 					     true, output_uncertainty);
@@ -1916,7 +1925,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 		i--;
 		get_last_sym_info(ce, bytes, &inpos, uncertainty,
 				  &sym, tmp_uncertainty);
-		cstate = backwards_one_level(ce, bytes, tmp_uncertainty, cstate,
+		cstate = backwards_one_level(ce, tmp_uncertainty, cstate,
 					     true, sym,
 					     i, true, &cuncertainty, outbytes,
 					     true, output_uncertainty);
@@ -1927,7 +1936,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 
 		i--;
 		get_last_sym_info(ce, bytes, &inpos, NULL, &sym, NULL);
-		cstate = backwards_one_level(ce, bytes, NULL, cstate,
+		cstate = backwards_one_level(ce, NULL, cstate,
 					     false, sym,
 					     i, false, &cuncertainty, outbytes,
 					     true, output_uncertainty);
@@ -1939,7 +1948,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 
 		i--;
 		get_last_sym_info(ce, bytes, &inpos, NULL, &sym, NULL);
-		cstate = backwards_one_level(ce, bytes, NULL, cstate,
+		cstate = backwards_one_level(ce, NULL, cstate,
 					     false, sym,
 					     i, true, &cuncertainty, outbytes,
 					     true, output_uncertainty);
@@ -1951,7 +1960,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 
 	    i--;
 	    get_last_sym_info(ce, bytes, &inpos, NULL, &sym, NULL);
-	    cstate = backwards_one_level(ce, bytes, NULL, cstate,
+	    cstate = backwards_one_level(ce, NULL, cstate,
 					 false, sym,
 					 i, false, &cuncertainty, outbytes,
 					 false, NULL);
@@ -1963,7 +1972,7 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 
 	    i--;
 	    get_last_sym_info(ce, bytes, &inpos, NULL, &sym, NULL);
-	    cstate = backwards_one_level(ce, bytes, NULL, cstate,
+	    cstate = backwards_one_level(ce, NULL, cstate,
 					 false, sym,
 					 i, true, &cuncertainty, outbytes,
 					 false, NULL);
@@ -1973,6 +1982,69 @@ convdecode_block(struct convcode *ce, const unsigned char *bytes,
 
     if (num_errs)
 	*num_errs = min_val;
+
+    return 0;
+}
+
+int
+convdecode_last_n_block(struct convcode *ce,
+			unsigned char *outbytes, unsigned int noutbits,
+			unsigned int *total_out_bits,
+			unsigned int *num_errs)
+{
+    unsigned int i, j, extra_bits = ce->tail_bits;
+    unsigned int min_val = 0, cstate;
+
+    if (ce->ctrellis < ce->tail_bits) {
+	/* Not enough data input to do anything. */
+	noutbits = 0;
+	goto out;
+    }
+
+    if (noutbits > ce->ctrellis - ce->tail_bits)
+	noutbits = ce->ctrellis - ce->tail_bits;
+    j = noutbits;
+
+    min_val = ce->prev_path_values[0];
+    cstate = 0;
+    /* Find the minimum value in the final path. */
+    if (ce->trelmap) {
+	/* Minimum value is always at 0 because it's sorted. */
+    } else {
+	for (i = 1; i < ce->num_states; i++) {
+	    if (ce->prev_path_values[i] < min_val) {
+		cstate = i;
+		min_val = ce->prev_path_values[i];
+	    }
+	}
+    }
+
+    /* Go backwards through the trellis to find the full path. */
+    for (i = ce->ctrellis; i > 0 && j > 0; ) {
+	convcode_state pstate; /* Previous state */
+	int bit;
+
+	i--;
+	pstate = get_trellis_entry(ce, i, cstate);
+	bit = CONVCODE_PSTATE_BIT(pstate);
+	pstate = CONVCODE_PSTATE_VAL(pstate);
+#if CONVCODE_DEBUG_STATES
+	DEBUG_ASSERT(pstate < ce->trelw);
+#endif
+
+	if (extra_bits == 0) {
+	    j--;
+	    outbytes[j / 8] |= bit << (j % 8);
+	}
+	cstate = pstate;
+	if (extra_bits > 0)
+	    extra_bits--;
+    }
+ out:
+    if (num_errs)
+	*num_errs = min_val;
+    if (total_out_bits)
+	*total_out_bits = noutbits;
 
     return 0;
 }
@@ -2308,6 +2380,30 @@ run_test(unsigned int k, convcode_state *polys, unsigned int npolys,
 		   t.uncertainties[i], out_uncertainties[i]);
 	    rv++;
 	    //goto out;
+	}
+    }
+    if (dec_nbits >= 10) {
+	unsigned int nlastbits = 10, tot, j;
+
+	memset(t.dec_bytes, 0, sizeof(t.dec_bytes));
+	if (convdecode_last_n_block(ce, t.dec_bytes, nlastbits, &tot, NULL)) {
+	    printf("  block last n decode error return\n");
+	    rv++;
+	    goto out;
+	}
+	if (tot != nlastbits) {
+	    printf("  block last n decode invalid number of bits\n");
+	    rv++;
+	    goto out;
+	}
+	for (i = dec_nbits - nlastbits, j = 0; i < dec_nbits; i++, j++) {
+	    unsigned int bit = decoded[i] == '0' ? 0 : 1;
+
+	    if (((t.dec_bytes[j / 8] >> (j % 8)) & 1) != bit) {
+		printf("  block last n decode failure at bit %u\n", i);
+		rv++;
+		goto out;
+	    }
 	}
     }
 
@@ -3112,16 +3208,20 @@ main(int argc, char *argv[])
 			    err_inj_loops, err_inj_size, error_rate,
 			    puncture_code, puncture_code_len);
 
-    if (decode && arg < argc) {
+    i = arg;
+    len = 0;
+    while (decode && i < argc) {
 	int rv;
-	rv = convcode_decoded_size(strlen(argv[arg]), num_polys, k, do_tail,
-				   puncture_code, puncture_code_len, &len);
+	unsigned int tmp;
+	rv = convcode_decoded_size(strlen(argv[i]), num_polys, k, do_tail,
+				   puncture_code, puncture_code_len, &tmp);
 	if (rv) {
 	    printf("Encoded data size does not match the number of polynomials\n");
 	    return 1;
 	}
-    } else {
-	len = 0;
+	if (tmp > len)
+	    len = tmp;
+	i++;
     }
     o->bytes_allocated = 0;
     ce = alloc_convcode(o, k, polys, num_polys, len, trellis_width,
@@ -3165,6 +3265,12 @@ main(int argc, char *argv[])
     } else {
 	if (decode) {
 	    do_decode_data(ce, argv[arg], NULL);
+	    arg++;
+	    while (arg < argc) {
+		reinit_convdecode_last_bits(ce, 4);
+		do_decode_data(ce, argv[arg], NULL);
+		arg++;
+	    }
 	    convdecode_finish(ce, &total_bits, &num_errs);
 	    printf("\n  errors = %u", num_errs);
 	} else {
