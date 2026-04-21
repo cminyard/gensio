@@ -797,7 +797,8 @@ axfec_ll_write(struct gensio_filter *filter,
 		convdecode_data_u(sfilter->ce, bytes + 2, 16,
 				  sfilter->dec_uncert);
 
-		sfilter->out_to_dec = bytes[1] >> 2;
+		sfilter->out_to_dec = (tmpbits16
+				       >> (16 - sfilter->out_to_dec_pos));
 		memcpy(sfilter->dec_uncert,
 		       sfilter->build_uncert + 16 - sfilter->out_to_dec_pos,
 		       sfilter->out_to_dec_pos);
@@ -865,6 +866,7 @@ axfec_ll_write(struct gensio_filter *filter,
 			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
 			    printf("Got final flag\n");
 			/* We have a flag at 16 - n bits from the end. */
+			memset(d->data, 0, sfilter->read_deliver_size);
 			convdecode_last_n_block(sfilter->ce, d->data,
 						sfilter->max_dec_out_bits,
 						&out_bits, NULL);
@@ -979,7 +981,6 @@ axfec_ll_write(struct gensio_filter *filter,
 	axfec_lock(sfilter);
 	if (!err) {
 	    if (count + d->pos >= d->len) {
-		memset(d->data, 0, sfilter->read_deliver_size);
 		d->len = 0;
 		sfilter->num_readmsgs--;
 		sfilter->curr_readmsg++;
@@ -1173,7 +1174,7 @@ gensio_axfec_filter_raw_alloc(struct gensio_pparm_info *p,
 
     sfilter->ce = alloc_convcode(o, 5, polys, 2,
 				 sfilter->max_dec_out_bits,
-				 0, true, false, false, NULL, 0);
+				 0, true, false, true, NULL, 0);
 
     /* Convert to necessary number of bytes. */
     sfilter->read_deliver_size = CONVCODE_ROUND_UP_BYTE(sfilter->max_dec_bits);

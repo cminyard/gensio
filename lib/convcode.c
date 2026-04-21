@@ -277,16 +277,6 @@ reinit_convdecode_i(struct convcode *ce, bool tail_bite,
 	    for (i = 0; i < ce->trelw; i++)
 		ce->tmptrel[i] = 0;
 	}
-	for (i = 0; i < ce->num_states; i++) {
-	    if (i == CONVCODE_DEFAULT_START_STATE) {
-		if (ce->trelmap)
-		    ce->trelmap[i] = 0;
-	    } else {
-		ce->prev_path_values[i] = CONVCODE_DEFAULT_INIT_OTHER_STATES;
-		if (ce->trelmap)
-		    ce->trelmap[i] = CONVCODE_PSTATE_SET_BIT(i, 1);
-	    }
-	}
     }
     ce->ctrellis = last_bits;
     ce->leftover_bits = 0;
@@ -3218,16 +3208,20 @@ main(int argc, char *argv[])
 			    err_inj_loops, err_inj_size, error_rate,
 			    puncture_code, puncture_code_len);
 
-    if (decode && arg < argc) {
+    i = arg;
+    len = 0;
+    while (decode && i < argc) {
 	int rv;
-	rv = convcode_decoded_size(strlen(argv[arg]), num_polys, k, do_tail,
-				   puncture_code, puncture_code_len, &len);
+	unsigned int tmp;
+	rv = convcode_decoded_size(strlen(argv[i]), num_polys, k, do_tail,
+				   puncture_code, puncture_code_len, &tmp);
 	if (rv) {
 	    printf("Encoded data size does not match the number of polynomials\n");
 	    return 1;
 	}
-    } else {
-	len = 0;
+	if (tmp > len)
+	    len = tmp;
+	i++;
     }
     o->bytes_allocated = 0;
     ce = alloc_convcode(o, k, polys, num_polys, len, trellis_width,
