@@ -1098,11 +1098,11 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
     if (sfilter->do_uncert) {
 	/*
 	 * Convert the certainty to an uncertainty value ranging from
-	 * 0 to 100.  certainty comes in 1-11, invert that and convert
-	 * it to 0-10 level of uncertainty, then go to 0-50 integer.
+	 * 0 to 100.  certainty comes in 0-50, invert that to get a
+	 * 50-0 integer uncertainty.
 	 */
-	w->raw_uncertainty[w->read_data_len * 8 + w->curr_bit_pos] =
-	    (11.0 - certainty) * 5.0 + 0.5;
+	w->raw_uncertainty[w->read_data_len * 8 + w->curr_bit_pos]
+	    = 100.0 - certainty;
     }
     if (w->curr_bit_pos == 7) {
 	w->read_data[w->read_data_len] = w->curr_byte;
@@ -1546,15 +1546,21 @@ process_powers(struct afskmdm_filter *sfilter,
 	    tcertainty = pmark[i] / pspace[i];
 	}
 	if (isnan(tcertainty) || isinf(tcertainty))
-	    tcertainty = 11.0;
-	if (tcertainty > 11.0) /* Certainty ranges from 1 to 11. */
-	    tcertainty = 11.0;
+	    tcertainty = 10000.;
 	if (tcertainty >= *rcertainty) {
 	    *rbest_pos = i;
 	    *rlevel = tlevel;
 	    *rcertainty = tcertainty;
 	}
     }
+    /*
+     * Certainty here will range from 1 to an arbitrarily large
+     * number.  However, generally, it will be in the 50-60 range
+     * on good input.  Cap it there.  plus start it at 0.
+     */
+    *rcertainty -= 1.0;
+    if (*rcertainty > 50.0) /* Certainty ranges from 0 to 50. */
+	*rcertainty = 50.0;
 }
 
 /*
