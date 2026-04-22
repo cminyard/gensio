@@ -961,7 +961,7 @@ axfec_ll_write(struct gensio_filter *filter,
 			}
 		    }
 		    if (found_flag) {
-			unsigned int out_bits, leftover_bits;
+			unsigned int out_bits, leftover_bits, errors;
 
 			/*
 			 * At this point n is the number of bits in
@@ -975,7 +975,9 @@ axfec_ll_write(struct gensio_filter *filter,
 			memset(d->data, 0, sfilter->read_deliver_size);
 			convdecode_last_n_block(sfilter->ce, d->data,
 						sfilter->max_dec_out_bits,
-						&out_bits, NULL);
+						&out_bits, &errors);
+			if (errors && sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+			    printf("Packet had errors: %u\n", errors);
 			leftover_bits = 16 - n;
 			if (out_bits < leftover_bits + 8) {
 			    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
