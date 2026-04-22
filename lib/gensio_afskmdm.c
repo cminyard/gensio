@@ -1854,6 +1854,12 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	sfilter->curr_in_pos = sfilter->prevread_size;
 	goto skip_processing;
     }
+    if (pos < CORREDGE)
+	/*
+	 * curr_in_pos cannot be zero, it is scanned from CORREDGE
+	 * less than it's position when scanning.  So start there.
+	 */
+	pos = CORREDGE;
     while (pos < sfilter->in_chunksize + sfilter->in_corrsize - CORREDGE) {
 	bool in_sync = true;
 
