@@ -47,6 +47,7 @@ struct axfec_filter {
 	AXFEC_NOT_IN_SYNC,
 	AXFEC_IN_PREAMBLE,
 	AXFEC_IN_DATA,
+	AXFEC_IN_POSTAMBLE,
     } state;
 
     unsigned int preamble_len;
@@ -84,6 +85,11 @@ struct axfec_filter {
     uint16_t out_to_dec;
     unsigned char dec_uncert[16];
     unsigned int out_to_dec_pos;
+
+    /*
+     * Number of flags we have received in the preamble or postamble.
+     */
+    unsigned int amble_flags;
 
     /* One count for HDLC read processing. */
     unsigned int one_count;
@@ -631,6 +637,11 @@ axfec_ll_write(struct gensio_filter *filter,
 
     uncertainty = gensio_find_auxdata_ptr(auxdata, "uncert=");
 
+#if 0
+    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+	printf("Processing %lu bytes\n", (unsigned long) buflen);
+#endif
+
     if (sfilter->num_readmsgs >= MAX_READ_DELIVER_MSGS || buflen == 0) {
 	j = 0; /* Didn't accept any data. */
 	goto out_process;
@@ -730,6 +741,7 @@ axfec_ll_write(struct gensio_filter *filter,
 		     */
 		    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
 			printf("Got first flag\n");
+		    sfilter->amble_flags = 1;
 		    sfilter->out_to_dec = bytes[3] >> 2;
 		    sfilter->out_to_dec_pos = 6;
 		    memcpy(sfilter->dec_uncert,
@@ -793,7 +805,6 @@ axfec_ll_write(struct gensio_filter *filter,
 		memcpy(sfilter->dec_uncert + sfilter->out_to_dec_pos,
 		       sfilter->build_uncert,
 		       16 - sfilter->out_to_dec_pos);
-
 		convdecode_data_u(sfilter->ce, bytes + 2, 16,
 				  sfilter->dec_uncert);
 
@@ -813,6 +824,9 @@ axfec_ll_write(struct gensio_filter *filter,
 					    NULL, NULL);
 		    if (tmpbits == 0x7e) {
 			/* still getting flags */
+			sfilter->amble_flags++;
+			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+			    printf("Preamble flag\n");
 			reinit_convdecode_last_bits(sfilter->ce, 4);
 			sfilter->num_dec_bits = 8;
 		    } else {
@@ -821,9 +835,95 @@ axfec_ll_write(struct gensio_filter *filter,
 			 * the last 16 bits below, so no need to
 			 * process it here.
 			 */
+			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+			    printf("First byte: %2.2x\n", tmpbits);
+			if (sfilter->amble_flags < 3) {
+			    /*
+			     * We want at least three valid flags
+			     * before we declare victory.  For two
+			     * reasons:
+			     *
+			     * Testing has shown than the AX5043
+			     * terminates the packet with a few flags.
+			     * This check keeps the state machine from
+			     * synchronizing with the end of the
+			     * packet.
+			     *
+			     * You want to be pretty sure you have a
+			     * packet, one flag is not enough.
+			     */
+			    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+				printf("Not enough preamble flags: %d\n",
+				       sfilter->amble_flags);
+			    goto bad_packet;
+			}
 			sfilter->one_count = 0;
 			sfilter->state = AXFEC_IN_DATA;
 			sfilter->num_dec_bits += 16;
+		    }
+		} else if (sfilter->state == AXFEC_IN_POSTAMBLE) {
+		    /*
+		     * A note on AX5043 transmit processing and FEC:
+		     *
+		     * In FEC mode, the AX5043 appears to *always* put
+		     * extra HDLC flags after the complete packet.
+		     * This means it will put out the FEC encoded
+		     * packet, the CRC, the FEC encoded HDLC flag,
+		     * then enough zeros to fill out the interleaver.
+		     * It then puts out a few more FEC encoded HDLC
+		     * flags.
+		     *
+		     * This is bad because a receiver will see those
+		     * HDLC flags and interpret them as the start of a
+		     * new packet and start trying to handle a new
+		     * packet.  If a packet came in during this time,
+		     * it might be missed.
+		     *
+		     * It appears there is no way to avoid this on the
+		     * AX5043.
+		     *
+		     *
+		     * So a receiver will need to check for and handle
+		     * these flags.  I have seen two and three of them
+		     * (not sure why it varies, but it seems to depend
+		     * on packet alignment).  The receiver will need
+		     * to handle this by checking for end HDLC flags
+		     * and by making sure at the beginning that you
+		     * get at least 4 flags before declaring that you
+		     * have a good start of packet.
+		     *
+		     * This also means that if you do back-to-back
+		     * packets, you will need to calculate your own
+		     * CRC and stick your own flag between them.  On
+		     * the receiver it will be hard to know if this
+		     * has been done.  It would need to see that it
+		     * did not get a flag and back up and handle the
+		     * data, dealing with the FEC coder in the
+		     * process.  So we aren't doing back-to-back
+		     * packets.
+		     */
+
+		    tmpbits = 0;
+		    convdecode_last_n_block(sfilter->ce, &tmpbits, 8,
+					    NULL, NULL);
+		    if (tmpbits == 0x7e) {
+			/* Still in the postamble. */
+			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+			    printf("Postamble flag\n");
+			sfilter->amble_flags++;
+			reinit_convdecode_last_bits(sfilter->ce, 4);
+			sfilter->num_dec_bits = 8;
+		    } else {
+			if (sfilter->num_readmsgs >= MAX_READ_DELIVER_MSGS) {
+			    /* No room for a new packet. */
+			    sfilter->state = AXFEC_NOT_IN_SYNC;
+			    sfilter->out_build_data = 0;
+			    sfilter->out_build_pos = 0;
+			    goto out_process;
+			}
+
+			/* Just start the sync processing over for now. */
+			goto bad_packet;
 		    }
 		} else {
 		    bool found_flag = false;
@@ -861,8 +961,14 @@ axfec_ll_write(struct gensio_filter *filter,
 			}
 		    }
 		    if (found_flag) {
-			unsigned int out_bits;
+			unsigned int out_bits, leftover_bits;
 
+			/*
+			 * At this point n is the number of bits in
+			 * the packet, including the flag.  16 - n
+			 * is the number of bits after the flag that
+			 * are not part of the packet.
+			 */
 			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
 			    printf("Got final flag\n");
 			/* We have a flag at 16 - n bits from the end. */
@@ -870,12 +976,14 @@ axfec_ll_write(struct gensio_filter *filter,
 			convdecode_last_n_block(sfilter->ce, d->data,
 						sfilter->max_dec_out_bits,
 						&out_bits, NULL);
-			if (out_bits < 16 - n + 8) {
+			leftover_bits = 16 - n;
+			if (out_bits < leftover_bits + 8) {
 			    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
 				printf("Decode too small\n");
 			    goto bad_packet;
 			}
-			out_bits -= 16 - n + 8; /* Remove the flag and after. */
+			/* Remove the flag and leftover bits. */
+			out_bits -= leftover_bits + 8;
 			if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
 			    printf("Decode bits: %d\n", out_bits);
 			if (!unstuff_bits(d->data, &out_bits)) {
@@ -920,38 +1028,21 @@ axfec_ll_write(struct gensio_filter *filter,
 			/* Commit the packet. */
 			sfilter->num_readmsgs++;
 
-			if (sfilter->num_readmsgs >= MAX_READ_DELIVER_MSGS) {
-			    /* No room for a new packet. */
-			    sfilter->state = AXFEC_NOT_IN_SYNC;
-			    sfilter->out_build_data = 0;
-			    sfilter->out_build_pos = 0;
-			    goto out_process;
-			}
+			/* Handle the trailing flags. */
+			sfilter->state = AXFEC_IN_POSTAMBLE;
+			sfilter->amble_flags = 0;
 
-			/* Just start the sync processing over for now. */
-			goto bad_packet;
-#if 0
 			/*
-			 * We can get back-to-back packets.  Start
-			 * processing again right after the flag.
+			 * The AX5043 sticks enough zeros after the flag
+			 * that what's after will be aligned.
 			 */
-			sfilter->state = AXFEC_IN_PREAMBLE;
-
-			/* We have used n bits */
-			sfilter->out_to_dec_pos = 16 - n;
-			sfilter->out_to_dec >>= n;
-			memmove(sfilter->build_uncert,
-				sfilter->build_uncert + 16 - n, n);
-			/* Back out up to the end of the flag. */
-			sfilter->ce->ctrellis -= 16 - (n + 8);
 			reinit_convdecode_last_bits(sfilter->ce, 4);
-			sfilter->num_dec_bits = 8;
 
-			cbuf = ((sfilter->curr_readmsg + sfilter->num_readmsgs)
-				% MAX_READ_DELIVER_MSGS);
-			d = &sfilter->readmsgs[cbuf];
-			continue;
-#endif
+			/*
+			 * Number of input bits currently in the
+			 * decoder.
+			 */
+			sfilter->num_dec_bits = 8;
 		    }
 		}
 	    }
@@ -994,6 +1085,12 @@ axfec_ll_write(struct gensio_filter *filter,
 
  out:
     axfec_unlock(sfilter);
+
+#if 0
+    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+	printf("Processed %lu bytes\n", (unsigned long) buflen);
+#endif
+
     if (!err && rcount)
 	*rcount = buflen;
     return err;
