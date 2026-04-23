@@ -436,6 +436,10 @@ GENSIO_DLL_PUBLIC
 int gensio_pparm_float(struct gensio_pparm_info *p,
 		       const char *str, const char *key, float *rfl);
 
+GENSIO_DLL_PUBLIC
+int gensio_pparm_double(struct gensio_pparm_info *p,
+			const char *str, const char *key, double *rvalue);
+
 /*
  * Return an argv array (as in argvutils.h) for a parameter with the
  * given separators.  See gensio_str_to_argv() for details.
