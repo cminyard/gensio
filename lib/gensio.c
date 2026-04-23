@@ -2279,7 +2279,34 @@ gensio_pparm_float(struct gensio_pparm_info *p,
 	return -1;
     }
 
-    value = strtof(sval, &end);
+    value = strtod(sval, &end);
+    if (*end != '\0') {
+	gensio_pparm_log(p, "invalid number in parameter %s", str);
+	return -1;
+    }
+
+    *rvalue = value;
+    return 1;
+}
+
+int
+gensio_pparm_double(struct gensio_pparm_info *p,
+		    const char *str, const char *key, double *rvalue)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_pparm_value(p, str, key, &sval);
+    double value;
+
+    if (!rv)
+	return 0;
+
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
+	return -1;
+    }
+
+    value = strtod(sval, &end);
     if (*end != '\0') {
 	gensio_pparm_log(p, "invalid number in parameter %s", str);
 	return -1;
