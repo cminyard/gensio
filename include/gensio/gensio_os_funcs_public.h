@@ -66,6 +66,26 @@ int gensio_os_new_thread(struct gensio_os_funcs *o,
 GENSIOOSH_DLL_PUBLIC
 int gensio_os_wait_thread(struct gensio_thread *thread_id);
 
+/*
+ * A waiter that does not run gensio operations.  This is primarily
+ * for internal stuff, they may need to create internal threads for
+ * operations, but the user should be firmly in control of threads
+ * that run gensio operations.  This lets internal entities create
+ * wait operations to meet that criteria.
+ */
+GENSIOOSH_DLL_PUBLIC
+struct gensio_norun_waiter *
+gensio_os_alloc_norun_waiter(struct gensio_os_funcs *o);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_os_free_norun_waiter(struct gensio_norun_waiter *w);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_os_norun_waiter_wait(struct gensio_norun_waiter *w);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_os_norun_waiter_wake(struct gensio_norun_waiter *w);
+
 GENSIOOSH_DLL_PUBLIC
 void *gensio_os_funcs_zalloc(struct gensio_os_funcs *o, gensiods len);
 

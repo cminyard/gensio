@@ -952,6 +952,48 @@ win_free_waiter(struct gensio_waiter *waiter)
     LeaveCriticalSection(&waiter->lock);
 }
 
+struct gensio_norun_waiter {
+    struct gensio_os_funcs *o;
+    HANDLE sem;
+};
+
+struct gensio_norun_waiter *
+gensio_os_alloc_norun_waiter(struct gensio_os_funcs *o)
+{
+    struct gensio_norun_waiter *w;
+
+    w = o->zalloc(o, sizeof(*w));
+    if (!w)
+	return NULL;
+    w->o = o;
+    w->sem = CreateSemaphoreA(NULL, 0, 1000000, NULL);
+    if (!w->sem) {
+	o->free(o, w);
+	return NULL;
+    }
+
+    return w;
+}
+
+void
+gensio_os_free_norun_waiter(struct gensio_norun_waiter *w)
+{
+    CloseHandle(w->sem);
+    w->o->free(w->o, w);
+}
+
+void
+gensio_os_norun_waiter_wait(struct gensio_norun_waiter *w)
+{
+    WaitForSingleObject(w->sem, INFINITE);
+}
+
+void
+gensio_os_norun_waiter_wake(struct gensio_norun_waiter *w)
+{
+    ReleaseSemaphore(w->sem, 1, NULL);
+}
+
 static void
 win_check_iods(struct gensio_os_funcs *o)
 {
