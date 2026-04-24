@@ -489,7 +489,7 @@ void i_gensio_pparm_log(struct gensio_pparm_info *p, const char *log, ...);
 		       __VA_ARGS__)
 
 /* Use if just a string and no arguments. */
-#define gensio_pparm_slog(p, log, ...) \
+#define gensio_pparm_slog(p, log) \
     i_gensio_pparm_log(p, "%s %s: " log,				\
 		       (p)->ghandler ? "gensio" : "accepter",		\
 		       (p)->gensio_name)
