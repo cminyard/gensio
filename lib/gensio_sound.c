@@ -1120,6 +1120,7 @@ gensio_sound_ll_open(struct sound_ll *soundll,
 	    goto out_unlock;
 	}
     }
+    soundll->err = 0;
     soundll->state = GENSIO_SOUND_LL_IN_OPEN;
     soundll->open_done = open_done;
     soundll->open_done_data = open_data;
