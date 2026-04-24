@@ -391,6 +391,17 @@ libgensio_axfec_la_SOURCES = gensio_axfec.c convcode.c
 libgensio_axfec_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_axfec_la_LIBADD = $(DYNAMIC_LIBS)
 
+if BUILTIN_SOAPY
+libgensio_la_SOURCES += gensio_soapy.c
+else
+EXTRA_LTLIBRARIES += libgensio_soapy.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SOAPY)
+libgensio_soapy_la_SOURCES = gensio_soapy.c convcode.c
+libgensio_soapy_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_soapy_la_CFLAGS = $(LIBSOAPY_CPPFLAGS)
+libgensio_soapy_la_LIBADD = $(DYNAMIC_LIBS) $(LIBSOAPY_LIBS)
+
 # convcode.c is used in multiple gensios, but we only want one copy
 # linked.
 if BUILTIN_CONVCODE_C

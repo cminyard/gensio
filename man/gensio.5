@@ -2549,6 +2549,64 @@ suffixed with "le" or "be" to make them little or big endian (like
 float64_le).  If you do not specify this, the gensio will attempt the
 same format as the user format.  If that doesn't work, it will attempt
 to pick the best matching format and convert.
+.SH "soapy"
+connecting =
+.B soapy[(options)],<device string>
+
+A gensio providing access to SDR devices with the SoapySDR library.
+It's a thin wrapper around the SoapySDR C interface.
+
+Data formats are as the sound gensio above, except it adds complex
+versions.  These use the same name as the sound ones, but adds a "c"
+on the end of the name.
+
+The device string at the end of the gensio specification is the same
+thing you would give to the "SoapySDRUtil" utility to identify the
+devices.  See that for details.
+
+Like the sound gensio, most of the options below have an "in", "out"
+and plain option.  They set the receive, transmit, or both channels.
+.TP
+.B inchannel=<n>, outchannel=<n>
+Specifies the channel on the SDR device.  You must specify at least one
+of these.
+.TP
+.B inbufsize=<n>, outbufsize=<n>, bufsize=<n>
+Specify the buffer size, in samples (not bytes).  This defaults to 1024.
+.TP
+.B innbufs=<n>, outnbufs=<n>, nbufs=<n>
+Specify the number of buffers to use.  Defaults to 100.
+.TP
+.B inrate=<n>, outrate=<n>, rate=<n>
+The sample rate, in samples per second.  This may be constrained by
+the particular hardware.
+.TP
+.B informat=<n>, outformat=<n>, format=<n>
+Set the type of data to supply to the user.  This is one of: float64,
+float, s32, s32, s16, or s8, or any of those ending in "c" for complex
+values.  User samples are always signed and either floating point or
+integer.  Floating point is normalized from -1.0 to 1.0.  Defaults to
+floatc.  This may be constrained by the particular hardware.
+.TP
+.B infrequency=<n>, outfrequency=<n>, frequency=<n>
+Specify the frequency to tune the SDR to.  May not be supported on all
+devices.  Defaults to not specified.
+.TP
+.B inbandwidth=<n>, outbandwidth=<n>, bandwidth=<n>
+Specify the bandwidth for the channel.  May not be supported on all
+devices.  Defaults to not specified.
+.TP
+.B inagc=<n>, outagc=<n>, agc=<n>
+Specify automatic gain control for the channel.  May not be supported
+on all devices.  Defaults to off.
+.TP
+.B ingain=<n>, outgain=<n>, gain=<n>
+Specify the gain for the channel.  May not be supported on all
+devices.  Defaults to not specified.
+.TP
+.B inantenna=<n>, outantenna=<n>, antenna=<n>
+Specify the antenna to use for the channel.  May not be supported on
+all devices.  Defaults to not specified.
 .SH "afskmdm"
 connecting =
 .B afskmcm[(options)]
