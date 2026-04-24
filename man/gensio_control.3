@@ -421,6 +421,32 @@ will wait for the data to drain before shutting down with pending
 data.  If you set this to a negative value, it will wait forever,
 which is the default.  Though not really forever, some lower layer is
 going to time out and shut the connection down before you reach this.
+.SS "GENSIO_CONTROL_IN_ANTENNA"
+For a radio, the receive antenna name.  This is a string name.
+.SS "GENSIO_CONTROL_OUT_ANTENNA"
+For a radio, the transmit antenna name.  This is a string name.
+.SS "GENSIO_CONTROL_IN_AGC"
+For a radio, is AGC (automatic gain control) enabled on receive.  0 or
+1 as a string.
+.SS "GENSIO_CONTROL_OUT_AGC"
+For a radio, is AGC (automatic gain control) enabled on transmit.  0
+or 1 as a string.
+.SS "GENSIO_CONTROL_IN_GAIN"
+For a radio, the receive gain.  A double float as a string.
+.SS "GENSIO_CONTROL_OUT_GAIN"
+For a radio, the transmit gain.  A double float as a string.
+.SS "GENSIO_CONTROL_IN_FREQUENCY"
+For a radio, the receive frequency.  A double float as a string.
+.SS "GENSIO_CONTROL_OUT_FREQUENCY"
+For a radio, the transmit frequency.  A double float as a string.
+.SS "GENSIO_CONTROL_IN_BANDWIDTH"
+For a radio, the receive bandwidth.  A double float as a string.
+.SS "GENSIO_CONTROL_OUT_BANDWIDTH"
+For a radio, the transmit bandwidth.  A double float as a string.
+.SS "GENSIO_CONTROL_IN_CHANNEL"
+For a radio, the receive channel.  An integer as a string.
+.SS "GENSIO_CONTROL_OUT_CHANNEL"
+For a radio, the transmit channel.  An integer as a string.
 .SS "SERIAL PORT CONTROLS"
 The following set various serial port values.
 
