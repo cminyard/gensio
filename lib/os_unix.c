@@ -276,6 +276,56 @@ wake_waiter(waiter_t *waiter)
     UNLOCK(&waiter->lock);
 }
 
+struct gensio_norun_waiter {
+    struct gensio_os_funcs *o;
+    unsigned int wake_count;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+};
+
+struct gensio_norun_waiter *
+gensio_os_alloc_norun_waiter(struct gensio_os_funcs *o)
+{
+    struct gensio_norun_waiter *w;
+
+    w = o->zalloc(o, sizeof(*w));
+    if (!w)
+	return NULL;
+    w->o = o;
+    pthread_mutex_init(&w->lock, NULL);
+    pthread_cond_init(&w->cond, NULL);
+
+    return w;
+}
+
+void
+gensio_os_free_norun_waiter(struct gensio_norun_waiter *w)
+{
+    pthread_cond_destroy(&w->cond);
+    pthread_mutex_destroy(&w->lock);
+    w->o->free(w->o, w);
+}
+
+void
+gensio_os_norun_waiter_wait(struct gensio_norun_waiter *w)
+{
+    pthread_mutex_lock(&w->lock);
+    while (w->wake_count == 0) {
+	pthread_cond_wait(&w->cond, &w->lock);
+    }
+    w->wake_count--;
+    pthread_mutex_unlock(&w->lock);
+}
+
+void
+gensio_os_norun_waiter_wake(struct gensio_norun_waiter *w)
+{
+    pthread_mutex_lock(&w->lock);
+    w->wake_count++;
+    pthread_cond_signal(&w->cond);
+    pthread_mutex_unlock(&w->lock);
+}
+
 #else /* USE_PTHREADS */
 
 static int
@@ -344,6 +394,27 @@ static void
 wake_waiter(waiter_t *waiter)
 {
     waiter->count++;
+}
+
+struct gensio_norun_waiter *
+gensio_os_alloc_norun_waiter(struct gensio_os_funcs *o)
+{
+    return NULL;
+}
+
+void
+gensio_os_free_norun_waiter(struct gensio_norun_waiter *w)
+{
+}
+
+void
+gensio_os_norun_waiter_wait(struct gensio_norun_waiter *w)
+{
+}
+
+void
+gensio_os_norun_waiter_wake(struct gensio_norun_waiter *w)
+{
 }
 
 #endif /* USE_PTHREADS */
