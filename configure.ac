@@ -2001,6 +2001,87 @@ esac
 AM_CONDITIONAL([BUILTIN_AXFEC], [test ${BUILTIN_AXFEC} = 1])
 AC_SUBST(DYNAMIC_AXFEC)
 
+# Handle Soapy support
+SOAPY_CPPFLAGS=
+AC_ARG_WITH(soapyflags,
+ [AS_HELP_STRING([--with-soapyflags=flags],
+		 [Set the flags to compile with Soapy.])],
+    SOAPY_CPPFLAGS="$withval"
+)
+
+LIBSOAPY_LIBS=
+AC_ARG_WITH(libsoapylibs,
+ [AS_HELP_STRING([--with-libsoapylibs=libs],
+		 [Set the libraries to link with Libsoapy.])],
+    LIBSOAPY_LIBS="$withval"
+)
+
+AC_ARG_WITH(libsoapy,
+ [AS_HELP_STRING([--with-libsoapy=yes|dynamic|no], [Look for libsoapy])],
+    if test "x$withval" = "xyes"; then
+      trylibsoapy=yes
+    elif test "x$withval" = "xno"; then
+      trylibsoapy=no
+    fi,
+)
+HAVE_LIBSOAPY=0
+if test "x$trylibsoapy" != "xno"; then
+   found_soapydevice=no
+   AC_CHECK_HEADER(SoapySDR/Device.h, found_soapydevice=yes; )
+   if test "x$found_soapydevice" = "xyes"; then
+      AC_CHECK_LIB(SoapySDR, SoapySDRDevice_enumerate, [HAVE_LIBSOAPY=1])
+   fi
+fi
+
+if test "$HAVE_LIBSOAPY" = "1"; then
+   soapy=$default_all
+   if test "x$LIBSOAPY_LIBS" = "x"; then
+      LIBSOAPY_LIBS="-lSoapySDR"
+   fi
+else
+   soapy=no
+fi
+AC_DEFINE_UNQUOTED([HAVE_LIBSOAPY], [$HAVE_LIBSOAPY],
+	[Set to 1 to enable soapy support through libSpoapySDR, 0 to disable])
+AM_CONDITIONAL([HAVE_LIBSOAPY], [test ${HAVE_LIBSOAPY} = 1])
+AC_SUBST(HAVE_LIBSOAPY)
+AC_SUBST(LIBSOAPY_CPPFLAGS)
+AC_SUBST(LIBSOAPY_LIBS)
+
+AC_ARG_WITH(soapy,
+ [AS_HELP_STRING([--with-soapy=yes|dynamic|no], [Enable soapy gensio])],
+    if test "x$withval" = "xyes"; then
+      soapy=yes
+    elif test "x$withval" = "xdynamic"; then
+      soapy=dynamic
+    elif test "x$withval" = "xno"; then
+      soapy=no
+    fi,
+)
+BUILTIN_SOAPY=0
+DYNAMIC_SOAPY=
+case $soapy in
+   yes)
+      if test $HAVE_LIBSOAPY = 0; then
+         AC_MSG_ERROR("soapy enabled but libSoapySDR not found")
+      fi
+      BASE_LIBS="$BASE_LIBS $LIBSOAPY_LIBS"
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS libsoapy"
+      BUILTIN_SOAPY=1
+      ;;
+   dynamic)
+      if test $HAVE_LIBSOAPY = 0; then
+         AC_MSG_ERROR("soapy enabled but libSoapySDR not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS soapy"
+      DYNAMIC_SOAPY=libgensio_soapy.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SOAPY], [test ${BUILTIN_SOAPY} = 1])
+AC_SUBST(DYNAMIC_SOAPY)
+
 convcode=$default_all
 AC_ARG_WITH(convcode,
  [AS_HELP_STRING([--with-convcode=yes|dynamic|no], [Enable tcp/unix gensio])],
@@ -2572,7 +2653,8 @@ echo   "  chardelay:	" $chardelay
 echo   "  afskmdm:	" $afskmdm
 echo   "  hdlc:		" $hdlc
 echo   "  convcode:	" $convcode
-echo   "  axfec:	" $acfec
+echo   "  axfec:	" $axfec
+echo   "  soapy:	" $soapy
 echo
 echo "**************************************************"
 echo
