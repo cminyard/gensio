@@ -275,7 +275,7 @@ struct afskmdm_filter {
     float *firhold;
 
     /* Filtered data. */
-    unsigned char *filteredbuf;
+    float *filteredbuf;
 
     /*
      * Correlation tables.  First 2 * in_corrsize values is sine, second
@@ -303,17 +303,17 @@ struct afskmdm_filter {
     float min_certainty;
 
     /*
-     * Current position in the input, holds this value between frame
-     * processing.  Values from 0 to in_corrsize-1 are in the prevread
-     * buffer, greater values index into the current received buffer.
+     * Buffer holding data being currently processed.  It is
+     * (in_corrsize + (2 * CORREDGE)) bytes long.
      */
-    unsigned int curr_in_pos;
+    float *workbuf;
+    unsigned int worksize;
 
     /*
-     * 2 * in_corrsize frames from end of the previous buffer.
+     * Current position in the processed data workbuf above, this is
+     * the amount of data left over from the previous processing.
      */
-    unsigned char *prevread;
-    unsigned int prevread_size;
+    unsigned int work_pos;
 
     /*
      * Messages we are currently working on assembling.
@@ -680,10 +680,6 @@ afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
 	afskmdm_start_xmit(sfilter);
     } else {
 	sfilter->start_xmit_delay_count++;
-	if (sfilter->curr_in_pos < sfilter->tx_delay / 10)
-	    sfilter->curr_in_pos = 0;
-	else
-	    sfilter->curr_in_pos -= sfilter->tx_delay / 10;
     }
 }
 
@@ -1038,36 +1034,6 @@ afskmdm_ul_write(struct gensio_filter *filter,
     return rv;
 }
 
-#if 0
-static float
-afskmdm_measure_power(struct afskmdm_filter *sfilter,
-		      unsigned int curpos,
-		      unsigned char *buf1, unsigned char *buf2)
-{
-    float *s1 = (float *) buf1 + sfilter->chan;
-    float *s2 = (float *) buf2 + sfilter->chan;
-    float power = 0, v;
-    unsigned int i;
-
-    if (curpos < sfilter->prevread_size)
-	s1 += curpos * sfilter->in_nchans;
-    else
-	s2 += (curpos - sfilter->prevread_size) * sfilter->in_nchans;
-
-    for (i = 0; i < sfilter->in_corrsize; i++, curpos++) {
-	if (curpos < sfilter->prevread_size) {
-	    v = *s1;
-	    s1 += sfilter->in_nchans;
-	} else {
-	    v = *s2;
-	    s2 += sfilter->in_nchans;
-	}
-	power += v * v;
-    }
-    return power;
-}
-#endif
-
 static void
 afskmdm_deliver_data(struct afskmdm_filter *sfilter, struct wmsg *w)
 {
@@ -1119,105 +1085,77 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
 }
 
 /*
- * Do a double correlation.  You generally do this against a sine and
- * cosine table, this lets you measure the power (and phase) of a signal
- * against the frequency of the sine/cosine.
+ * Do a DFT bin analysis.  You generally do this against a sine and
+ * cosine table, this lets you measure the power (and phase) of a
+ * signal against the frequency of the sine/cosine.
  *
- * corrdata is the sine/cosine table to correlate against, the first 2 *
- * in_corrsize floats are the sine table, the second 2 * in_corrsize floats
- * are the cosine table.
- *
- * The data comes in two chunks, buf1 is 2 * in_corrsize frames at the
- * beginning, buf2 is chunksize frames after that.
+ * dftbin is the sine/cosine table to do the DFT analysis on a single
+ * frequency, the first 2 * in_corrsize floats are the sine table, the
+ * second 2 * in_corrsize floats are the cosine table.
  *
  * The input has extra data on both edges, the actually currently
  * aligned signal is in the middle.  We start at the data past the
  * left edges and process that data.  Then we store the data and
  * subtract off each frame from the left edge and add on the next data
  * until we have processed the whole right edge.  This gives is values
- * in the "p" array where the middle value is the currently aligned
- * value, but we have power measurements assuming we move the alignment
- * point left and right.  This lets us measure how well we are aligned
- * on a transition from a mark to a space.
+ * in the "power" array where the middle value is the currently
+ * aligned value, but we have power measurements assuming we move the
+ * alignment point left and right.  This lets us measure how well we
+ * are aligned on a transition from a mark to a space or back.
  *
- * buf is an array of floats.  So we have to cast it.  The data may be
- * interleaved, meaning that frames from multiple channels may be in
- * it.  We only care about one channel.  So we have to multiply by the
- * number of channels and add the channel offset.
+ * Each DFT bin is done on in_corrsize frames of data.  The first
+ * in_corrsize bytes is processed and put into power[0] (power at the
+ * given frequency).  Then we skip the first sample and calculate the
+ * power then, then skip two samples, and so on, up to CORREDGE * 2
+ * samples.
  *
- * Each correlation is done on in_corrsize frames of data.  The first
- * in_corrsize bytes is processed and put into p[0] (power at the given
- * frequency).  If edge > 0, then frames 1-(in_corrsize+1) are processed
- * and put into p[1], and so on.  (This is done more efficiently by
- * tracking some values, subtracting off the beginning, and adding on
- * the end).
+ * We don't do it that way, though, we use a much more efficient way.
+ * To process at sample 1 we subtract off the first values and add on
+ * the next values, so it's quite efficient.
  *
- * You can think of edge as the number of values on each side of the
- * main signal.
- *
- * Multiple values lets you scan for data or align data.
- *
- * dummyp must be [edge * 4].  p must be [(edge * 2) + 1].  The input
- * data size must be bigger than edge * 2.
+ * power must be [(edge * 2) + 1].  The input data size must be
+ * [in_corrsize + edge * 2].
  */
 static void
-afskmdm_dcorr(struct afskmdm_filter *sfilter, float *corrdata,
-	      unsigned int edge,
-	      unsigned int curpos, unsigned char *buf1, unsigned char *buf2,
-	      float p[], float dummyp[])
+afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
+	       float buf[], float power[])
 {
-    /* There will always be one byte before the data, so the -1 ok. */
-    float *s1 = (float *) buf1 + sfilter->in_chan;
-    float *s2 = (float *) buf2 + sfilter->in_chan;
-    float *csin = corrdata;
-    float *ccos = corrdata + 2 * sfilter->in_corrsize;
-    float v;
+    float *csin = dftbin;
+    float *ccos = dftbin + 2 * sfilter->in_corrsize;
     float psin = 0, pcos = 0;
-    unsigned int i, ppos = 0, spos;
+    unsigned int i, ppos = 0, fpos;
+    /* Store the first CORREDGE sin and cos values here to subtract off later */
+    float firstv[CORREDGE * 4];
 
-    if (curpos < sfilter->prevread_size)
-	s1 += curpos * sfilter->in_nchans;
-    else
-	s2 += (curpos - sfilter->prevread_size) * sfilter->in_nchans;
-
-    for (i = 0; i < sfilter->in_corrsize; i++, curpos++) {
-	if (curpos < sfilter->prevread_size) {
-	    v = *s1;
-	    s1 += sfilter->in_nchans;
-	} else {
-	    v = *s2;
-	    s2 += sfilter->in_nchans;
-	}
-	psin += *csin * v;
-	pcos += *ccos * v;
-	if (i < edge * 2) {
-	    dummyp[i * 2] = *csin * v;
-	    dummyp[i * 2 + 1] = *ccos * v;
-	}
-	csin++;
-	ccos++;
+    /* Calculate the beginning portion and save off the first values. */
+    for (i = 0; i < CORREDGE * 2; i++, csin++, ccos++) {
+	firstv[i * 2] = *csin * buf[i];
+	firstv[i * 2 + 1] = *ccos * buf[i];
+	psin += firstv[i * 2];
+	pcos += firstv[i * 2 + 1];
     }
-    p[ppos++] = psin * psin + pcos * pcos;
+    /*
+     * Calculate the rest of the buffer to the point where we have the
+     * first value to save.
+     */
+    for (i = 0; i < sfilter->in_corrsize; i++, csin++, ccos++) {
+	psin += *csin * buf[i];
+	pcos += *ccos * buf[i];
+    }
 
-    for (spos = 0; i < sfilter->in_corrsize + (edge * 2);
-	 i++, curpos++, spos++) {
+    /* Save the first value's power. */
+    power[ppos++] = psin * psin + pcos * pcos;
 
-	/* Make sure we don't go past the end of the buffer. */
-	assert(curpos <= sfilter->prevread_size ||
-	       curpos - sfilter->prevread_size < sfilter->in_chunksize);
-
-	if (curpos < sfilter->prevread_size) {
-	    v = *s1;
-	    s1 += sfilter->in_nchans;
-	} else {
-	    v = *s2;
-	    s2 += sfilter->in_nchans;
-	}
-	psin -= dummyp[spos * 2];
-	pcos -= dummyp[spos * 2 + 1];
-	psin += *csin++ * v;
-	pcos += *ccos++ * v;
-	p[ppos++] = psin * psin + pcos * pcos;
+    /*
+     * Now go through the rest of the buffer and calculate the power for
+     * each succeeding position.
+     */
+    for (fpos = 0; i < sfilter->worksize; i++, fpos++) {
+	psin -= firstv[fpos * 2];
+	pcos -= firstv[fpos * 2 + 1];
+	psin += *csin++ * buf[i];
+	pcos += *ccos++ * buf[i];
+	power[ppos++] = psin * psin + pcos * pcos;
     }
 }
 
@@ -1273,7 +1211,7 @@ afskmdm_handle_new_byte(struct afskmdm_filter *sfilter,
 }
 
 static void
-afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
+afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
 			   unsigned int wset, unsigned int msgn, struct wmsg *w)
 {
     uint16_t crc, msgcrc;
@@ -1285,8 +1223,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_RAW_MSG) {
 	afskmdm_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
 			  true);
-	printf("    bitpos %d  endframe %lu\n", w->curr_bit_pos,
-	       sfilter->framenr + pos - sfilter->prevread_size);
+	printf("    bitpos %d\n", w->curr_bit_pos);
     }
 
     /*
@@ -1353,7 +1290,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 }
 
 static void
-afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
+afskmdm_process_bit(struct afskmdm_filter *sfilter,
 		    unsigned int wset, unsigned int msgn,
 		    unsigned char level, float certainty,
 		    bool *in_sync)
@@ -1404,7 +1341,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 
 		if (i < msgn) {
 		    /* Process this bit, since we won't get it in the main. */
-		    afskmdm_process_bit(sfilter, pos, wset, i, !level,
+		    afskmdm_process_bit(sfilter, wset, i, !level,
 					certainty, in_sync);
 		} else {
 		    /*
@@ -1450,8 +1387,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	printf("BIT(%u %u %lu): l:%d b:%d %f  (%d)\n", wset, msgn,
-	       sfilter->framenr + pos - sfilter->prevread_size,
-	       level, bit, certainty, w->state);
+	       sfilter->framenr, level, bit, certainty, w->state);
 
     prev_num_rcv_1 = w->num_rcv_1;
     if (bit)
@@ -1508,7 +1444,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 
     case AFSKMDM_STATE_POSTAMBLE_LAST_0:
 	if (!bit) {
-	    afskmdm_handle_new_message(sfilter, pos, wset, msgn, w);
+	    afskmdm_handle_new_message(sfilter, wset, msgn, w);
 	    w->state = AFSKMDM_STATE_IN_MSG;
 	    w->curr_byte = 0;
 	    w->curr_bit_pos = 0;
@@ -1564,33 +1500,30 @@ process_powers(struct afskmdm_filter *sfilter,
 }
 
 /*
- * Do a correlation at mark and space the data then call the bit
+ * Do DFT bin analysis at mark and space the data then call the bit
  * processing with the info extracted from the data.
  */
-static void
-afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
-		       unsigned char *buf1, unsigned char *buf2, bool *in_sync)
+static int
+afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
+		       bool *in_sync)
 {
     float pmark[CORREXTRA], pspace[CORREXTRA];
     float pmark2[CORREXTRA], pspace2[CORREXTRA];
-    float dummyp[CORREDGE * 4];
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
+    int adj = 0;
 
-    afskmdm_dcorr(sfilter, sfilter->hzmark, CORREDGE, (*curpos) - CORREDGE,
-		  buf1, buf2, pmark, dummyp);
-    afskmdm_dcorr(sfilter, sfilter->hzspace, CORREDGE, (*curpos) - CORREDGE,
-		  buf1, buf2, pspace, dummyp);
+    afskmdm_dftbin(sfilter, sfilter->hzmark, buf, pmark);
+    afskmdm_dftbin(sfilter, sfilter->hzspace, buf, pspace);
 
     process_powers(sfilter, pmark, pspace, &best_pos, &certainty, &level);
+
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL) {
-	printf("CORR(%lu %u %lu):\n",
-	       sfilter->framecount++, *curpos,
-	       sfilter->framenr + *curpos - sfilter->prevread_size);
+	printf("CORR(%lu): %u\n", sfilter->framecount++, level);
 	for (i = 0; i < CORREXTRA; i++)
 	    printf(" %f", pmark[i]);
-	printf("\n %d      ", level);
+	printf("\n");
 	for (i = 0; i < CORREXTRA; i++)
 	    printf(" %f", pspace[i]);
 	printf("\n");
@@ -1604,28 +1537,28 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	 */
 
 	if (sfilter->prev_best_pos > CORRMIDDLE)
-	    *curpos += 1;
+	    adj++;
 	else if (sfilter->prev_best_pos < CORRMIDDLE)
-	    *curpos -= 1;
+	    adj--;
 
 	if (best_pos > CORRMIDDLE)
-	    *curpos += 1;
+	    adj++;
 	else if (best_pos < CORRMIDDLE)
-	    *curpos -= 1;
+	    adj--;
     }
 
     sfilter->prev_best_pos = best_pos;
     if (sfilter->do_raw) {
 	afskmdm_process_raw_bit(sfilter, level, certainty);
 	sfilter->prev_recv_level = level;
-	return;
+	return adj;
     }
 
     sfilter->prev_recv_level = level;
 
     sfilter->wmsgsets[0].got_flag = false;
     for (i = 0; i < sfilter->max_wmsgs; i++)
-	afskmdm_process_bit(sfilter, *curpos, 0, i, level, certainty, in_sync);
+	afskmdm_process_bit(sfilter, 0, i, level, certainty, in_sync);
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
 	for (i = 0; i < CORREXTRA; i++)
@@ -1634,7 +1567,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	process_powers(sfilter, pmark2, pspace, &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    afskmdm_process_bit(sfilter, *curpos, wset, i,
+	    afskmdm_process_bit(sfilter, wset, i,
 				level, certainty, in_sync);
 
 	for (i = 0; i < CORREXTRA; i++)
@@ -1643,9 +1576,11 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	process_powers(sfilter, pmark, pspace2, &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset + 1].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    afskmdm_process_bit(sfilter, *curpos, wset + 1, i,
+	    afskmdm_process_bit(sfilter, wset + 1, i,
 				level, certainty, in_sync);
     }
+
+    return adj;
 }
 
 /*
@@ -1801,16 +1736,38 @@ afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
     return h;
 }
 
+/*
+ * Copy the particular channel we are interested in into the
+ * destination buffer.  Incoming data may be channelized (nchans > 1)
+ * and we only want one of the channels.
+ */
+static void
+frame_in_copy(float *dest, gensiods destpos,
+	      float *src, gensiods srcpos,
+	      unsigned int nchans, unsigned int chan,
+	      gensiods count)
+{
+    gensiods i;
+
+    dest += destpos;
+    src += srcpos * nchans + chan;
+    for (i = 0; i < count; i++, dest++, src += nchans)
+	*dest = *src;
+}
+
 static int
 afskmdm_ll_write(struct gensio_filter *filter,
 		 gensio_ll_filter_data_handler handler, void *cb_data,
 		 gensiods *rcount,
-		 unsigned char *buf, gensiods buflen,
+		 unsigned char *inbuf, gensiods inbuflen,
 		 const char *const *auxdata)
 {
     struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
-    unsigned int pos = sfilter->curr_in_pos;
+    gensiods pos;
     int err = 0;
+    /* Work in float increments to simplify calculations. */
+    float *buf = (float *) inbuf;
+    gensiods buflen = inbuflen / 4;
 
     if (gensio_str_in_auxdata(auxdata, "oob")) {
 	/* Ignore oob data. */
@@ -1827,18 +1784,20 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (buflen == 0)
 	goto try_deliver;
 
-    if (buflen != (gensiods) sfilter->in_chunksize * sfilter->in_framesize)
-	return GE_INVAL;
+    if (inbuflen != (gensiods) sfilter->in_chunksize * sfilter->in_framesize) {
+	err = GE_INVAL;
+	goto out_err;
+    }
 
     if (sfilter->filteredbuf) {
 	if (sfilter->fir_h) {
-	    afskmdm_fir_filter((float *) buf, (float *) sfilter->filteredbuf,
+	    afskmdm_fir_filter(buf, sfilter->filteredbuf,
 			       sfilter->in_chunksize,
 			       sfilter->in_nchans, sfilter->in_chan,
 			       sfilter->fir_h_n, sfilter->fir_h,
 			       sfilter->firhold);
 	} else {
-	    afskmdm_iir_filter((float *) buf, (float *) sfilter->filteredbuf,
+	    afskmdm_iir_filter(buf, sfilter->filteredbuf,
 			       sfilter->in_chunksize,
 			       sfilter->in_nchans, sfilter->in_chan,
 			       sfilter->coefa, sfilter->coefb,
@@ -1848,22 +1807,24 @@ afskmdm_ll_write(struct gensio_filter *filter,
     }
 
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
-	printf("Processing frame %lu %d %u\n", sfilter->framenr,
-	       sfilter->transmit_state, pos);
+	printf("Processing frame %lu %d\n", sfilter->framenr,
+	       sfilter->transmit_state);
     if (!sfilter->full_duplex && sfilter->transmit_state > WAITING_TRANSMIT) {
-	sfilter->curr_in_pos = sfilter->prevread_size;
+	sfilter->work_pos = 0;
 	goto skip_processing;
     }
-    if (pos < CORREDGE)
-	/*
-	 * curr_in_pos cannot be zero, it is scanned from CORREDGE
-	 * less than it's position when scanning.  So start there.
-	 */
-	pos = CORREDGE;
-    while (pos < sfilter->in_chunksize + sfilter->in_corrsize - CORREDGE) {
-	bool in_sync = true;
 
-	afskmdm_check_for_data(sfilter, &pos, sfilter->prevread, buf, &in_sync);
+    pos = 0; /* Input buffer position. */
+    while (pos + sfilter->worksize - sfilter->work_pos <= buflen) {
+	bool in_sync = true;
+	int adj;
+
+	/* Copy the data from the incoming buffer into workbuf. */
+	frame_in_copy(sfilter->workbuf, sfilter->work_pos,
+		      buf, pos, sfilter->in_nchans, sfilter->in_chan,
+		      sfilter->worksize - sfilter->work_pos);
+	pos += sfilter->worksize - sfilter->work_pos;
+	adj = afskmdm_check_for_data(sfilter, sfilter->workbuf, &in_sync);
 
 	if (in_sync) {
 	    sfilter->nr_in_sync++;
@@ -1885,30 +1846,48 @@ afskmdm_ll_write(struct gensio_filter *filter,
 		afskmdm_check_start_xmit(sfilter);
 		if (!sfilter->full_duplex &&
 			sfilter->transmit_state > WAITING_TRANSMIT) {
-		    sfilter->curr_in_pos = sfilter->prevread_size;
+		    sfilter->work_pos = 0;
 		    goto skip_processing;
 		}
 	    }
 	}
 
 	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
-	    printf("SYNC: %d %u\n", in_sync, sfilter->nr_in_sync);
+	    printf("SYNC: %d %d %u\n", adj, in_sync, sfilter->nr_in_sync);
 
 	sfilter->in_corr_counter++;
 	if (sfilter->in_corr_counter >= sfilter->in_corr_period) {
-	    pos += sfilter->in_corr_adj;
+	    adj += sfilter->in_corr_adj;
 	    sfilter->in_corr_counter = 0;
 	}
-	pos += sfilter->in_corrsize;
+
+	/*
+	 * You cannot adjust more than the edge
+	 */
+	if (adj > CORREDGE)
+	    adj = CORREDGE;
+	if (adj < -CORREDGE)
+	    adj = -CORREDGE;
+
+	sfilter->work_pos = CORREDGE * 2 - adj;
+
+	/* Copy the end of the buffer to the beginning. */
+	memmove(sfilter->workbuf,
+	      sfilter->workbuf + sfilter->worksize - sfilter->work_pos,
+	      sfilter->work_pos * sizeof(float));
     }
-    sfilter->curr_in_pos = pos - sfilter->in_chunksize;
+
+    /*
+     * Copy what is left in the incoming buffer into the work buffer
+     * to be processed on the next round.
+     */
+    frame_in_copy(sfilter->workbuf, sfilter->work_pos,
+		  buf, pos, sfilter->in_nchans, sfilter->in_chan,
+		  buflen - pos);
+    sfilter->work_pos += buflen - pos;
+
  skip_processing:
     sfilter->framenr += sfilter->in_chunksize;
-
-    memcpy(sfilter->prevread,
-	   buf + (sfilter->in_framesize *
-		  (sfilter->in_chunksize - sfilter->prevread_size)),
-	   (size_t) sfilter->prevread_size * sfilter->in_framesize);
 
  try_deliver:
     if (sfilter->deliver_data_len > 0) {
@@ -1945,7 +1924,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
  out_err:
     afskmdm_unlock(sfilter);
     if (!err && rcount)
-	*rcount = buflen;
+	*rcount = inbuflen;
     return err;
 }
 
@@ -1974,7 +1953,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
 	    sfilter->wmsgsets[i].wmsgs[j].in_use = false;
 	sfilter->wmsgsets[i].curr_wmsgs = 1;
     }
-    sfilter->curr_in_pos = sfilter->prevread_size;
+    sfilter->work_pos = 0;
     sfilter->deliver_data_len = 0;
     sfilter->xmit_buf_len = 0;
     sfilter->xmit_buf_pos = 0;
@@ -2006,8 +1985,8 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 	o->free(o, sfilter->hzmark);
     if (sfilter->hzspace)
 	o->free(o, sfilter->hzspace);
-    if (sfilter->prevread)
-	o->free(o, sfilter->prevread);
+    if (sfilter->workbuf)
+	o->free(o, sfilter->workbuf);
     if (sfilter->wmsgsets) {
 	for (i = 0; i < sfilter->wmsg_sets; i++) {
 	    if (sfilter->wmsgsets[i].wmsgs) {
@@ -2503,17 +2482,15 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	}
 
 	sfilter->filteredbuf = o->zalloc(o,
-		(gensiods) sfilter->in_framesize * sfilter->in_chunksize);
+		sfilter->in_framesize * sfilter->in_chunksize);
 	if (!sfilter->filteredbuf)
 	    goto out_nomem;
     }
 
-    sfilter->prevread_size = sfilter->in_corrsize * 2 + CORREDGE;
-    sfilter->prevread = o->zalloc(o,
-		(gensiods) sfilter->in_framesize * sfilter->prevread_size);
-    if (!sfilter->prevread)
+    sfilter->worksize = sfilter->in_corrsize + 2 * CORREDGE;
+    sfilter->workbuf = o->zalloc(o, sfilter->worksize * sizeof(float));
+    if (!sfilter->workbuf)
 	goto out_nomem;
-    sfilter->curr_in_pos = sfilter->prevread_size;
 
     sfilter->wmsgsets = o->zalloc(o, (sizeof(struct wmsgset) *
 				      sfilter->wmsg_sets));
