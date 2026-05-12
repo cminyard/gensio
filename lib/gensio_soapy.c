@@ -461,7 +461,7 @@ gensio_soapy_inthread(void *data)
 	while (sb->numbufs < sb->bufslen && !sb->stop) {
 	    void *vbufs[1];
 	    int rv;
-	    int flags; /* FIXME - do something with flags. */
+	    int flags = 0; /* FIXME - do something with flags. */
 	    long long timeNs;
 
 	    gensio_soapy_ll_unlock(soapyll);
