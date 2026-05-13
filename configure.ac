@@ -1917,33 +1917,33 @@ esac
 AM_CONDITIONAL([BUILTIN_CHARDELAY], [test ${BUILTIN_CHARDELAY} = 1])
 AC_SUBST(DYNAMIC_CHARDELAY)
 
-afskmdm=$default_all
-AC_ARG_WITH(afskmdm,
- [AS_HELP_STRING([--with-afskmdm=yes|dynamic|no], [Enable tcp/unix gensio])],
+fsk=$default_all
+AC_ARG_WITH(fsk,
+ [AS_HELP_STRING([--with-fsk=yes|dynamic|no], [Enable tcp/unix gensio])],
     if test "x$withval" = "xyes"; then
-      afskmdm=yes
+      fsk=yes
     elif test "x$withval" = "xdynamic"; then
-      afskmdm=dynamic
+      fsk=dynamic
     elif test "x$withval" = "xno"; then
-      afskmdm=no
+      fsk=no
     fi,
 )
-BUILTIN_AFSKMDM=0
-DYNAMIC_AFSKMDM=
-case $afskmdm in
+BUILTIN_FSK=0
+DYNAMIC_FSK=
+case $fsk in
    yes)
-      BUILTIN_GENSIOS="$BUILTIN_GENSIOS afskmdm"
-      BUILTIN_AFSKMDM=1
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS fsk"
+      BUILTIN_FSK=1
       ;;
    dynamic)
-      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS afskmdm"
-      DYNAMIC_AFSKMDM=libgensio_afskmdm.la
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS fsk"
+      DYNAMIC_FSK=libgensio_fsk.la
       ;;
    no)
       ;;
 esac
-AM_CONDITIONAL([BUILTIN_AFSKMDM], [test ${BUILTIN_AFSKMDM} = 1])
-AC_SUBST(DYNAMIC_AFSKMDM)
+AM_CONDITIONAL([BUILTIN_FSK], [test ${BUILTIN_FSK} = 1])
+AC_SUBST(DYNAMIC_FSK)
 
 hdlc=$default_all
 AC_ARG_WITH(hdlc,
@@ -2650,7 +2650,7 @@ echo   "  keepopen:	" $keepopen
 echo   "  script:	" $script
 echo   "  ratelimit:	" $ratelimit
 echo   "  chardelay:	" $chardelay
-echo   "  afskmdm:	" $afskmdm
+echo   "  fsk:		" $fsk
 echo   "  hdlc:		" $hdlc
 echo   "  convcode:	" $convcode
 echo   "  axfec:	" $axfec

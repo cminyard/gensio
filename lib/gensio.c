@@ -1409,6 +1409,8 @@ gensio_loadlib(struct gensio_os_funcs *o, const char *str)
 	strncpy(name, "net", sizeof(name));
     else if (strcmp(name, "dev") == 0 || strcmp(name, "sdev") == 0)
 	strncpy(name, "serialdev", sizeof(name));
+    else if (strcmp(name, "afskmdm") == 0)
+	strncpy(name, "fsk", sizeof(name));
 
     return gensio_os_loadlib(o, name);
 }

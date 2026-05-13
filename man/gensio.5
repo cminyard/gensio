@@ -2607,7 +2607,7 @@ devices.  Defaults to not specified.
 .B inantenna=<n>, outantenna=<n>, antenna=<n>
 Specify the antenna to use for the channel.  May not be supported on
 all devices.  Defaults to not specified.
-.SH "afskmdm"
+.SH "fsk"
 connecting =
 .B afskmcm[(options)]
 
@@ -2671,7 +2671,7 @@ program to do the keying and add:
 key="stdio,mykeyprog --parm1 --parm2",keyon="1",keyoff="0"
 .PP
 to your
-.B afskmdm
+.B fsk
 option and it would run the mykeyprog program when opened.  When it
 needed to transmit, it would write a "1" (no newline or anything sent)
 to the stdin of the program.  When the transmission was complete, it
@@ -2688,7 +2688,7 @@ rigctld -m 1022 -r /dev/ttyUSB0 -s 4800 -P CM108 -p /dev/hidraw1
 .PP
 And I use the following in my configuration:
 .IP
-afskmdm(key="tcp,localhost,4532",keyon="T 1\\n",keyoff="T 0\\n")
+fsk(key="tcp,localhost,4532",keyon="T 1\\n",keyoff="T 0\\n")
 .PP
 You have to be careful of the quoting here, as the key specification
 must be in quotes because it will have commas.  Notice the use of
@@ -2740,7 +2740,7 @@ Default to false.  Note that if you set
 to false, this option will not work.
 .TP
 .B crc[=true|false]
-Check and send CRCs on packets.  Normally you want the afskmdm code to
+Check and send CRCs on packets.  Normally you want the fsk code to
 do this, but can be useful for testing.  Defaults to true.
 .TP
 .B inv[=true|false]
@@ -2882,7 +2882,7 @@ connecting =
 .B hdlc[(options)]
 
 This is an HDLC coder/decoder.  It's designed to sit on top of a modem
-like afskmdm in raw mode and do HDLC.  Note that the data coming out
+like fsk in raw mode and do HDLC.  Note that the data coming out
 of the bottom of this will be larger than what goes in the top because
 a preamble, postamble, and bit stuffing is done.  The equation to
 calculate the size below is:
@@ -2913,7 +2913,7 @@ Default to false.  Note that if you set
 to false, this option will not work.
 .TP
 .B crc[=true|false]
-Check and send CRCs on packets.  Normally you want the afskmdm code to
+Check and send CRCs on packets.  Normally you want the fsk code to
 do this, but can be useful for testing.  Defaults to true.
 .TP
 .B wmsgs=<n>

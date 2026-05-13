@@ -25,19 +25,19 @@
 #include <gensio/gensio_ax25_addr.h>
 
 /* Add timestamps to messages. */
-#define GENSIO_AFSKMDM_DEBUG_TIME	0x10
+#define GENSIO_FSK_DEBUG_TIME	0x10
 
 /* Dump full received/sent messages. */
-#define GENSIO_AFSKMDM_DEBUG_MSG	0x08
+#define GENSIO_FSK_DEBUG_MSG	0x08
 
 /* Dump some state handing information. */
-#define GENSIO_AFSKMDM_DEBUG_STATE	0x04
+#define GENSIO_FSK_DEBUG_STATE	0x04
 
 /* Dump raw bit handling information. */
-#define GENSIO_AFSKMDM_DEBUG_BIT_HNDL	0x02
+#define GENSIO_FSK_DEBUG_BIT_HNDL	0x02
 
 /* Dump raw messages */
-#define GENSIO_AFSKMDM_DEBUG_RAW_MSG	0x01
+#define GENSIO_FSK_DEBUG_RAW_MSG	0x01
 
 /*
  * This filter implements a audio frequency shift keying modem per the
@@ -96,30 +96,30 @@
  * for a starting message.
  */
 
-enum afskmdm_state {
+enum fsk_state {
     /* Looking for a '0' to start the preamble. */
-    AFSKMDM_STATE_PREAMBLE_SEARCH_0,
+    FSK_STATE_PREAMBLE_SEARCH_0,
 
     /* In the preamble (01111110), found a 0, looking for a '1'. */
-    AFSKMDM_STATE_PREAMBLE_FIRST_0,
+    FSK_STATE_PREAMBLE_FIRST_0,
 
     /* In the preamble, looking for 6 1's in a row. */
-    AFSKMDM_STATE_PREAMBLE_1,
+    FSK_STATE_PREAMBLE_1,
 
     /* In the preamble, found 0111111, looking for the last 0. */
-    AFSKMDM_STATE_PREAMBLE_LAST_0,
+    FSK_STATE_PREAMBLE_LAST_0,
 
     /* Currently in a message. */
-    AFSKMDM_STATE_IN_MSG,
+    FSK_STATE_IN_MSG,
 
     /* Got 6 1's in a row while in msg, looking for a 0. */
-    AFSKMDM_STATE_POSTAMBLE_LAST_0
+    FSK_STATE_POSTAMBLE_LAST_0
 };
 
 /*
  * This is the maximum adjust period we will allow.  If it reaches
  * this value, we assume that the small adjustments can be handled by
- * the receiver code.
+ * the standard alignment adjustment.
  */
 #define ADJ_PERIOD 10
 
@@ -136,7 +136,7 @@ struct wmsg {
     /* Counts 1's in the preamble and when receiving data. */
     unsigned int num_rcv_1;
 
-    enum afskmdm_state state;
+    enum fsk_state state;
 
     /* Level we received last time. */
     unsigned char prev_recv_level;
@@ -192,7 +192,7 @@ struct xmit_entry {
 
 #include "xmitkey.h"
 
-struct afskmdm_filter {
+struct fsk_filter {
     struct gensio_filter *filter;
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
@@ -415,78 +415,78 @@ struct afskmdm_filter {
 
 #include "crc.h"
 
-static void afskmdm_start_xmit(struct afskmdm_filter *sfilter);
-static void afskmdm_stop_drain_timer(struct afskmdm_filter *sfilter);
+static void fsk_start_xmit(struct fsk_filter *sfilter);
+static void fsk_stop_drain_timer(struct fsk_filter *sfilter);
 
-#define filter_to_afskmdm(v) ((struct afskmdm_filter *)		\
+#define filter_to_fsk(v) ((struct fsk_filter *)		\
 			      gensio_filter_get_user_data(v))
 
 static void
-afskmdm_lock(struct afskmdm_filter *sfilter)
+fsk_lock(struct fsk_filter *sfilter)
 {
     sfilter->o->lock(sfilter->lock);
 }
 
 static void
-afskmdm_unlock(struct afskmdm_filter *sfilter)
+fsk_unlock(struct fsk_filter *sfilter)
 {
     sfilter->o->unlock(sfilter->lock);
 }
 
 static void
-afskmdm_set_callbacks(struct gensio_filter *filter,
+fsk_set_callbacks(struct gensio_filter *filter,
 		      gensio_filter_cb cb, void *cb_data)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
 
     sfilter->filter_cb = cb;
     sfilter->filter_cb_data = cb_data;
 }
 
 static bool
-afskmdm_ul_read_pending(struct gensio_filter *filter)
+fsk_ul_read_pending(struct gensio_filter *filter)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     bool rv;
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     rv = sfilter->deliver_data_len > 0;
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
     return rv;
 }
 
 static bool
-afskmdm_ll_write_pending(struct gensio_filter *filter)
+fsk_ll_write_pending(struct gensio_filter *filter)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     bool rv;
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     rv = sfilter->xmit_buf_len > 0 || sfilter->starting_output_ready;
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
     return rv;
 }
 
 static bool
-afskmdm_ll_read_needed(struct gensio_filter *filter)
+fsk_ll_read_needed(struct gensio_filter *filter)
 {
     return true;
 }
 
 static int
-afskmdm_ul_can_write(struct gensio_filter *filter, bool *val)
+fsk_ul_can_write(struct gensio_filter *filter, bool *val)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     *val = sfilter->nr_wrbufs < NR_WRITE_BUFS;
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
 
     return 0;
 }
 
 static int
-afskmdm_check_open_done(struct gensio_filter *filter, struct gensio *io)
+fsk_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
     return 0;
 }
@@ -524,8 +524,8 @@ decode_ax25_control_field(char *str, size_t strlen,
 }
 
 static void
-afskmdm_ax25_prmsg(struct gensio_os_funcs *o,
-		   unsigned char *buf, unsigned int buflen)
+fsk_ax25_prmsg(struct gensio_os_funcs *o,
+	       unsigned char *buf, unsigned int buflen)
 {
     struct gensio_ax25_addr addr;
     char str[100];
@@ -555,14 +555,14 @@ afskmdm_ax25_prmsg(struct gensio_os_funcs *o,
 }
 
 static void
-afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
-		  unsigned char *buf, unsigned int buflen,
-		  bool pr_msgn)
+fsk_print_msg(struct fsk_filter *sfilter, char *t, unsigned int msgn,
+	      unsigned char *buf, unsigned int buflen,
+	      bool pr_msgn)
 {
     struct gensio_os_funcs *o = sfilter->o;
     struct gensio_fdump h;
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_TIME) {
+    if (sfilter->debug & GENSIO_FSK_DEBUG_TIME) {
 	gensio_time time;
 
 	o->get_monotonic_time(o, &time);
@@ -574,7 +574,7 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
 	printf("%sMSG(%u %u):", t, msgn, buflen);
     } else {
 	printf("%sMSG(%u):", t, buflen);
-	afskmdm_ax25_prmsg(sfilter->o, buf, buflen);
+	fsk_ax25_prmsg(sfilter->o, buf, buflen);
     }
     printf("\n");
     gensio_fdump_init(&h, 1);
@@ -586,7 +586,7 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
 static void
 key_open_finished(void *cb_data)
 {
-    struct afskmdm_filter *sfilter = cb_data;
+    struct fsk_filter *sfilter = cb_data;
 
     sfilter->filter_cb(sfilter->filter_cb_data, GENSIO_FILTER_CB_OPEN_DONE,
 		       NULL);
@@ -595,7 +595,7 @@ key_open_finished(void *cb_data)
 static void
 key_log(void *cb_data, enum gensio_log_levels level, const char *fmt, ...)
 {
-    struct afskmdm_filter *sfilter = cb_data;
+    struct fsk_filter *sfilter = cb_data;
     va_list va;
 
     va_start(va, fmt);
@@ -604,10 +604,10 @@ key_log(void *cb_data, enum gensio_log_levels level, const char *fmt, ...)
 }
 
 static int
-afskmdm_try_connect(struct gensio_filter *filter, gensio_time *timeout,
-		    bool was_timeout)
+fsk_try_connect(struct gensio_filter *filter, gensio_time *timeout,
+		bool was_timeout)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     int err = sfilter->keyinfo.key_err;
 
     if (err) {
@@ -618,7 +618,7 @@ afskmdm_try_connect(struct gensio_filter *filter, gensio_time *timeout,
     return key_try_open(&sfilter->keyinfo, timeout);
 }
 
-static unsigned long get_frames_left(struct afskmdm_filter *sfilter)
+static unsigned long get_frames_left(struct fsk_filter *sfilter)
 {
     struct gensio_filter_cb_control_data cd;
     char buf[20] = "0";
@@ -635,7 +635,7 @@ static unsigned long get_frames_left(struct afskmdm_filter *sfilter)
 }
 
 static void
-get_drain_timeout(struct afskmdm_filter *sfilter, gensio_time *timeout)
+get_drain_timeout(struct fsk_filter *sfilter, gensio_time *timeout)
 {
     unsigned long frames_left = get_frames_left(sfilter);
     uint64_t timeoutns;
@@ -646,10 +646,10 @@ get_drain_timeout(struct afskmdm_filter *sfilter, gensio_time *timeout)
 }
 
 static int
-afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
-		       bool was_timeout)
+fsk_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
+		   bool was_timeout)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
 
     if (sfilter->transmit_state == WAITING_ENDXMIT) {
 	if (!was_timeout) {
@@ -658,7 +658,7 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	}
 	if (sfilter->nr_wrbufs > 0) {
 	    sfilter->transmit_state = WAITING_TRANSMIT;
-	    afskmdm_start_xmit(sfilter);
+	    fsk_start_xmit(sfilter);
 	} else {
 	    sfilter->transmit_state = NOT_SENDING;
 	}
@@ -670,7 +670,7 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 }
 
 static void
-afskmdm_start_xmit(struct afskmdm_filter *sfilter)
+fsk_start_xmit(struct fsk_filter *sfilter)
 {
     bool was_in_endxmit = sfilter->transmit_state == WAITING_ENDXMIT;
 
@@ -689,19 +689,19 @@ afskmdm_start_xmit(struct afskmdm_filter *sfilter)
     sfilter->bitstuff = false;
     sfilter->starting_output_ready = true;
     if (was_in_endxmit) {
-	afskmdm_stop_drain_timer(sfilter);
+	fsk_stop_drain_timer(sfilter);
     } else {
 	key_do_keyon(&sfilter->keyinfo);
     }
 }
 
 static void
-afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
+fsk_check_start_xmit(struct fsk_filter *sfilter)
 {
     unsigned int randv;
 
     if (sfilter->do_raw) {
-	afskmdm_start_xmit(sfilter);
+	fsk_start_xmit(sfilter);
 	return;
     }
 
@@ -710,14 +710,14 @@ afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
     randv %= 10;
     if (sfilter->start_xmit_delay_count + 1 > randv) {
 	sfilter->start_xmit_delay_count = 0;
-	afskmdm_start_xmit(sfilter);
+	fsk_start_xmit(sfilter);
     } else {
 	sfilter->start_xmit_delay_count++;
     }
 }
 
 static void
-afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
+fsk_start_drain_timer(struct fsk_filter *sfilter)
 {
     gensio_time timeout;
 
@@ -731,7 +731,7 @@ afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
 }
 
 static void
-afskmdm_stop_drain_timer(struct afskmdm_filter *sfilter)
+fsk_stop_drain_timer(struct fsk_filter *sfilter)
 {
     sfilter->filter_cb(sfilter->filter_cb_data,
 		       GENSIO_FILTER_CB_STOP_TIMER,
@@ -739,29 +739,29 @@ afskmdm_stop_drain_timer(struct afskmdm_filter *sfilter)
 }
 
 static int
-afskmdm_timeout_done(struct gensio_filter *filter)
+fsk_timeout_done(struct gensio_filter *filter)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     if (sfilter->transmit_state != WAITING_ENDXMIT)
 	goto out;
     if (sfilter->nr_wrbufs > 0) {
 	sfilter->transmit_state = WAITING_TRANSMIT;
-	afskmdm_check_start_xmit(sfilter);
+	fsk_check_start_xmit(sfilter);
     } else {
 	sfilter->transmit_state = NOT_SENDING;
     }
     key_do_keyoff(&sfilter->keyinfo);
  out:
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
 
     return 0;
 }
 
 static void
-afskmdm_send_buffer(struct afskmdm_filter *sfilter,
-		    gensio_ul_filter_data_handler handler, void *cb_data)
+fsk_send_buffer(struct fsk_filter *sfilter,
+		gensio_ul_filter_data_handler handler, void *cb_data)
 {
     int rv;
     gensiods count;
@@ -788,7 +788,7 @@ afskmdm_send_buffer(struct afskmdm_filter *sfilter,
 }
 
 static void
-afskmdm_add_wrbit(struct afskmdm_filter *sfilter)
+fsk_add_wrbit(struct fsk_filter *sfilter)
 {
     unsigned char bit = sfilter->wrbyte & 1;
     unsigned char level = sfilter->prev_xmit_level;
@@ -851,23 +851,23 @@ afskmdm_add_wrbit(struct afskmdm_filter *sfilter)
 }
 
 static void
-afskmdm_handle_send(struct afskmdm_filter *sfilter,
-		    gensio_ul_filter_data_handler handler, void *cb_data)
+fsk_handle_send(struct fsk_filter *sfilter,
+		gensio_ul_filter_data_handler handler, void *cb_data)
 {
     sfilter->starting_output_ready = false;
     if (sfilter->xmit_buf_len > 0) {
-	afskmdm_send_buffer(sfilter, handler, cb_data);
+	fsk_send_buffer(sfilter, handler, cb_data);
 	if (sfilter->xmit_buf_len > 0)
 	    goto out;
 	if (sfilter->transmit_state == WAITING_ENDXMIT)
-	    afskmdm_start_drain_timer(sfilter);
+	    fsk_start_drain_timer(sfilter);
     }
     while (sfilter->transmit_state > WAITING_TRANSMIT) {
 	if (sfilter->bitstuff || sfilter->wrbyte_bit < 8) {
-	    afskmdm_add_wrbit(sfilter);
+	    fsk_add_wrbit(sfilter);
 	    if (sfilter->xmit_buf_len >=
 			sfilter->max_xmit_buf - sfilter->max_out_bitsize) {
-		afskmdm_send_buffer(sfilter, handler, cb_data);
+		fsk_send_buffer(sfilter, handler, cb_data);
 		if (sfilter->err)
 		    goto out;
 		if (sfilter->xmit_buf_len > 0)
@@ -897,7 +897,7 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 			/*
 			 * No more data to send, start the timer now.
 			 */
-			afskmdm_start_drain_timer(sfilter);
+			fsk_start_drain_timer(sfilter);
 		}
 	    } else {
 		unsigned int pos = sfilter->write_pos++;
@@ -976,7 +976,7 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 			/*
 			 * No more data to send, start the timer now.
 			 */
-			afskmdm_start_drain_timer(sfilter);
+			fsk_start_drain_timer(sfilter);
 		    /*
 		     * Otherwise, start the timer when all
 		     * the data has been sent.
@@ -992,19 +992,19 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 }
 
 static int
-afskmdm_ul_write(struct gensio_filter *filter,
-		 gensio_ul_filter_data_handler handler, void *cb_data,
-		 gensiods *rcount,
-		 const struct gensio_sg *sg, gensiods sglen,
-		 const char *const *auxdata)
+fsk_ul_write(struct gensio_filter *filter,
+	     gensio_ul_filter_data_handler handler, void *cb_data,
+	     gensiods *rcount,
+	     const struct gensio_sg *sg, gensiods sglen,
+	     const char *const *auxdata)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     gensiods i, count = 0, len;
     unsigned int cbuf;
     uint16_t crc;
     int rv = 0;
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     if (sfilter->err) {
 	rv = sfilter->err;
 	goto out;
@@ -1026,8 +1026,8 @@ afskmdm_ul_write(struct gensio_filter *filter,
     if (count == 0)
 	goto out_process;
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_MSG) {
-	afskmdm_print_msg(sfilter, "W", 0, sfilter->wrbufs[cbuf].data,
+    if (sfilter->debug & GENSIO_FSK_DEBUG_MSG) {
+	fsk_print_msg(sfilter, "W", 0, sfilter->wrbufs[cbuf].data,
 			  sfilter->wrbufs[cbuf].len, false);
     }
 
@@ -1044,23 +1044,23 @@ afskmdm_ul_write(struct gensio_filter *filter,
 
     sfilter->nr_wrbufs++;
     if (sfilter->transmit_state == WAITING_ENDXMIT) {
-	afskmdm_check_start_xmit(sfilter);
+	fsk_check_start_xmit(sfilter);
 	goto out_process;
     }
     if (sfilter->transmit_state != NOT_SENDING)
 	goto out_process;
     if (sfilter->full_duplex || sfilter->nr_out_sync >= sfilter->tx_delay ||
 		sfilter->do_raw) {
-	afskmdm_start_xmit(sfilter);
+	fsk_start_xmit(sfilter);
     } else {
 	sfilter->transmit_state = WAITING_TRANSMIT;
 	goto out;
     }
 
  out_process:
-    afskmdm_handle_send(sfilter, handler, cb_data);
+    fsk_handle_send(sfilter, handler, cb_data);
  out:
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
     if (!rv && rcount)
 	*rcount = count;
 
@@ -1068,7 +1068,7 @@ afskmdm_ul_write(struct gensio_filter *filter,
 }
 
 static void
-afskmdm_deliver_data(struct afskmdm_filter *sfilter, struct wmsg *w)
+fsk_deliver_data(struct fsk_filter *sfilter, struct wmsg *w)
 {
     if (sfilter->deliver_data_len == 0) {
 	unsigned char *tmp, *tmp_uncert;
@@ -1085,8 +1085,8 @@ afskmdm_deliver_data(struct afskmdm_filter *sfilter, struct wmsg *w)
 }
 
 static void
-afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
-			float certainty)
+fsk_process_raw_bit(struct fsk_filter *sfilter, unsigned int bit,
+		    float certainty)
 {
     struct wmsg *w = &sfilter->wmsgsets[0].wmsgs[0];
 
@@ -1109,7 +1109,7 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
 	w->curr_bit_pos = 0;
 	w->read_data_len++;
 	if (w->read_data_len >= sfilter->max_read_size) {
-	    afskmdm_deliver_data(sfilter, w);
+	    fsk_deliver_data(sfilter, w);
 	    w->read_data_len = 0;
 	}
     } else {
@@ -1118,8 +1118,8 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
 }
 
 static void
-afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
-		  unsigned int msgn, struct wmsg *w, bool at_flag)
+fsk_drop_wmsg(struct fsk_filter *sfilter, unsigned int wset,
+	      unsigned int msgn, struct wmsg *w, bool at_flag)
 {
     struct wmsgset *ws = &sfilter->wmsgsets[wset];
 
@@ -1137,14 +1137,14 @@ afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 	w->certainty = 0.0;
     } else if (ws->curr_wmsgs == 1) {
 	/* Always have one working message. */
-	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
+	if (sfilter->debug & GENSIO_FSK_DEBUG_STATE)
 	    printf("WMSG: restart\n");
 	w->read_data_len = 0;
 	w->num_uncertain = 0;
 	w->certainty = 0.0;
-	w->state = AFSKMDM_STATE_PREAMBLE_SEARCH_0;
+	w->state = FSK_STATE_PREAMBLE_SEARCH_0;
     } else {
-	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
+	if (sfilter->debug & GENSIO_FSK_DEBUG_STATE)
 	    printf("WMSG: retire %u\n", msgn);
 	ws->curr_wmsgs--;
 	w->in_use = false;
@@ -1152,14 +1152,14 @@ afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 }
 
 static void
-afskmdm_handle_new_byte(struct afskmdm_filter *sfilter,
-			unsigned int wset, unsigned int msgn,
-			struct wmsg *w)
+fsk_handle_new_byte(struct fsk_filter *sfilter,
+		    unsigned int wset, unsigned int msgn,
+		    struct wmsg *w)
 {
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
+    if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
 	printf("BYTE(%d): %2.2x\n", msgn, w->curr_byte);
     if (w->read_data_len >= sfilter->max_read_size) {
-	afskmdm_drop_wmsg(sfilter, wset, msgn, w, false);
+	fsk_drop_wmsg(sfilter, wset, msgn, w, false);
 	return;
     }
     w->read_data[w->read_data_len] = w->curr_byte;
@@ -1169,8 +1169,8 @@ afskmdm_handle_new_byte(struct afskmdm_filter *sfilter,
 }
 
 static void
-afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
-			   unsigned int wset, unsigned int msgn, struct wmsg *w)
+fsk_handle_new_message(struct fsk_filter *sfilter,
+		       unsigned int wset, unsigned int msgn, struct wmsg *w)
 {
     uint16_t crc, msgcrc;
     unsigned int i;
@@ -1178,8 +1178,8 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
     if (w->read_data_len < 3)
 	goto bad_msg;
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_RAW_MSG) {
-	afskmdm_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
+    if (sfilter->debug & GENSIO_FSK_DEBUG_RAW_MSG) {
+	fsk_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
 			  true);
 	printf("    bitpos %d\n", w->curr_bit_pos);
     }
@@ -1199,7 +1199,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
 	msgcrc = ((w->read_data[w->read_data_len - 1] << 8) |
 		  w->read_data[w->read_data_len - 2]);
 
-	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_RAW_MSG)
+	if (sfilter->debug & GENSIO_FSK_DEBUG_RAW_MSG)
 	    printf("    CRC %4.4x, MSGCRC %4.4x\n", crc, msgcrc);
 
 	if (crc != msgcrc)
@@ -1223,13 +1223,13 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
 	}
     }
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_MSG) {
-	afskmdm_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
+    if (sfilter->debug & GENSIO_FSK_DEBUG_MSG) {
+	fsk_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
 			  false);
     }
 
     if (sfilter->deliver_data_len == 0)
-	afskmdm_deliver_data(sfilter, w);
+	fsk_deliver_data(sfilter, w);
 
     /* Cancel all working messages. */
     for (i = 0; i < sfilter->wmsg_sets; i++) {
@@ -1244,14 +1244,14 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter,
     return;
 
  bad_msg:
-    afskmdm_drop_wmsg(sfilter, wset, msgn, w, true);
+    fsk_drop_wmsg(sfilter, wset, msgn, w, true);
 }
 
 static void
-afskmdm_process_bit(struct afskmdm_filter *sfilter,
-		    unsigned int wset, unsigned int msgn,
-		    unsigned char level, float certainty,
-		    bool *in_sync)
+fsk_process_bit(struct fsk_filter *sfilter,
+		unsigned int wset, unsigned int msgn,
+		unsigned char level, float certainty,
+		bool *in_sync)
 {
     unsigned int prev_num_rcv_1;
     unsigned char bit;
@@ -1292,14 +1292,14 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
 		w2->curr_bit_pos = w->curr_bit_pos;
 		w2->read_data_len = w->read_data_len;
 		memcpy(w2->read_data, w->read_data, w->read_data_len);
-		if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_STATE)
+		if (sfilter->debug & GENSIO_FSK_DEBUG_STATE)
 		    printf("WMSG: add %u %u\n", wset, i);
 		sfilter->wmsgsets[wset].curr_wmsgs++;
 		w2->new_wmsg = true; /* Don't process this again on this run. */
 
 		if (i < msgn) {
 		    /* Process this bit, since we won't get it in the main. */
-		    afskmdm_process_bit(sfilter, wset, i, !level,
+		    fsk_process_bit(sfilter, wset, i, !level,
 					certainty, in_sync);
 		} else {
 		    /*
@@ -1343,7 +1343,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
     bit ^= sfilter->do_inv;
     w->prev_recv_level = level;
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
+    if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
 	printf("BIT(%u %u %lu): l:%d b:%d %f  (%d)\n", wset, msgn,
 	       sfilter->framenr, level, bit, certainty, w->state);
 
@@ -1354,60 +1354,60 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
 	w->num_rcv_1 = 0;
 
     switch (w->state) {
-    case AFSKMDM_STATE_PREAMBLE_SEARCH_0:
+    case FSK_STATE_PREAMBLE_SEARCH_0:
 	if (!bit)
-	    w->state = AFSKMDM_STATE_PREAMBLE_FIRST_0;
+	    w->state = FSK_STATE_PREAMBLE_FIRST_0;
 	*in_sync = false;
 	break;
 
-    case AFSKMDM_STATE_PREAMBLE_FIRST_0:
+    case FSK_STATE_PREAMBLE_FIRST_0:
 	if (bit)
-	    w->state = AFSKMDM_STATE_PREAMBLE_1;
+	    w->state = FSK_STATE_PREAMBLE_1;
 	*in_sync = false;
 	break;
 
-    case AFSKMDM_STATE_PREAMBLE_1:
+    case FSK_STATE_PREAMBLE_1:
 	if (!bit)
-	    w->state = AFSKMDM_STATE_PREAMBLE_FIRST_0;
+	    w->state = FSK_STATE_PREAMBLE_FIRST_0;
 	else if (w->num_rcv_1 == 6)
-	    w->state = AFSKMDM_STATE_PREAMBLE_LAST_0;
+	    w->state = FSK_STATE_PREAMBLE_LAST_0;
 	*in_sync = false;
 	break;
 
-    case AFSKMDM_STATE_PREAMBLE_LAST_0:
+    case FSK_STATE_PREAMBLE_LAST_0:
 	if (bit) {
-	    w->state = AFSKMDM_STATE_PREAMBLE_SEARCH_0;
+	    w->state = FSK_STATE_PREAMBLE_SEARCH_0;
 	} else {
-	    w->state = AFSKMDM_STATE_IN_MSG;
+	    w->state = FSK_STATE_IN_MSG;
 	    w->curr_byte = 0;
 	    w->curr_bit_pos = 0;
 	    *in_sync = false;
 	}
 	break;
 
-    case AFSKMDM_STATE_IN_MSG:
+    case FSK_STATE_IN_MSG:
 	if (prev_num_rcv_1 == 5) {
 	    if (bit)
-		w->state = AFSKMDM_STATE_POSTAMBLE_LAST_0;
+		w->state = FSK_STATE_POSTAMBLE_LAST_0;
 	    /* Otherwise it's a bit-stuffed zero and we ignore it. */
 	    break;
 	}
 
 	w->curr_byte |= bit << w->curr_bit_pos;
 	if (w->curr_bit_pos == 7)
-	    afskmdm_handle_new_byte(sfilter, wset, msgn, w);
+	    fsk_handle_new_byte(sfilter, wset, msgn, w);
 	else
 	    w->curr_bit_pos++;
 	break;
 
-    case AFSKMDM_STATE_POSTAMBLE_LAST_0:
+    case FSK_STATE_POSTAMBLE_LAST_0:
 	if (!bit) {
-	    afskmdm_handle_new_message(sfilter, wset, msgn, w);
-	    w->state = AFSKMDM_STATE_IN_MSG;
+	    fsk_handle_new_message(sfilter, wset, msgn, w);
+	    w->state = FSK_STATE_IN_MSG;
 	    w->curr_byte = 0;
 	    w->curr_bit_pos = 0;
 	} else {
-	    afskmdm_drop_wmsg(sfilter, wset, msgn, w, false);
+	    fsk_drop_wmsg(sfilter, wset, msgn, w, false);
 	    *in_sync = false;
 	}
 	break;
@@ -1422,7 +1422,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
  * with the most certainty.
  */
 static void
-process_powers(struct afskmdm_filter *sfilter,
+process_powers(struct fsk_filter *sfilter,
 	       float *pmark, float *pspace,
 	       unsigned int *rbest_pos,
 	       float *rcertainty, unsigned char *rlevel)
@@ -1490,8 +1490,8 @@ process_powers(struct afskmdm_filter *sfilter,
  * [in_bitsize + edge * 2].
  */
 static void
-afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
-	       float buf[], float power[])
+fsk_dftbin(struct fsk_filter *sfilter, float *dftbin,
+	   float buf[], float power[])
 {
     float *csin = dftbin;
     float *ccos = dftbin + 2 * sfilter->in_bitsize;
@@ -1535,21 +1535,21 @@ afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
  * processing with the info extracted from the data.
  */
 static int
-afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
-		       bool *in_sync)
+fsk_check_for_data(struct fsk_filter *sfilter, float *buf,
+		   bool *in_sync)
 {
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
     int adj = 0;
 
-    afskmdm_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
-    afskmdm_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
+    fsk_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
+    fsk_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
 
     process_powers(sfilter, sfilter->pmark, sfilter->pspace,
 		   &best_pos, &certainty, &level);
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL) {
+    if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL) {
 	printf("WORK(%lu): %u\n", sfilter->framecount++, level);
 	for (i = 0; i < sfilter->workextra; i++)
 	    printf(" %f", sfilter->pmark[i]);
@@ -1579,7 +1579,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 
     sfilter->prev_best_pos = best_pos;
     if (sfilter->do_raw) {
-	afskmdm_process_raw_bit(sfilter, level, certainty);
+	fsk_process_raw_bit(sfilter, level, certainty);
 	sfilter->prev_recv_level = level;
 	return adj;
     }
@@ -1588,7 +1588,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 
     sfilter->wmsgsets[0].got_flag = false;
     for (i = 0; i < sfilter->max_wmsgs; i++)
-	afskmdm_process_bit(sfilter, 0, i, level, certainty, in_sync);
+	fsk_process_bit(sfilter, 0, i, level, certainty, in_sync);
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
 	for (i = 0; i < sfilter->workextra; i++)
@@ -1598,7 +1598,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    afskmdm_process_bit(sfilter, wset, i,
+	    fsk_process_bit(sfilter, wset, i,
 				level, certainty, in_sync);
 
 	for (i = 0; i < sfilter->workextra; i++)
@@ -1608,7 +1608,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset + 1].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    afskmdm_process_bit(sfilter, wset + 1, i,
+	    fsk_process_bit(sfilter, wset + 1, i,
 				level, certainty, in_sync);
     }
 
@@ -1619,9 +1619,9 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
  * Implement a basic 2nd-order IIR filter.
  */
 static void
-afskmdm_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-		   unsigned int nchans, unsigned int chan,
-		   float coefa[2], float coefb[3], float hold[2])
+fsk_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
+	       unsigned int nchans, unsigned int chan,
+	       float coefa[2], float coefb[3], float hold[2])
 {
     unsigned int i;
     float tmp;
@@ -1640,11 +1640,11 @@ afskmdm_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
  * Butterworth filter.
  *
  * See https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter5.pdf
- * for more explaination.
+ * for more explanation.
  */
 static void
-afskmdm_calc_iir_coefs(float samplerate, float cutoff,
-		       float coefa[], float coefb[])
+fsk_calc_iir_coefs(float samplerate, float cutoff,
+		   float coefa[], float coefb[])
 {
     float w1 = 2 * M_PI * cutoff / samplerate;
     float w = tan(w1 / 2); /* omega */
@@ -1671,12 +1671,12 @@ get_fir_val(unsigned int i, unsigned int holdsize, float *inbuf, float *hold,
 
 /*
  * Process a buffer with a fir filter.  h and n come from
- * afskmdm_calc_fir_coefs(), hold must be of size n * 2.
+ * fsk_calc_fir_coefs(), hold must be of size n * 2.
  */
 static void
-afskmdm_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-		   unsigned int nchans, unsigned int chan,
-		   unsigned int n, float *h, float *hold)
+fsk_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
+	       unsigned int nchans, unsigned int chan,
+	       unsigned int n, float *h, float *hold)
 {
     unsigned int i, j, k;
     unsigned int holdsize = n * 2;
@@ -1725,9 +1725,9 @@ afskmdm_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
  * and https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter4.pdf
  */
 static float *
-afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
-		       double samplerate, double cutoff, double transband,
-		       unsigned int *rn)
+fsk_calc_fir_coefs(struct gensio_os_funcs *o,
+		   double samplerate, double cutoff, double transband,
+		   unsigned int *rn)
 {
     double tba = transband / samplerate;
     double coa = cutoff / samplerate;
@@ -1788,13 +1788,13 @@ frame_in_copy(float *dest, gensiods destpos,
 }
 
 static int
-afskmdm_ll_write(struct gensio_filter *filter,
-		 gensio_ll_filter_data_handler handler, void *cb_data,
-		 gensiods *rcount,
-		 unsigned char *inbuf, gensiods inbuflen,
-		 const char *const *auxdata)
+fsk_ll_write(struct gensio_filter *filter,
+	     gensio_ll_filter_data_handler handler, void *cb_data,
+	     gensiods *rcount,
+	     unsigned char *inbuf, gensiods inbuflen,
+	     const char *const *auxdata)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     gensiods pos;
     int err = 0;
     /* Work in float increments to simplify calculations. */
@@ -1808,7 +1808,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	return 0;
     }
 
-    afskmdm_lock(sfilter);
+    fsk_lock(sfilter);
     if (sfilter->err) {
 	err = sfilter->err;
 	goto out_err;
@@ -1823,13 +1823,13 @@ afskmdm_ll_write(struct gensio_filter *filter,
 
     if (sfilter->filteredbuf) {
 	if (sfilter->fir_h) {
-	    afskmdm_fir_filter(buf, sfilter->filteredbuf,
+	    fsk_fir_filter(buf, sfilter->filteredbuf,
 			       sfilter->in_chunksize,
 			       sfilter->in_nchans, sfilter->in_chan,
 			       sfilter->fir_h_n, sfilter->fir_h,
 			       sfilter->firhold);
 	} else {
-	    afskmdm_iir_filter(buf, sfilter->filteredbuf,
+	    fsk_iir_filter(buf, sfilter->filteredbuf,
 			       sfilter->in_chunksize,
 			       sfilter->in_nchans, sfilter->in_chan,
 			       sfilter->coefa, sfilter->coefb,
@@ -1838,7 +1838,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	buf = sfilter->filteredbuf;
     }
 
-    if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
+    if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
 	printf("Processing frame %lu %d\n", sfilter->framenr,
 	       sfilter->transmit_state);
     if (!sfilter->full_duplex && sfilter->transmit_state > WAITING_TRANSMIT) {
@@ -1856,7 +1856,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 		      buf, pos, sfilter->in_nchans, sfilter->in_chan,
 		      sfilter->worksize - sfilter->work_pos);
 	pos += sfilter->worksize - sfilter->work_pos;
-	adj = afskmdm_check_for_data(sfilter, sfilter->workbuf, &in_sync);
+	adj = fsk_check_for_data(sfilter, sfilter->workbuf, &in_sync);
 
 	if (in_sync) {
 	    sfilter->nr_in_sync++;
@@ -1875,7 +1875,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    if (!sfilter->full_duplex &&
 			sfilter->transmit_state == WAITING_TRANSMIT &&
 			sfilter->nr_out_sync >= sfilter->tx_delay) {
-		afskmdm_check_start_xmit(sfilter);
+		fsk_check_start_xmit(sfilter);
 		if (!sfilter->full_duplex &&
 			sfilter->transmit_state > WAITING_TRANSMIT) {
 		    sfilter->work_pos = 0;
@@ -1884,7 +1884,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    }
 	}
 
-	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
+	if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
 	    printf("SYNC: %d %d %u\n", adj, in_sync, sfilter->nr_in_sync);
 
 	sfilter->in_adj_counter++;
@@ -1943,12 +1943,12 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    auxdata = ad;
 	}
 
-	afskmdm_unlock(sfilter);
+	fsk_unlock(sfilter);
 	err = handler(cb_data, &count,
 		      sfilter->deliver_data + sfilter->deliver_data_pos,
 		      sfilter->deliver_data_len - sfilter->deliver_data_pos,
 		      auxdata);
-	afskmdm_lock(sfilter);
+	fsk_lock(sfilter);
 	if (!err) {
 	    if (count + sfilter->deliver_data_pos >= sfilter->deliver_data_len)
 		sfilter->deliver_data_len = 0;
@@ -1957,22 +1957,22 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	}
     }
  out_err:
-    afskmdm_unlock(sfilter);
+    fsk_unlock(sfilter);
     if (!err && rcount)
 	*rcount = inbuflen;
     return err;
 }
 
 static int
-afskmdm_setup(struct gensio_filter *filter, struct gensio *io)
+fsk_setup(struct gensio_filter *filter, struct gensio *io)
 {
     return 0;
 }
 
 static void
-afskmdm_cleanup(struct gensio_filter *filter)
+fsk_cleanup(struct gensio_filter *filter)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
     unsigned int i, j;
 
     key_cleanup(&sfilter->keyinfo);
@@ -1983,7 +1983,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
 	sfilter->wmsgsets[i].wmsgs[0].read_data_len = 0;
 	sfilter->wmsgsets[i].wmsgs[0].num_uncertain = 0;
 	sfilter->wmsgsets[i].wmsgs[0].certainty = 0.0;
-	sfilter->wmsgsets[i].wmsgs[0].state = AFSKMDM_STATE_PREAMBLE_FIRST_0;
+	sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
 	for (j = 1; j < sfilter->max_wmsgs; j++)
 	    sfilter->wmsgsets[i].wmsgs[j].in_use = false;
 	sfilter->wmsgsets[i].curr_wmsgs = 1;
@@ -1998,7 +1998,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
 }
 
 static void
-afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
+fsk_sfilter_free(struct fsk_filter *sfilter)
 {
     struct gensio_os_funcs *o = sfilter->o;
     unsigned int i, j;
@@ -2068,75 +2068,75 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 }
 
 static void
-afskmdm_free(struct gensio_filter *filter)
+fsk_free(struct gensio_filter *filter)
 {
-    struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
+    struct fsk_filter *sfilter = filter_to_fsk(filter);
 
-    return afskmdm_sfilter_free(sfilter);
+    return fsk_sfilter_free(sfilter);
 }
 
 static int
-afskmdm_filter_control(struct gensio_filter *filter, bool get, int op,
-		       char *data, gensiods *datalen)
+fsk_filter_control(struct gensio_filter *filter, bool get, int op,
+		   char *data, gensiods *datalen)
 {
     return GE_NOTSUP;
 }
 
-static int gensio_afskmdm_filter_func(struct gensio_filter *filter, int op,
-				      void *func, void *data,
-				      gensiods *count,
-				      void *buf, const void *cbuf,
-				      gensiods buflen,
-				      const char *const *auxdata)
+static int gensio_fsk_filter_func(struct gensio_filter *filter, int op,
+				  void *func, void *data,
+				  gensiods *count,
+				  void *buf, const void *cbuf,
+				  gensiods buflen,
+				  const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
-	afskmdm_set_callbacks(filter, func, data);
+	fsk_set_callbacks(filter, func, data);
 	return 0;
 
     case GENSIO_FILTER_FUNC_TIMEOUT:
-	return afskmdm_timeout_done(filter);
+	return fsk_timeout_done(filter);
 
     case GENSIO_FILTER_FUNC_UL_READ_PENDING:
-	return afskmdm_ul_read_pending(filter);
+	return fsk_ul_read_pending(filter);
 
     case GENSIO_FILTER_FUNC_LL_WRITE_PENDING:
-	return afskmdm_ll_write_pending(filter);
+	return fsk_ll_write_pending(filter);
 
     case GENSIO_FILTER_FUNC_LL_READ_NEEDED:
-	return afskmdm_ll_read_needed(filter);
+	return fsk_ll_read_needed(filter);
 
     case GENSIO_FILTER_FUNC_UL_CAN_WRITE:
-	return afskmdm_ul_can_write(filter, data);
+	return fsk_ul_can_write(filter, data);
 
     case GENSIO_FILTER_FUNC_CHECK_OPEN_DONE:
-	return afskmdm_check_open_done(filter, data);
+	return fsk_check_open_done(filter, data);
 
     case GENSIO_FILTER_FUNC_TRY_CONNECT:
-	return afskmdm_try_connect(filter, data, buflen);
+	return fsk_try_connect(filter, data, buflen);
 
     case GENSIO_FILTER_FUNC_TRY_DISCONNECT:
-	return afskmdm_try_disconnect(filter, data, buflen);
+	return fsk_try_disconnect(filter, data, buflen);
 
     case GENSIO_FILTER_FUNC_UL_WRITE_SG:
-	return afskmdm_ul_write(filter, func, data, count, cbuf, buflen, buf);
+	return fsk_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
-	return afskmdm_ll_write(filter, func, data, count, buf, buflen, NULL);
+	return fsk_ll_write(filter, func, data, count, buf, buflen, NULL);
 
     case GENSIO_FILTER_FUNC_SETUP:
-	return afskmdm_setup(filter, data);
+	return fsk_setup(filter, data);
 
     case GENSIO_FILTER_FUNC_CLEANUP:
-	afskmdm_cleanup(filter);
+	fsk_cleanup(filter);
 	return 0;
 
     case GENSIO_FILTER_FUNC_FREE:
-	afskmdm_free(filter);
+	fsk_free(filter);
 	return 0;
 
     case GENSIO_FILTER_FUNC_CONTROL:
-	return afskmdm_filter_control(filter, *((bool *) cbuf), buflen, data,
+	return fsk_filter_control(filter, *((bool *) cbuf), buflen, data,
 				  count);
 
     default:
@@ -2145,8 +2145,8 @@ static int gensio_afskmdm_filter_func(struct gensio_filter *filter, int op,
 }
 
 static unsigned int
-afskmdm_find_wave_pos(float *wave, unsigned int wave_size,
-		      float v, bool ascend, unsigned int size)
+fsk_find_wave_pos(float *wave, unsigned int wave_size,
+		  float v, bool ascend, unsigned int size)
 {
     unsigned int i;
 
@@ -2180,12 +2180,12 @@ afskmdm_find_wave_pos(float *wave, unsigned int wave_size,
     return i;
 }
 
-static int afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter,
-				  struct xmit_entry *e);
+static int fsk_setup_xmit_ent(struct fsk_filter *sfilter,
+			      struct xmit_entry *e);
 
 static struct xmit_entry *
-afskmdm_create_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
-			unsigned int pos, float *data, unsigned int size)
+fsk_create_xmit_ent(struct fsk_filter *sfilter, bool is_mark,
+		    unsigned int pos, float *data, unsigned int size)
 {
     struct xmit_entry *e;
 
@@ -2198,15 +2198,15 @@ afskmdm_create_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
     e->next = sfilter->xmit_ent_list;
     sfilter->xmit_ent_list = e;
 
-    if (afskmdm_setup_xmit_ent(sfilter, e))
+    if (fsk_setup_xmit_ent(sfilter, e))
 	return NULL;
 
     return e;
 }
 
 static struct xmit_entry *
-afskmdm_find_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
-		      float v, bool ascend, unsigned int size)
+fsk_find_xmit_ent(struct fsk_filter *sfilter, bool is_mark,
+		  float v, bool ascend, unsigned int size)
 {
     struct xmit_entry *e = sfilter->xmit_ent_list;
     float *wave;
@@ -2220,7 +2220,7 @@ afskmdm_find_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
 	wave_size = sfilter->space_xmit_len;
     }
 
-    pos = afskmdm_find_wave_pos(wave, wave_size, v, ascend, size);
+    pos = fsk_find_wave_pos(wave, wave_size, v, ascend, size);
     if (pos >= wave_size - size)
 	return NULL;
 
@@ -2233,12 +2233,12 @@ afskmdm_find_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
 	    break;
     }
     if (!e)
-	e = afskmdm_create_xmit_ent(sfilter, is_mark, pos, wave + pos, size);
+	e = fsk_create_xmit_ent(sfilter, is_mark, pos, wave + pos, size);
     return e;
 }
 
 static int
-afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter, struct xmit_entry *e)
+fsk_setup_xmit_ent(struct fsk_filter *sfilter, struct xmit_entry *e)
 {
     /*
      * We index one of the end of e->data, but the array it points to
@@ -2249,12 +2249,12 @@ afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter, struct xmit_entry *e)
     struct xmit_entry *ne;
     unsigned int size = sfilter->out_bitsize;
 
-    ne = afskmdm_find_xmit_ent(sfilter, false, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, false, v, ascend, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[0] = ne;
 
-    ne = afskmdm_find_xmit_ent(sfilter, true, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, true, v, ascend, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[1] = ne;
@@ -2263,12 +2263,12 @@ afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter, struct xmit_entry *e)
 	return 0;
 
     size += sfilter->out_bit_adj;
-    ne = afskmdm_find_xmit_ent(sfilter, false, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, false, v, ascend, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[2] = ne;
 
-    ne = afskmdm_find_xmit_ent(sfilter, true, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, true, v, ascend, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[3] = ne;
@@ -2276,7 +2276,7 @@ afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter, struct xmit_entry *e)
     return 0;
 }
 
-struct gensio_afskmdm_data {
+struct gensio_fsk_data {
     unsigned int in_nchans;
     unsigned int in_chan;
     unsigned int out_nchans;
@@ -2318,9 +2318,9 @@ struct gensio_afskmdm_data {
 };
 
 static int
-afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
-		       struct gensio_afskmdm_data *data,
-		       float fbitsize)
+fsk_setup_transmit(struct fsk_filter *sfilter,
+		   struct gensio_fsk_data *data,
+		   float fbitsize)
 {
     struct gensio_os_funcs *o = sfilter->o;
     unsigned int i;
@@ -2359,16 +2359,16 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
     sfilter->xmit_ent_list = e;
     sfilter->curr_xmit_ent = e;
 
-    return afskmdm_setup_xmit_ent(sfilter, e);
+    return fsk_setup_xmit_ent(sfilter, e);
 }
 
 static struct gensio_filter *
-gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
-				struct gensio_os_funcs *o,
-				struct gensio *child,
-				struct gensio_afskmdm_data *data)
+gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
+			    struct gensio_os_funcs *o,
+			    struct gensio *child,
+			    struct gensio_fsk_data *data)
 {
-    struct afskmdm_filter *sfilter;
+    struct fsk_filter *sfilter;
     unsigned int i, j;
     float fin_bitsize, fout_bitsize;
 
@@ -2416,7 +2416,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->in_bitsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
     if (sfilter->in_bitsize < 2 * MIN_WORKEDGE) {
-	gensio_pparm_log(p, "afskmdm: "
+	gensio_pparm_log(p, "fsk: "
 			 "bit size is %u samples, but must be at least %u",
 			 sfilter->in_bitsize, 2 * MIN_WORKEDGE);
 	goto out_nomem;
@@ -2511,11 +2511,11 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 
     if (data->lpcutoff && data->filt_type != NO_FILT) {
 	if (data->filt_type == IIR_FILT) {
-	    afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff,
+	    fsk_calc_iir_coefs(data->in_framerate, data->lpcutoff,
 				   sfilter->coefa, sfilter->coefb);
 	} else {
 	    sfilter->fir_h =
-		afskmdm_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
+		fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
 				       data->transition_freq,
 				       &sfilter->fir_h_n);
 	    if (!sfilter->fir_h)
@@ -2582,7 +2582,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	    }
 	}
 	sfilter->wmsgsets[i].wmsgs[0].in_use = true;
-	sfilter->wmsgsets[i].wmsgs[0].state = AFSKMDM_STATE_PREAMBLE_FIRST_0;
+	sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
 	sfilter->wmsgsets[i].curr_wmsgs = 1;
     }
 
@@ -2611,25 +2611,25 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     if (!sfilter->xmit_buf)
 	goto out_nomem;
 
-    sfilter->filter = gensio_filter_alloc_data(o, gensio_afskmdm_filter_func,
+    sfilter->filter = gensio_filter_alloc_data(o, gensio_fsk_filter_func,
 					       sfilter);
     if (!sfilter->filter)
 	goto out_nomem;
 
     sfilter->nsec_per_frame = (((float) 1) / (float) data->out_framerate *
 			       (float) GENSIO_NSECS_IN_SEC);
-    if (afskmdm_setup_transmit(sfilter, data, fout_bitsize))
+    if (fsk_setup_transmit(sfilter, data, fout_bitsize))
 	goto out_nomem;
 
     return sfilter->filter;
 
  out_nomem:
-    afskmdm_sfilter_free(sfilter);
+    fsk_sfilter_free(sfilter);
     return NULL;
 }
 
 static int
-afskmdm_child_getuint(struct gensio *child, int option, unsigned int *val)
+fsk_child_getuint(struct gensio *child, int option, unsigned int *val)
 {
     int err;
     char cdata[30];
@@ -2652,15 +2652,15 @@ static struct gensio_enum_val filttype_enums[] = {
 };
 
 static int
-gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
-			    struct gensio_os_funcs *o,
-			    struct gensio *child,
-			    const char * const args[],
-			    struct gensio_base_parms *parms,
-			    struct gensio_filter **rfilter)
+gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
+			struct gensio_os_funcs *o,
+			struct gensio *child,
+			const char * const args[],
+			struct gensio_base_parms *parms,
+			struct gensio_filter **rfilter)
 {
     struct gensio_filter *filter;
-    struct gensio_afskmdm_data data = {
+    struct gensio_fsk_data data = {
 	.in_nchans = 0,
 	.in_chan = 0,
 	.out_nchans = 0,
@@ -2698,7 +2698,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     unsigned int chan;
     unsigned int wmsg_extra = 1;
 
-    err = afskmdm_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
+    err = fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
 				&data.in_chunksize);
     if (err) {
 	gensio_pparm_slog(p, "Unable to get child input buffer size,"
@@ -2706,7 +2706,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	return GE_INCONSISTENT;
     }
 
-    err = afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
+    err = fsk_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
 				&data.out_chunksize);
     if (err) {
 	gensio_pparm_slog(p, "Unable to get child output buffer size,"
@@ -2715,13 +2715,13 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     }
 
     /* Don't care if these fail, we will check later. */
-    afskmdm_child_getuint(child, GENSIO_CONTROL_IN_RATE,
+    fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE,
 			  &data.in_framerate);
-    afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_RATE,
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE,
 			  &data.out_framerate);
-    afskmdm_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS,
+    fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS,
 			  &data.in_nchans);
-    afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS,
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS,
 			  &data.out_nchans);
 
     cdata_len = sizeof(cdata);
@@ -2874,7 +2874,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_afskmdm_filter_raw_alloc(p, o, child, &data);
+    filter = gensio_fsk_filter_raw_alloc(p, o, child, &data);
     if (!filter)
 	return GE_NOMEM;
 
@@ -2883,23 +2883,23 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
-		     struct gensio_os_funcs *o,
-		     gensio_event cb, void *user_data,
-		     struct gensio **net)
+fsk_gensio_alloc(struct gensio *child, const char *const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
     struct gensio_base_parms *parms = NULL;
-    GENSIO_DECLARE_PPGENSIO(p, o, cb, "afskmdm", user_data);
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "fsk", user_data);
 
-    err = gensio_base_parms_alloc(o, true, "afskmdm", &parms);
+    err = gensio_base_parms_alloc(o, true, "fsk", &parms);
     if (err)
 	goto out_err;
 
-    err = gensio_afskmdm_filter_alloc(&p, o, child, args, parms, &filter);
+    err = gensio_fsk_filter_alloc(&p, o, child, args, parms, &filter);
     if (err)
 	goto out_err;
 
@@ -2910,7 +2910,7 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
     }
 
     gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
-    io = base_gensio_alloc(o, ll, filter, child, "afskmdm", cb, user_data);
+    io = base_gensio_alloc(o, ll, filter, child, "fsk", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
@@ -2938,10 +2938,10 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
 }
 
 static int
-str_to_afskmdm_gensio(const char *str, const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_gensio)
+str_to_fsk_gensio(const char *str, const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
 {
     int err;
     struct gensio *io2;
@@ -2951,7 +2951,7 @@ str_to_afskmdm_gensio(const char *str, const char * const args[],
     if (err)
 	return err;
 
-    err = afskmdm_gensio_alloc(io2, args, o, cb, user_data, new_gensio);
+    err = fsk_gensio_alloc(io2, args, o, cb, user_data, new_gensio);
     if (err)
 	gensio_free(io2);
 
@@ -2959,13 +2959,20 @@ str_to_afskmdm_gensio(const char *str, const char * const args[],
 }
 
 int
-gensio_init_afskmdm(struct gensio_os_funcs *o)
+gensio_init_fsk(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_filter_gensio(o, "afskmdm",
-				str_to_afskmdm_gensio, afskmdm_gensio_alloc);
+    rv = register_filter_gensio(o, "fsk",
+				str_to_fsk_gensio, fsk_gensio_alloc);
     if (rv)
 	return rv;
+
+    rv = register_filter_gensio(o, "afskmdm",
+				str_to_fsk_gensio, fsk_gensio_alloc);
+    if (rv) {
+	return rv;
+    }
+
     return 0;
 }

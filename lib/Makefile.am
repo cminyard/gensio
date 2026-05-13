@@ -360,16 +360,16 @@ libgensio_chardelay_la_SOURCES = gensio_chardelay.c
 libgensio_chardelay_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_chardelay_la_LIBADD = $(DYNAMIC_LIBS)
 
-if BUILTIN_AFSKMDM
-libgensio_la_SOURCES += gensio_afskmdm.c
+if BUILTIN_FSK
+libgensio_la_SOURCES += gensio_fsk.c
 libgensio_la_LIBADD += -lm
 else
-EXTRA_LTLIBRARIES += libgensio_afskmdm.la
+EXTRA_LTLIBRARIES += libgensio_fsk.la
 endif
-gensiolibexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
-libgensio_afskmdm_la_SOURCES = gensio_afskmdm.c
-libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
-libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_FSK)
+libgensio_fsk_la_SOURCES = gensio_fsk.c
+libgensio_fsk_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_fsk_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
 if BUILTIN_HDLC
 libgensio_la_SOURCES += gensio_hdlc.c
