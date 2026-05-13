@@ -43,8 +43,8 @@
  * This filter implements a audio frequency shift keying modem per the
  * GAX25 spec.
  *
- * The filter processes data from the child in corrsize frame chunks.
- * This corrsize will be in_framerate/data_rate, so 1 corrsize frame
+ * The filter processes data from the child in bitsize frame chunks.
+ * This bitsize will be in_framerate/data_rate, so bitsize samples
  * is a approximately a single bit.  It may not be exact, so there is
  * adjustment logic to keep it close to alignment.  A similar thing is
  * done for transmission with out_framerate.
@@ -56,18 +56,37 @@
  * The transmitter will send a preamble that allows the adjustment
  * logic to lock in with the transmitter.
  *
- * It keeps 2 * corrsize frames before the beginning of the current
- * chunk, and it waits until the next chunk to process the last
- * corrsize frames of the previous chunk.  This lets the receiver
- * adjust backwards in time a bit if it has to.
+ * The receiver works in a work buffer that is (bitsize + 2 * WORKEDGE)
+ * samples long.  A DFT bin operation works on bitsize size, but a DFT
+ * is calculated multiple times over the whole work buffer starting on
+ * successive samples, so you end up with (2 * WORKEDGE + 1) power
+ * samples.  If WORKEDGE is 3 and bitsize is n, you end up with
+ * something like:
  *
- * It is constantly looking for 1200Hz (level 1, a mark) and 2200Hz
- * signals (level 0, a space).  If it finds a 0 in this mode, it just
- * then looks for 6 1's in a row.  Then, if the next bit is 0, it
- * starts receiving data for the message.  This sequence will also
- * terminate amessage.
+ *  [0|1|2|3|4|5|6 ........ n-1|n+0|n+1|n+2|n+3|n+4|n+5]
+ *   |______power[0]__________|
+ *     |________power[1]__________|
+ *       |_________power[2]___________|
+ *         |_________power[3]_____________|
+ *           |__________power[4]______________|
+ *             |____________power[5]______________|
+ *               |______________power[6]______________|
  *
- * The filter keeps track of multiple possible incoming messages at a
+ * The first 3 samples are the last 3 samples from the previous bit.
+ * The current bits is samples 3 to n+2.  The last 3 samples are the
+ * first 3 samples of the next bit.  If the bit is exactly aligned, it
+ * will be in samples 3 to n+2.  If it is not, and the frequency
+ * changes, you can use the different power levels calculated here to
+ * see where the power starts dropping off, letting the receiver
+ * adjust the alignment of the incoming data.
+ *
+ * The receiver is constantly looking for 1200Hz (level 1, a mark) and
+ * 2200Hz signals (level 0, a space).  If it finds a 0 in this mode,
+ * it just then looks for 6 1's in a row.  Then, if the next bit is 0,
+ * it starts receiving data for the message.  This sequence will also
+ * terminate a message.
+ *
+ * The code keeps track of multiple possible incoming messages at a
  * time.  If a bit is read that is uncertain (the difference between
  * mark and space are not significant), it will split off a new
  * working message for each current message, one with each bit
@@ -100,19 +119,17 @@ enum afskmdm_state {
 /*
  * This is the maximum adjust period we will allow.  If it reaches
  * this value, we assume that the small adjustments can be handled by
- * the correlation code.
+ * the receiver code.
  */
 #define ADJ_PERIOD 10
 
 /*
- * Give the number of values on each side of the correlation to
- * compute another correlation for.  Having values for 6 different
- * areas around the correlation seems to give the best bang for the
- * buck.
+ * Give the number of values on each side of the bit for alignment
+ * calculation as described above.
  */
-#define CORREDGE 3
-#define CORRMIDDLE (CORREDGE + 1)
-#define CORREXTRA ((2 * CORREDGE) + 1)
+#define WORKEDGE 3
+#define WORKMIDDLE (WORKEDGE + 1)
+#define WORKEXTRA ((2 * WORKEDGE) + 1)
 
 /*
  * A working receive buffer.
@@ -158,12 +175,12 @@ struct wrbuf {
 /*
  * These are the entries in a digraph used to send data.  Each of
  * these has a data item (pointing into a sine array), a size (either
- * corrsize or corrsize +/- 1 for the alternate size that may be
+ * out_bitsize or out_bitsize +/- 1 for the alternate size that may be
  * periodically sent).
  *
  * It also has pointers to the next entry to send based upon if the
- * next entry is a mark or space and if the next entry is corrsize or
- * corrsize +/- 1.
+ * next entry is a mark or space and if the next entry is out_bitsize or
+ * out_bitsize +/- 1.
  */
 struct xmit_entry {
     float *data;
@@ -213,21 +230,22 @@ struct afskmdm_filter {
     uint64_t tx_predelay_time;
 
     /*
-     * Frames in a single correlation.  Note that the correlation may
-     * not exactly match up with the period of the data rate.  If that
-     * is the case, then we will need to periodically adjust the
-     * correlation window to keep it aligned.
+     * Frames in a single bit.  The DFT calculation is done on this
+     * size, and transmit is done using this size.  Note that the bit
+     * size may not exactly match up with the period of the data rate.
+     * If that is the case, then we will need to periodically adjust
+     * the window to keep it aligned.
      */
-    unsigned int in_corrsize;
-    int in_corr_adj; /* +1, 0, or -1 */
-    unsigned int in_corr_period; /* How often to add in_corr_adj. */
-    unsigned int in_corr_counter; /* Current receive counter for in_corr_adj. */
-    uint64_t in_corr_time; /* Time in nsec for a corrsize to be received. */
+    unsigned int in_bitsize;
+    int in_adj; /* +1, 0, or -1 */
+    unsigned int in_adj_period; /* How often to add in_adj. */
+    unsigned int in_adj_counter; /* Current receive counter for in_adj. */
+    uint64_t in_adj_time; /* Time in nsec for a bitsize to be received. */
 
     /*
      * The number of frames in a transmitted bit.  A similar
      * technique is used for sending, there are two send sizes if
-     * out_bit_adj != 0 and corr_period says how often we use the
+     * out_bit_adj != 0 and out_bit_period says how often we use the
      * alternate one.
      */
     unsigned int out_bitsize;
@@ -278,8 +296,8 @@ struct afskmdm_filter {
     float *filteredbuf;
 
     /*
-     * Correlation tables.  First 2 * in_corrsize values is sine, second
-     * 2 * in_corrsize values is cosine.
+     * DFT tables.  First 2 * in_bitsize values is sine, second 2 *
+     * in_bitsize values is cosine.
      */
     float *hzmark;
     float *hzspace;
@@ -304,7 +322,7 @@ struct afskmdm_filter {
 
     /*
      * Buffer holding data being currently processed.  It is
-     * (in_corrsize + (2 * CORREDGE)) bytes long.
+     * (in_bitsize + (2 * WORKEDGE)) bytes long.
      */
     float *workbuf;
     unsigned int worksize;
@@ -323,7 +341,7 @@ struct afskmdm_filter {
     unsigned int max_wmsgs; /* Size of wmsgs in each wmsgset. */
 
     /*
-     * The number of in_corrsize intervals to wait before transmitting.
+     * The number of in_bitsize intervals to wait before transmitting.
      */
     unsigned int tx_delay;
 
@@ -1090,8 +1108,8 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
  * signal against the frequency of the sine/cosine.
  *
  * dftbin is the sine/cosine table to do the DFT analysis on a single
- * frequency, the first 2 * in_corrsize floats are the sine table, the
- * second 2 * in_corrsize floats are the cosine table.
+ * frequency, the first 2 * in_bitsize floats are the sine table, the
+ * second 2 * in_bitsize floats are the cosine table.
  *
  * The input has extra data on both edges, the actually currently
  * aligned signal is in the middle.  We start at the data past the
@@ -1103,10 +1121,10 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
  * alignment point left and right.  This lets us measure how well we
  * are aligned on a transition from a mark to a space or back.
  *
- * Each DFT bin is done on in_corrsize frames of data.  The first
- * in_corrsize bytes is processed and put into power[0] (power at the
+ * Each DFT bin is done on in_bitsize frames of data.  The first
+ * in_bitsize bytes is processed and put into power[0] (power at the
  * given frequency).  Then we skip the first sample and calculate the
- * power then, then skip two samples, and so on, up to CORREDGE * 2
+ * power then, then skip two samples, and so on, up to WORKEDGE * 2
  * samples.
  *
  * We don't do it that way, though, we use a much more efficient way.
@@ -1114,21 +1132,21 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
  * the next values, so it's quite efficient.
  *
  * power must be [(edge * 2) + 1].  The input data size must be
- * [in_corrsize + edge * 2].
+ * [in_bitsize + edge * 2].
  */
 static void
 afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
 	       float buf[], float power[])
 {
     float *csin = dftbin;
-    float *ccos = dftbin + 2 * sfilter->in_corrsize;
+    float *ccos = dftbin + 2 * sfilter->in_bitsize;
     float psin = 0, pcos = 0;
     unsigned int i, ppos = 0, fpos;
-    /* Store the first CORREDGE sin and cos values here to subtract off later */
-    float firstv[CORREDGE * 4];
+    /* Store the first WORKEDGE sin and cos values here to subtract off later */
+    float firstv[WORKEDGE * 4];
 
     /* Calculate the beginning portion and save off the first values. */
-    for (i = 0; i < CORREDGE * 2; i++, csin++, ccos++) {
+    for (i = 0; i < WORKEDGE * 2; i++, csin++, ccos++) {
 	firstv[i * 2] = *csin * buf[i];
 	firstv[i * 2 + 1] = *ccos * buf[i];
 	psin += firstv[i * 2];
@@ -1138,7 +1156,7 @@ afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
      * Calculate the rest of the buffer to the point where we have the
      * first value to save.
      */
-    for (i = 0; i < sfilter->in_corrsize; i++, csin++, ccos++) {
+    for (; i < sfilter->in_bitsize; i++, csin++, ccos++) {
 	psin += *csin * buf[i];
 	pcos += *ccos * buf[i];
     }
@@ -1465,7 +1483,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
  */
 static void
 process_powers(struct afskmdm_filter *sfilter,
-	       float pmark[CORREXTRA], float pspace[CORREXTRA],
+	       float pmark[WORKEXTRA], float pspace[WORKEXTRA],
 	       unsigned int *rbest_pos,
 	       float *rcertainty, unsigned char *rlevel)
 {
@@ -1473,7 +1491,7 @@ process_powers(struct afskmdm_filter *sfilter,
     unsigned char tlevel;
     unsigned int i;
 
-    for (i = 0; i < CORREXTRA; i++) {
+    for (i = 0; i < WORKEXTRA; i++) {
 	if (pspace[i] > pmark[i]) {
 	    tlevel = 0;
 	    tcertainty = pspace[i] / pmark[i];
@@ -1507,8 +1525,8 @@ static int
 afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 		       bool *in_sync)
 {
-    float pmark[CORREXTRA], pspace[CORREXTRA];
-    float pmark2[CORREXTRA], pspace2[CORREXTRA];
+    float pmark[WORKEXTRA], pspace[WORKEXTRA];
+    float pmark2[WORKEXTRA], pspace2[WORKEXTRA];
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
@@ -1520,11 +1538,11 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
     process_powers(sfilter, pmark, pspace, &best_pos, &certainty, &level);
 
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL) {
-	printf("CORR(%lu): %u\n", sfilter->framecount++, level);
-	for (i = 0; i < CORREXTRA; i++)
+	printf("WORK(%lu): %u\n", sfilter->framecount++, level);
+	for (i = 0; i < WORKEXTRA; i++)
 	    printf(" %f", pmark[i]);
 	printf("\n");
-	for (i = 0; i < CORREXTRA; i++)
+	for (i = 0; i < WORKEXTRA; i++)
 	    printf(" %f", pspace[i]);
 	printf("\n");
     }
@@ -1536,14 +1554,14 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 	 * boundary to check against.
 	 */
 
-	if (sfilter->prev_best_pos > CORRMIDDLE)
+	if (sfilter->prev_best_pos > WORKMIDDLE)
 	    adj++;
-	else if (sfilter->prev_best_pos < CORRMIDDLE)
+	else if (sfilter->prev_best_pos < WORKMIDDLE)
 	    adj--;
 
-	if (best_pos > CORRMIDDLE)
+	if (best_pos > WORKMIDDLE)
 	    adj++;
-	else if (best_pos < CORRMIDDLE)
+	else if (best_pos < WORKMIDDLE)
 	    adj--;
     }
 
@@ -1561,7 +1579,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 	afskmdm_process_bit(sfilter, 0, i, level, certainty, in_sync);
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
-	for (i = 0; i < CORREXTRA; i++)
+	for (i = 0; i < WORKEXTRA; i++)
 	    pmark2[i] = pmark[i] * m;
 	certainty = 0.0;
 	process_powers(sfilter, pmark2, pspace, &best_pos, &certainty, &level);
@@ -1570,7 +1588,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 	    afskmdm_process_bit(sfilter, wset, i,
 				level, certainty, in_sync);
 
-	for (i = 0; i < CORREXTRA; i++)
+	for (i = 0; i < WORKEXTRA; i++)
 	    pspace2[i] = pspace[i] * m;
 	certainty = 0.0;
 	process_powers(sfilter, pmark, pspace2, &best_pos, &certainty, &level);
@@ -1772,7 +1790,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (gensio_str_in_auxdata(auxdata, "oob")) {
 	/* Ignore oob data. */
 	if (rcount)
-	    *rcount = buflen;
+	    *rcount = inbuflen;
 	return 0;
     }
 
@@ -1815,7 +1833,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     }
 
     pos = 0; /* Input buffer position. */
-    while (pos + sfilter->worksize - sfilter->work_pos <= buflen) {
+    while (sfilter->worksize - sfilter->work_pos <= buflen - pos) {
 	bool in_sync = true;
 	int adj;
 
@@ -1855,26 +1873,29 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL)
 	    printf("SYNC: %d %d %u\n", adj, in_sync, sfilter->nr_in_sync);
 
-	sfilter->in_corr_counter++;
-	if (sfilter->in_corr_counter >= sfilter->in_corr_period) {
-	    adj += sfilter->in_corr_adj;
-	    sfilter->in_corr_counter = 0;
+	sfilter->in_adj_counter++;
+	if (sfilter->in_adj_counter >= sfilter->in_adj_period) {
+	    adj += sfilter->in_adj;
+	    sfilter->in_adj_counter = 0;
 	}
 
 	/*
 	 * You cannot adjust more than the edge
 	 */
-	if (adj > CORREDGE)
-	    adj = CORREDGE;
-	if (adj < -CORREDGE)
-	    adj = -CORREDGE;
+	if (adj > WORKEDGE)
+	    adj = WORKEDGE;
+	if (adj < -WORKEDGE)
+	    adj = -WORKEDGE;
 
-	sfilter->work_pos = CORREDGE * 2 - adj;
-
-	/* Copy the end of the buffer to the beginning. */
+	/*
+	 * Copy the end of the buffer to the beginning.  In this
+	 * buffer the end WORKEDGE bytes are the first WORKEDGE bytes
+	 * of the next  The last WORKEDGE bytes of this sample
+	 */
+	sfilter->work_pos = WORKEDGE * 2 - adj;
 	memmove(sfilter->workbuf,
-	      sfilter->workbuf + sfilter->worksize - sfilter->work_pos,
-	      sfilter->work_pos * sizeof(float));
+		sfilter->workbuf + sfilter->worksize - sfilter->work_pos,
+		sfilter->work_pos * sizeof(float));
     }
 
     /*
@@ -1958,7 +1979,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
     sfilter->xmit_buf_len = 0;
     sfilter->xmit_buf_pos = 0;
     sfilter->nr_wrbufs = 0;
-    sfilter->in_corr_counter = 0;
+    sfilter->in_adj_counter = 0;
     sfilter->out_bit_counter = 0;
 }
 
@@ -2325,7 +2346,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 {
     struct afskmdm_filter *sfilter;
     unsigned int i, j;
-    float fcorrsize, fbitsize;
+    float fin_bitsize, fout_bitsize;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
@@ -2363,26 +2384,26 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	goto out_nomem;
 
     /*
-     * Calculate the size of the correlation we will be doing.  We
-     * round the size to the nearest integer.  We create the
-     * correlation tables with the actual floating point value, and we
-     * use that for adjust calculation, so get that here, too.
+     * Calculate the size of a bit in samples.  We round the size to
+     * the nearest integer.  We create the DFT tables with the actual
+     * floating point value, and we us that for adjust calculation, so
+     * get that here, too.
      */
-    sfilter->in_corrsize = ((data->in_framerate + data->data_rate / 2)
+    sfilter->in_bitsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
-    if (sfilter->in_corrsize < 2 * CORREDGE) {
+    if (sfilter->in_bitsize < 2 * WORKEDGE) {
 	gensio_pparm_log(p, "afskmdm: "
-			 "Correlation size is %u, but must be at least %u",
-			 sfilter->in_corrsize, 2 * CORREDGE);
+			 "bit size is %u, but must be at least %u",
+			 sfilter->in_bitsize, 2 * WORKEDGE);
 	goto out_nomem;
     }
-    sfilter->in_corr_time = (GENSIO_SECS_TO_NSECS(sfilter->in_corrsize) /
+    sfilter->in_adj_time = (GENSIO_SECS_TO_NSECS(sfilter->in_bitsize) /
 			     data->in_framerate);
-    fcorrsize = (float) data->in_framerate / data->data_rate;
+    fin_bitsize = (float) data->in_framerate / data->data_rate;
     if (data->in_framerate % data->data_rate != 0) {
 	/*
 	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded corrsize
+	 * evenly divisible by the data rate.  If we rounded bitsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
 	 *
@@ -2392,28 +2413,28 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	 * out well, and the auto-adjusting should keep us in sync as
 	 * long as this is close.
 	 */
-	float err = fcorrsize - truncf(fcorrsize);
+	float err = fin_bitsize - truncf(fin_bitsize);
 
-	if (sfilter->in_corrsize > data->in_framerate / data->data_rate) {
+	if (sfilter->in_bitsize > data->in_framerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
-	    sfilter->in_corr_adj = -1;
+	    sfilter->in_adj = -1;
 	} else {
-	    sfilter->in_corr_adj = 1;
+	    sfilter->in_adj = 1;
 	}
-	sfilter->in_corr_period = (unsigned int) ((1. / err) + 0.5);
+	sfilter->in_adj_period = (unsigned int) ((1. / err) + 0.5);
     }
 
     sfilter->out_bitsize = ((data->out_framerate + data->data_rate / 2)
 			    / data->data_rate);
     sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
 			     data->out_framerate);
-    fbitsize = (float) data->out_framerate / data->data_rate;
+    fout_bitsize = (float) data->out_framerate / data->data_rate;
     sfilter->max_out_bitsize = sfilter->out_bitsize;
     if (data->out_framerate % data->data_rate != 0) {
 	/*
 	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded corrsize
+	 * evenly divisible by the data rate.  If we rounded bitsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
 	 *
@@ -2423,7 +2444,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	 * out well, and the auto-adjusting should keep us in sync as
 	 * long as this is close.
 	 */
-	float err = fbitsize - truncf(fbitsize);
+	float err = fout_bitsize - truncf(fout_bitsize);
 
 	if (sfilter->out_bitsize > data->out_framerate / data->data_rate) {
 	    /* We rounded up. */
@@ -2437,31 +2458,31 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     }
 
     /*
-     * NOTE - this is in received corr periods, because it's measured
+     * NOTE - this is in received bitsize periods, because it's measured
      * in the receive portion.
      */
-    sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_corr_time;
+    sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_adj_time;
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
 	goto out_nomem;
 
-    sfilter->hzmark = o->zalloc(o, sizeof(float) * 4 * sfilter->in_corrsize);
+    sfilter->hzmark = o->zalloc(o, sizeof(float) * 4 * sfilter->in_bitsize);
     if (!sfilter->hzmark)
 	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_corrsize; i++) {
+    for (i = 0; i < 2 * sfilter->in_bitsize; i++) {
 	float v = 2 * M_PI * (data->mark_freq / data->data_rate) * ((float) i);
-	sfilter->hzmark[i] = sin(v / fcorrsize);
-	sfilter->hzmark[i + 2 * sfilter->in_corrsize] = cos(v / fcorrsize);
+	sfilter->hzmark[i] = sin(v / fin_bitsize);
+	sfilter->hzmark[i + 2 * sfilter->in_bitsize] = cos(v / fin_bitsize);
     }
 
-    sfilter->hzspace = o->zalloc(o, sizeof(float) * 4 * sfilter->in_corrsize);
+    sfilter->hzspace = o->zalloc(o, sizeof(float) * 4 * sfilter->in_bitsize);
     if (!sfilter->hzspace)
 	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_corrsize; i++) {
+    for (i = 0; i < 2 * sfilter->in_bitsize; i++) {
 	float v = 2 * M_PI * (data->space_freq / data->data_rate) * ((float) i);
-	sfilter->hzspace[i] = sin(v / fcorrsize);
-	sfilter->hzspace[i + 2 * sfilter->in_corrsize] = cos(v / fcorrsize);
+	sfilter->hzspace[i] = sin(v / fin_bitsize);
+	sfilter->hzspace[i + 2 * sfilter->in_bitsize] = cos(v / fin_bitsize);
     }
 
     if (data->lpcutoff && data->filt_type != NO_FILT) {
@@ -2487,7 +2508,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
     }
 
-    sfilter->worksize = sfilter->in_corrsize + 2 * CORREDGE;
+    sfilter->worksize = sfilter->in_bitsize + 2 * WORKEDGE;
     sfilter->workbuf = o->zalloc(o, sfilter->worksize * sizeof(float));
     if (!sfilter->workbuf)
 	goto out_nomem;
@@ -2550,7 +2571,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 
     sfilter->nsec_per_frame = (((float) 1) / (float) data->out_framerate *
 			       (float) GENSIO_NSECS_IN_SEC);
-    if (afskmdm_setup_transmit(sfilter, data, fbitsize))
+    if (afskmdm_setup_transmit(sfilter, data, fout_bitsize))
 	goto out_nomem;
 
     return sfilter->filter;
