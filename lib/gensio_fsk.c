@@ -2648,6 +2648,7 @@ static struct gensio_enum_val filttype_enums[] = {
 
 static int
 gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
+			bool is_afsk,
 			struct gensio_os_funcs *o,
 			struct gensio *child,
 			const char * const args[],
@@ -2663,14 +2664,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.max_read_size = 256,
 	.max_write_size = 256,
 	.mark_freq = 1200.,
-	.space_freq = 2200.,
+	.space_freq = 2400.,
 	.data_rate = 1200,
 	.in_framerate = 0,
 	.out_framerate = 0,
 	.in_chunksize = 0,
 	.out_chunksize = 0,
-	.max_wmsgs = 32,
-	.wmsg_sets = 3,
+	.max_wmsgs = 1,
 	.min_certainty = 3.5,
 	.filt_type = IIR_FILT,
 	.filt_type_set = false,
@@ -2691,7 +2691,14 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     char cdata[30];
     gensiods cdata_len;
     unsigned int chan;
-    unsigned int wmsg_extra = 1;
+    unsigned int wmsg_extra = 0;
+
+    if (is_afsk) {
+	data.space_freq = 2200.;
+	data.max_wmsgs = 32;
+	wmsg_extra = 1;
+	data.lpcutoff = 2300;
+    }
 
     err = fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
 			    &data.in_chunksize);
@@ -2804,6 +2811,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_float(p, args[i], "volume", &data.volume) > 0)
 	    continue;
+	if (gensio_pparm_float(p, args[i], "space", &data.space_freq) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "mark", &data.mark_freq) > 0)
+	    continue;
 	if (key_pparm(p, args[i], &data.keydata))
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "full-duplex", &data.full_duplex) > 0)
@@ -2874,10 +2885,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 }
 
 static int
-fsk_gensio_alloc(struct gensio *child, const char *const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **net)
+i_fsk_gensio_alloc(struct gensio *child, const char *const args[],
+		   bool is_afsk, struct gensio_os_funcs *o,
+		   gensio_event cb, void *user_data,
+		   struct gensio **new_gensio)
 {
     int err;
     struct gensio_filter *filter;
@@ -2890,7 +2901,7 @@ fsk_gensio_alloc(struct gensio *child, const char *const args[],
     if (err)
 	goto out_err;
 
-    err = gensio_fsk_filter_alloc(&p, o, child, args, parms, &filter);
+    err = gensio_fsk_filter_alloc(&p, is_afsk, o, child, args, parms, &filter);
     if (err)
 	goto out_err;
 
@@ -2917,7 +2928,7 @@ fsk_gensio_alloc(struct gensio *child, const char *const args[],
     gensio_set_is_packet(io, true);
     gensio_free(child); /* Lose the ref we acquired. */
 
-    *net = io;
+    *new_gensio = io;
     return 0;
 
  out_nomem:
@@ -2929,10 +2940,10 @@ fsk_gensio_alloc(struct gensio *child, const char *const args[],
 }
 
 static int
-str_to_fsk_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
+i_str_to_fsk_gensio(const char *str, const char * const args[],
+		    bool is_afsk, struct gensio_os_funcs *o,
+		    gensio_event cb, void *user_data,
+		    struct gensio **new_gensio)
 {
     int err;
     struct gensio *io2;
@@ -2942,11 +2953,47 @@ str_to_fsk_gensio(const char *str, const char * const args[],
     if (err)
 	return err;
 
-    err = fsk_gensio_alloc(io2, args, o, cb, user_data, new_gensio);
+    err = i_fsk_gensio_alloc(io2, args, is_afsk, o, cb, user_data, new_gensio);
     if (err)
 	gensio_free(io2);
 
     return err;
+}
+
+static int
+fsk_gensio_alloc(struct gensio *child, const char *const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **new_gensio)
+{
+    return i_fsk_gensio_alloc(child, args, false, o, cb, user_data, new_gensio);
+}
+
+static int
+str_to_fsk_gensio(const char *str, const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    return i_str_to_fsk_gensio(str, args, false, o, cb, user_data, new_gensio);
+}
+
+static int
+afsk_gensio_alloc(struct gensio *child, const char *const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    return i_fsk_gensio_alloc(child, args, true, o, cb, user_data, new_gensio);
+}
+
+static int
+str_to_afsk_gensio(const char *str, const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    return i_str_to_fsk_gensio(str, args, true, o, cb, user_data, new_gensio);
 }
 
 int
@@ -2960,7 +3007,7 @@ gensio_init_fsk(struct gensio_os_funcs *o)
 	return rv;
 
     rv = register_filter_gensio(o, "afskmdm",
-				str_to_fsk_gensio, fsk_gensio_alloc);
+				str_to_afsk_gensio, afsk_gensio_alloc);
     if (rv) {
 	return rv;
     }

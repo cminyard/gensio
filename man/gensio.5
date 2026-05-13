@@ -2609,23 +2609,28 @@ Specify the antenna to use for the channel.  May not be supported on
 all devices.  Defaults to not specified.
 .SH "fsk"
 connecting =
-.B afskmcm[(options)]
+.B afskmdm[(options)]
+.br
+connecting =
+.B fsk[(options)]
 
 A filter gensio that sits on top of the sound gensio and implements an
-Audio Frequency Shift Keying modem, like is used on AX.25 amateur
-radio.  It must sit on top of a sound gensio.  Or, more accurately a
-gensio that implements the GENSIO_CONTROL_IN_BUFSIZE,
-GENSIO_CONTROL_OUT_BUFSIZE, GENSIO_CONTROL_IN_FORMAT, and
-GENSIO_CONTROL_OUT_FORMAT controls.
+Frequency Shift Keying modem, like is used on AX.25 amateur radio.  It
+must sit on top of a sound gensio.  Or, more accurately a gensio that
+implements the GENSIO_CONTROL_IN_BUFSIZE, GENSIO_CONTROL_OUT_BUFSIZE,
+GENSIO_CONTROL_IN_FORMAT, and GENSIO_CONTROL_OUT_FORMAT controls.
+
+If using afskmdm, then some parameters are changed from fsk to better
+match the standard 1200 baud AFSK.
 
 Note that the sound gensio must supply a float user format.
 .SS Keying the Transmitter
 By default,
-.B afskmcm
+.B fsk
 will not do anything specific to turn the transmitter on and off. In
 this case the keying must be VOX, like a SignaLink.
 
-If you need some other way to key the transmitter, afskmcm provide a
+If you need some other way to key the transmitter, fsk provide a
 .B key
 option.  This create a gensio that is used to turn the transmitter on
 and off.  Different types of keying options exist, specified by
@@ -2760,6 +2765,13 @@ This forces crc to false.
 
 Defaults to false.
 .TP
+.B space=<n>
+Sets the space (upper, 0) frequency for FSK.  Defaults to 2400 for
+fsk, 2200 for afskmdm.
+.TP
+.B mark=<n>
+Sets the mark (lower, 1) frequency for FSK.  Defaults to 1200.
+.TP
 .B uncert[=true|false]
 In raw mode, provide certainty data about each bit that is received in
 the auxdata.  If this is set, auxdata will have a string starting with
@@ -2799,7 +2811,7 @@ correctly received (with CRC) or the series of bits is not valid.
 This way, if wmsg is 2^n, a message can be correctly decoded if up to
 n bits are wrong.  So it's sort of an error correction code without a
 code.
-Defaults to 32.
+Defaults to 1 for fsk, 32 for afskmdm.
 .TP
 .B wmsg-extra=<n>
 Sets the number of extra amplification levels for the mark and space
@@ -2808,7 +2820,7 @@ with the space frequency amplified by 3dB, then the mark frequency
 amplified by 3dB.  If set to 2, it will do this with 3dB then 6dB, and
 so on.  This can help compensate for filtering on the different
 frequencies.
-Defaults to 1.
+Defaults to 0 for fsk, 1 for afskmdm.
 .TP
 .B min-certainty=<float>
 A floating point number that specifies the minimum certainty above
@@ -2828,7 +2840,7 @@ there's not much difference at higher sample rates.
 .TP
 .B lpcutoff=<n>
 This sets the cutoff frequency for the input filter.  Setting it to
-zero disables it.  The default is 2500Hz.
+zero disables it.  The default is 2500Hz for fsk, 2300 for afskmdm.
 .TP
 .B trfreq=<n>
 This sets the transition frequency width for the FIR filter.  This is
