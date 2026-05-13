@@ -56,11 +56,11 @@
  * The transmitter will send a preamble that allows the adjustment
  * logic to lock in with the transmitter.
  *
- * The receiver works in a work buffer that is (bitsize + 2 * WORKEDGE)
+ * The receiver works in a work buffer that is (bitsize + 2 * workedge)
  * samples long.  A DFT bin operation works on bitsize size, but a DFT
  * is calculated multiple times over the whole work buffer starting on
- * successive samples, so you end up with (2 * WORKEDGE + 1) power
- * samples.  If WORKEDGE is 3 and bitsize is n, you end up with
+ * successive samples, so you end up with (2 * workedge + 1) power
+ * samples.  If workedge is 3 and bitsize is n, you end up with
  * something like:
  *
  *  [0|1|2|3|4|5|6 ........ n-1|n+0|n+1|n+2|n+3|n+4|n+5]
@@ -122,14 +122,6 @@ enum afskmdm_state {
  * the receiver code.
  */
 #define ADJ_PERIOD 10
-
-/*
- * Give the number of values on each side of the bit for alignment
- * calculation as described above.
- */
-#define WORKEDGE 3
-#define WORKMIDDLE (WORKEDGE + 1)
-#define WORKEXTRA ((2 * WORKEDGE) + 1)
 
 /*
  * A working receive buffer.
@@ -322,7 +314,7 @@ struct afskmdm_filter {
 
     /*
      * Buffer holding data being currently processed.  It is
-     * (in_bitsize + (2 * WORKEDGE)) bytes long.
+     * (in_bitsize + (2 * workedge)) bytes long.
      */
     float *workbuf;
     unsigned int worksize;
@@ -332,6 +324,29 @@ struct afskmdm_filter {
      * the amount of data left over from the previous processing.
      */
     unsigned int work_pos;
+
+    /*
+     * Give the number of values on each side of the bit samples for
+     * alignment calculation as described at the top of the file.
+     */
+#define MIN_WORKEDGE 3
+    unsigned int workedge; // minimum 3
+    unsigned int workmiddle; // (workedge + 1)
+    unsigned int workextra; // ((2 * workedge) + 1)
+
+    /*
+     * Store the first workedge sin and cos values here to subtract
+     * off later.  This is workedge * 4 samples long.
+     */
+    float *firstv;
+
+    /*
+     * Storage for power measurements, each workextra samples long.
+     */
+    float *pmark;
+    float *pspace;
+    float *pmark2;
+    float *pspace2;
 
     /*
      * Messages we are currently working on assembling.
@@ -1102,81 +1117,6 @@ afskmdm_process_raw_bit(struct afskmdm_filter *sfilter, unsigned int bit,
     }
 }
 
-/*
- * Do a DFT bin analysis.  You generally do this against a sine and
- * cosine table, this lets you measure the power (and phase) of a
- * signal against the frequency of the sine/cosine.
- *
- * dftbin is the sine/cosine table to do the DFT analysis on a single
- * frequency, the first 2 * in_bitsize floats are the sine table, the
- * second 2 * in_bitsize floats are the cosine table.
- *
- * The input has extra data on both edges, the actually currently
- * aligned signal is in the middle.  We start at the data past the
- * left edges and process that data.  Then we store the data and
- * subtract off each frame from the left edge and add on the next data
- * until we have processed the whole right edge.  This gives is values
- * in the "power" array where the middle value is the currently
- * aligned value, but we have power measurements assuming we move the
- * alignment point left and right.  This lets us measure how well we
- * are aligned on a transition from a mark to a space or back.
- *
- * Each DFT bin is done on in_bitsize frames of data.  The first
- * in_bitsize bytes is processed and put into power[0] (power at the
- * given frequency).  Then we skip the first sample and calculate the
- * power then, then skip two samples, and so on, up to WORKEDGE * 2
- * samples.
- *
- * We don't do it that way, though, we use a much more efficient way.
- * To process at sample 1 we subtract off the first values and add on
- * the next values, so it's quite efficient.
- *
- * power must be [(edge * 2) + 1].  The input data size must be
- * [in_bitsize + edge * 2].
- */
-static void
-afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
-	       float buf[], float power[])
-{
-    float *csin = dftbin;
-    float *ccos = dftbin + 2 * sfilter->in_bitsize;
-    float psin = 0, pcos = 0;
-    unsigned int i, ppos = 0, fpos;
-    /* Store the first WORKEDGE sin and cos values here to subtract off later */
-    float firstv[WORKEDGE * 4];
-
-    /* Calculate the beginning portion and save off the first values. */
-    for (i = 0; i < WORKEDGE * 2; i++, csin++, ccos++) {
-	firstv[i * 2] = *csin * buf[i];
-	firstv[i * 2 + 1] = *ccos * buf[i];
-	psin += firstv[i * 2];
-	pcos += firstv[i * 2 + 1];
-    }
-    /*
-     * Calculate the rest of the buffer to the point where we have the
-     * first value to save.
-     */
-    for (; i < sfilter->in_bitsize; i++, csin++, ccos++) {
-	psin += *csin * buf[i];
-	pcos += *ccos * buf[i];
-    }
-
-    /* Save the first value's power. */
-    power[ppos++] = psin * psin + pcos * pcos;
-
-    /*
-     * Now go through the rest of the buffer and calculate the power for
-     * each succeeding position.
-     */
-    for (fpos = 0; i < sfilter->worksize; i++, fpos++) {
-	psin -= firstv[fpos * 2];
-	pcos -= firstv[fpos * 2 + 1];
-	psin += *csin++ * buf[i];
-	pcos += *ccos++ * buf[i];
-	power[ppos++] = psin * psin + pcos * pcos;
-    }
-}
-
 static void
 afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 		  unsigned int msgn, struct wmsg *w, bool at_flag)
@@ -1483,7 +1423,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter,
  */
 static void
 process_powers(struct afskmdm_filter *sfilter,
-	       float pmark[WORKEXTRA], float pspace[WORKEXTRA],
+	       float *pmark, float *pspace,
 	       unsigned int *rbest_pos,
 	       float *rcertainty, unsigned char *rlevel)
 {
@@ -1491,7 +1431,7 @@ process_powers(struct afskmdm_filter *sfilter,
     unsigned char tlevel;
     unsigned int i;
 
-    for (i = 0; i < WORKEXTRA; i++) {
+    for (i = 0; i < sfilter->workextra; i++) {
 	if (pspace[i] > pmark[i]) {
 	    tlevel = 0;
 	    tcertainty = pspace[i] / pmark[i];
@@ -1518,6 +1458,79 @@ process_powers(struct afskmdm_filter *sfilter,
 }
 
 /*
+ * Do a DFT bin analysis.  You generally do this against a sine and
+ * cosine table, this lets you measure the power (and phase) of a
+ * signal against the frequency of the sine/cosine.
+ *
+ * dftbin is the sine/cosine table to do the DFT analysis on a single
+ * frequency, the first 2 * in_bitsize floats are the sine table, the
+ * second 2 * in_bitsize floats are the cosine table.
+ *
+ * The input has extra data on both edges, the actually currently
+ * aligned signal is in the middle.  We start at the data past the
+ * left edges and process that data.  Then we store the data and
+ * subtract off each frame from the left edge and add on the next data
+ * until we have processed the whole right edge.  This gives is values
+ * in the "power" array where the middle value is the currently
+ * aligned value, but we have power measurements assuming we move the
+ * alignment point left and right.  This lets us measure how well we
+ * are aligned on a transition from a mark to a space or back.
+ *
+ * Each DFT bin is done on in_bitsize frames of data.  The first
+ * in_bitsize bytes is processed and put into power[0] (power at the
+ * given frequency).  Then we skip the first sample and calculate the
+ * power then, then skip two samples, and so on, up to workedge * 2
+ * samples.
+ *
+ * We don't do it that way, though, we use a much more efficient way.
+ * To process at sample 1 we subtract off the first values and add on
+ * the next values, so it's quite efficient.
+ *
+ * power must be [(edge * 2) + 1].  The input data size must be
+ * [in_bitsize + edge * 2].
+ */
+static void
+afskmdm_dftbin(struct afskmdm_filter *sfilter, float *dftbin,
+	       float buf[], float power[])
+{
+    float *csin = dftbin;
+    float *ccos = dftbin + 2 * sfilter->in_bitsize;
+    float psin = 0, pcos = 0;
+    unsigned int i, ppos = 0, fpos;
+
+    /* Calculate the beginning portion and save off the first values. */
+    for (i = 0; i < sfilter->workedge * 2; i++, csin++, ccos++) {
+	sfilter->firstv[i * 2] = *csin * buf[i];
+	sfilter->firstv[i * 2 + 1] = *ccos * buf[i];
+	psin += sfilter->firstv[i * 2];
+	pcos += sfilter->firstv[i * 2 + 1];
+    }
+    /*
+     * Calculate the rest of the buffer to the point where we have the
+     * first value to save.
+     */
+    for (; i < sfilter->in_bitsize; i++, csin++, ccos++) {
+	psin += *csin * buf[i];
+	pcos += *ccos * buf[i];
+    }
+
+    /* Save the first value's power. */
+    power[ppos++] = psin * psin + pcos * pcos;
+
+    /*
+     * Now go through the rest of the buffer and calculate the power for
+     * each succeeding position.
+     */
+    for (fpos = 0; i < sfilter->worksize; i++, fpos++) {
+	psin -= sfilter->firstv[fpos * 2];
+	pcos -= sfilter->firstv[fpos * 2 + 1];
+	psin += *csin++ * buf[i];
+	pcos += *ccos++ * buf[i];
+	power[ppos++] = psin * psin + pcos * pcos;
+    }
+}
+
+/*
  * Do DFT bin analysis at mark and space the data then call the bit
  * processing with the info extracted from the data.
  */
@@ -1525,25 +1538,24 @@ static int
 afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 		       bool *in_sync)
 {
-    float pmark[WORKEXTRA], pspace[WORKEXTRA];
-    float pmark2[WORKEXTRA], pspace2[WORKEXTRA];
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
     int adj = 0;
 
-    afskmdm_dftbin(sfilter, sfilter->hzmark, buf, pmark);
-    afskmdm_dftbin(sfilter, sfilter->hzspace, buf, pspace);
+    afskmdm_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
+    afskmdm_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
 
-    process_powers(sfilter, pmark, pspace, &best_pos, &certainty, &level);
+    process_powers(sfilter, sfilter->pmark, sfilter->pspace,
+		   &best_pos, &certainty, &level);
 
     if (sfilter->debug & GENSIO_AFSKMDM_DEBUG_BIT_HNDL) {
 	printf("WORK(%lu): %u\n", sfilter->framecount++, level);
-	for (i = 0; i < WORKEXTRA; i++)
-	    printf(" %f", pmark[i]);
+	for (i = 0; i < sfilter->workextra; i++)
+	    printf(" %f", sfilter->pmark[i]);
 	printf("\n");
-	for (i = 0; i < WORKEXTRA; i++)
-	    printf(" %f", pspace[i]);
+	for (i = 0; i < sfilter->workextra; i++)
+	    printf(" %f", sfilter->pspace[i]);
 	printf("\n");
     }
 
@@ -1554,14 +1566,14 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 	 * boundary to check against.
 	 */
 
-	if (sfilter->prev_best_pos > WORKMIDDLE)
+	if (sfilter->prev_best_pos > sfilter->workmiddle)
 	    adj++;
-	else if (sfilter->prev_best_pos < WORKMIDDLE)
+	else if (sfilter->prev_best_pos < sfilter->workmiddle)
 	    adj--;
 
-	if (best_pos > WORKMIDDLE)
+	if (best_pos > sfilter->workmiddle)
 	    adj++;
-	else if (best_pos < WORKMIDDLE)
+	else if (best_pos < sfilter->workmiddle)
 	    adj--;
     }
 
@@ -1579,19 +1591,21 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, float *buf,
 	afskmdm_process_bit(sfilter, 0, i, level, certainty, in_sync);
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
-	for (i = 0; i < WORKEXTRA; i++)
-	    pmark2[i] = pmark[i] * m;
+	for (i = 0; i < sfilter->workextra; i++)
+	    sfilter->pmark2[i] = sfilter->pmark[i] * m;
 	certainty = 0.0;
-	process_powers(sfilter, pmark2, pspace, &best_pos, &certainty, &level);
+	process_powers(sfilter, sfilter->pmark2, sfilter->pspace,
+		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
 	    afskmdm_process_bit(sfilter, wset, i,
 				level, certainty, in_sync);
 
-	for (i = 0; i < WORKEXTRA; i++)
-	    pspace2[i] = pspace[i] * m;
+	for (i = 0; i < sfilter->workextra; i++)
+	    sfilter->pspace2[i] = sfilter->pspace[i] * m;
 	certainty = 0.0;
-	process_powers(sfilter, pmark, pspace2, &best_pos, &certainty, &level);
+	process_powers(sfilter, sfilter->pmark, sfilter->pspace2,
+		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset + 1].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
 	    afskmdm_process_bit(sfilter, wset + 1, i,
@@ -1882,17 +1896,17 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	/*
 	 * You cannot adjust more than the edge
 	 */
-	if (adj > WORKEDGE)
-	    adj = WORKEDGE;
-	if (adj < -WORKEDGE)
-	    adj = -WORKEDGE;
+	if (adj > (int) sfilter->workedge)
+	    adj = (int) sfilter->workedge;
+	if (adj < - (int) sfilter->workedge)
+	    adj = - (int) sfilter->workedge;
 
 	/*
 	 * Copy the end of the buffer to the beginning.  In this
-	 * buffer the end WORKEDGE bytes are the first WORKEDGE bytes
-	 * of the next  The last WORKEDGE bytes of this sample
+	 * buffer the end workedge bytes are the first workedge bytes
+	 * of the next  The last workedge bytes of this sample
 	 */
-	sfilter->work_pos = WORKEDGE * 2 - adj;
+	sfilter->work_pos = sfilter->workedge * 2 - adj;
 	memmove(sfilter->workbuf,
 		sfilter->workbuf + sfilter->worksize - sfilter->work_pos,
 		sfilter->work_pos * sizeof(float));
@@ -2008,6 +2022,16 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 	o->free(o, sfilter->hzspace);
     if (sfilter->workbuf)
 	o->free(o, sfilter->workbuf);
+    if (sfilter->firstv)
+	o->free(o, sfilter->firstv);
+    if (sfilter->pmark)
+	o->free(o, sfilter->pmark);
+    if (sfilter->pspace)
+	o->free(o, sfilter->pspace);
+    if (sfilter->pmark2)
+	o->free(o, sfilter->pmark2);
+    if (sfilter->pspace2)
+	o->free(o, sfilter->pspace2);
     if (sfilter->wmsgsets) {
 	for (i = 0; i < sfilter->wmsg_sets; i++) {
 	    if (sfilter->wmsgsets[i].wmsgs) {
@@ -2391,10 +2415,10 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
      */
     sfilter->in_bitsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
-    if (sfilter->in_bitsize < 2 * WORKEDGE) {
+    if (sfilter->in_bitsize < 2 * MIN_WORKEDGE) {
 	gensio_pparm_log(p, "afskmdm: "
-			 "bit size is %u, but must be at least %u",
-			 sfilter->in_bitsize, 2 * WORKEDGE);
+			 "bit size is %u samples, but must be at least %u",
+			 sfilter->in_bitsize, 2 * MIN_WORKEDGE);
 	goto out_nomem;
     }
     sfilter->in_adj_time = (GENSIO_SECS_TO_NSECS(sfilter->in_bitsize) /
@@ -2508,9 +2532,32 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
     }
 
-    sfilter->worksize = sfilter->in_bitsize + 2 * WORKEDGE;
+    sfilter->workedge = sfilter->in_bitsize / 10;
+    if (sfilter->workedge < MIN_WORKEDGE)
+	sfilter->workedge = MIN_WORKEDGE;
+    sfilter->workmiddle = sfilter->workedge + 1;
+    sfilter->workextra = (2 * sfilter->workedge) + 1;
+
+    sfilter->worksize = sfilter->in_bitsize + 2 * sfilter->workedge;
     sfilter->workbuf = o->zalloc(o, sfilter->worksize * sizeof(float));
     if (!sfilter->workbuf)
+	goto out_nomem;
+
+    sfilter->firstv = o->zalloc(o, sfilter->workedge * 4 * sizeof(float));
+    if (!sfilter->firstv)
+	goto out_nomem;
+
+    sfilter->pmark = o->zalloc(o, sfilter->workextra * sizeof(float));
+    if (!sfilter->pmark)
+	goto out_nomem;
+    sfilter->pspace = o->zalloc(o, sfilter->workextra * sizeof(float));
+    if (!sfilter->pspace)
+	goto out_nomem;
+    sfilter->pmark2 = o->zalloc(o, sfilter->workextra * sizeof(float));
+    if (!sfilter->pmark2)
+	goto out_nomem;
+    sfilter->pspace2 = o->zalloc(o, sfilter->workextra * sizeof(float));
+    if (!sfilter->pspace2)
 	goto out_nomem;
 
     sfilter->wmsgsets = o->zalloc(o, (sizeof(struct wmsgset) *
