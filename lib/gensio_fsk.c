@@ -419,7 +419,7 @@ static void fsk_start_xmit(struct fsk_filter *sfilter);
 static void fsk_stop_drain_timer(struct fsk_filter *sfilter);
 
 #define filter_to_fsk(v) ((struct fsk_filter *)		\
-			      gensio_filter_get_user_data(v))
+			  gensio_filter_get_user_data(v))
 
 static void
 fsk_lock(struct fsk_filter *sfilter)
@@ -1028,7 +1028,7 @@ fsk_ul_write(struct gensio_filter *filter,
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_MSG) {
 	fsk_print_msg(sfilter, "W", 0, sfilter->wrbufs[cbuf].data,
-			  sfilter->wrbufs[cbuf].len, false);
+		      sfilter->wrbufs[cbuf].len, false);
     }
 
     if (sfilter->do_crc) {
@@ -1179,8 +1179,7 @@ fsk_handle_new_message(struct fsk_filter *sfilter,
 	goto bad_msg;
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_RAW_MSG) {
-	fsk_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
-			  true);
+	fsk_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len, true);
 	printf("    bitpos %d\n", w->curr_bit_pos);
     }
 
@@ -1224,8 +1223,7 @@ fsk_handle_new_message(struct fsk_filter *sfilter,
     }
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_MSG) {
-	fsk_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
-			  false);
+	fsk_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len, false);
     }
 
     if (sfilter->deliver_data_len == 0)
@@ -1300,7 +1298,7 @@ fsk_process_bit(struct fsk_filter *sfilter,
 		if (i < msgn) {
 		    /* Process this bit, since we won't get it in the main. */
 		    fsk_process_bit(sfilter, wset, i, !level,
-					certainty, in_sync);
+				    certainty, in_sync);
 		} else {
 		    /*
 		     * The bit processing will get this bit later, process
@@ -1535,8 +1533,7 @@ fsk_dftbin(struct fsk_filter *sfilter, float *dftbin,
  * processing with the info extracted from the data.
  */
 static int
-fsk_check_for_data(struct fsk_filter *sfilter, float *buf,
-		   bool *in_sync)
+fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 {
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
@@ -1598,8 +1595,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf,
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    fsk_process_bit(sfilter, wset, i,
-				level, certainty, in_sync);
+	    fsk_process_bit(sfilter, wset, i, level, certainty, in_sync);
 
 	for (i = 0; i < sfilter->workextra; i++)
 	    sfilter->pspace2[i] = sfilter->pspace[i] * m;
@@ -1608,8 +1604,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf,
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset + 1].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
-	    fsk_process_bit(sfilter, wset + 1, i,
-				level, certainty, in_sync);
+	    fsk_process_bit(sfilter, wset + 1, i, level, certainty, in_sync);
     }
 
     return adj;
@@ -1799,7 +1794,7 @@ fsk_ll_write(struct gensio_filter *filter,
     int err = 0;
     /* Work in float increments to simplify calculations. */
     float *buf = (float *) inbuf;
-    gensiods buflen = inbuflen / 4;
+    gensiods buflen = inbuflen / sizeof(float);
 
     if (gensio_str_in_auxdata(auxdata, "oob")) {
 	/* Ignore oob data. */
@@ -1824,16 +1819,16 @@ fsk_ll_write(struct gensio_filter *filter,
     if (sfilter->filteredbuf) {
 	if (sfilter->fir_h) {
 	    fsk_fir_filter(buf, sfilter->filteredbuf,
-			       sfilter->in_chunksize,
-			       sfilter->in_nchans, sfilter->in_chan,
-			       sfilter->fir_h_n, sfilter->fir_h,
-			       sfilter->firhold);
+			   sfilter->in_chunksize,
+			   sfilter->in_nchans, sfilter->in_chan,
+			   sfilter->fir_h_n, sfilter->fir_h,
+			   sfilter->firhold);
 	} else {
 	    fsk_iir_filter(buf, sfilter->filteredbuf,
-			       sfilter->in_chunksize,
-			       sfilter->in_nchans, sfilter->in_chan,
-			       sfilter->coefa, sfilter->coefb,
-			       sfilter->iirhold);
+			   sfilter->in_chunksize,
+			   sfilter->in_nchans, sfilter->in_chan,
+			   sfilter->coefa, sfilter->coefb,
+			   sfilter->iirhold);
 	}
 	buf = sfilter->filteredbuf;
     }
@@ -2512,12 +2507,12 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     if (data->lpcutoff && data->filt_type != NO_FILT) {
 	if (data->filt_type == IIR_FILT) {
 	    fsk_calc_iir_coefs(data->in_framerate, data->lpcutoff,
-				   sfilter->coefa, sfilter->coefb);
+			       sfilter->coefa, sfilter->coefb);
 	} else {
 	    sfilter->fir_h =
 		fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
-				       data->transition_freq,
-				       &sfilter->fir_h_n);
+				   data->transition_freq,
+				   &sfilter->fir_h_n);
 	    if (!sfilter->fir_h)
 		goto out_nomem;
 	    sfilter->firhold = o->zalloc(o,
@@ -2699,7 +2694,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     unsigned int wmsg_extra = 1;
 
     err = fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
-				&data.in_chunksize);
+			    &data.in_chunksize);
     if (err) {
 	gensio_pparm_slog(p, "Unable to get child input buffer size,"
 			  " is it a sound device?");
@@ -2707,7 +2702,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     err = fsk_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
-				&data.out_chunksize);
+			    &data.out_chunksize);
     if (err) {
 	gensio_pparm_slog(p, "Unable to get child output buffer size,"
 			  " is it a sound device?");
@@ -2715,14 +2710,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     /* Don't care if these fail, we will check later. */
-    fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE,
-			  &data.in_framerate);
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE,
-			  &data.out_framerate);
-    fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS,
-			  &data.in_nchans);
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS,
-			  &data.out_nchans);
+    fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE, &data.in_framerate);
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE, &data.out_framerate);
+    fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS, &data.in_nchans);
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS, &data.out_nchans);
 
     cdata_len = sizeof(cdata);
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,

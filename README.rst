@@ -250,11 +250,9 @@ sound
     A gensio that provides access to sound devices and files.  It's a
     little complicated, read the docs in gensio.5
 
-afskmdm
-    Yes, it looks like a jumble of letters.
-
-    A filter gensio that sits on top of the sound gensio and does an
-    Audio Frequency Shift Keying modem, like is used on AX.25 amateur
+fsk
+    A filter gensio that sits on top of the sound gensio and does a
+    Frequency Shift Keying modem, like is used on AX.25 amateur
     radio.
 
 kiss
@@ -357,7 +355,7 @@ chardelay
 
 cm108gpio
     Allow a GPIO on a CMedia CM108 or equivalent sound device to be
-    controlled.  Used with afskmdm for keying a transmitter.
+    controlled.  Used with fsk for keying a transmitter.
 		  
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
