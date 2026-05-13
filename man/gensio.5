@@ -2745,15 +2745,18 @@ Default to false.  Note that if you set
 to false, this option will not work.
 .TP
 .B crc[=true|false]
-Check and send CRCs on packets.  Normally you want the fsk code to
-do this, but can be useful for testing.  Defaults to true.
+Check and send CRCs on packets.  Normally you want the fsk code to do
+this, but can be useful for testing.  Defaults to false for fsk, true
+for afskmdm.
 .TP
 .B inv[=true|false]
-Inverts the data on transmit and receive.  Default is true.
+Inverts the data on transmit and receive.  Default is false for fsk,
+true for afskmdm.
 .TP
 .B diff[=true|false]
 Do differential encoding, where the values are driven by frequency
-changes, not by frequency values.  Default is true.
+changes, not by frequency values.  Default is false for fsk, true for
+afskmdm.
 .TP
 .B raw[=true|false]
 Instead of doing HDLC processing, just stream up the FSK bits to the
@@ -2763,7 +2766,7 @@ whenever bits are being transmitted.
 
 This forces crc to false.
 
-Defaults to false.
+Defaults to true for fsk, false for afskmdm.
 .TP
 .B space=<n>
 Sets the space (upper, 0) frequency for FSK.  Defaults to 2400 for
