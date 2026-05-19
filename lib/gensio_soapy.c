@@ -866,6 +866,22 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 				       soapyll->realoutc.samplerate);
 	return 0;
 
+    case GENSIO_CONTROL_IN_NR_CHANS:
+	if (!get)
+	    return GE_NOTSUP;
+	if (soapyll->inc.channel < 0)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "1");
+	return 0;
+
+    case GENSIO_CONTROL_OUT_NR_CHANS:
+	if (!get)
+	    return GE_NOTSUP;
+	if (soapyll->outc.channel < 0)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "1");
+	return 0;
+
     case GENSIO_CONTROL_IN_BUFSIZE:
 	if (!get)
 	    return GE_NOTSUP;
