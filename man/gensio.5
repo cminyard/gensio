@@ -2707,6 +2707,12 @@ are what's given above, you don't have to specify those here.
 Anything read in from the key gensio is ignored.
 .SS Options
 .TP
+.B rx[=true|false]
+Enables/disables the receiver.  Default is true.
+.TP
+.B tx[=true|false]
+Enables/disables the transmitter.  Default is true.
+.TP
 .B readbuf=<n>
 Sets the maximum packet size that can be read.  Defaults to 256.
 .TP
@@ -2721,6 +2727,11 @@ Specify how many channels are coming from/going to the sound gensio.
 The sound gensio interleaves the sound for multiple channels.  By
 default this is fetched from the sound gensio.
 .TP
+.B bufsize=<n>, in_bufsize=<n>, out_bufsize=<n>
+Set the incoming buffer size in frames.  This can be useful if the
+data comes in as complex but is advertised by the child gensio as
+float, for instance.
+.TP
 .B chan=<n>, in_chan=<n>, out_chan=<n>
 Which specific channel to use.  One one channel is used for input
 sound and output sound, the others are ignored or filled with zeros.
@@ -2732,9 +2743,18 @@ sound will be output for all selected channel.  So n=1 will only
 output on channel 0, n=3 will output on channels 0 and 1, etc.  By
 default only channel 0 is output on.
 .TP
+.B bps=<n>, in_bps=<n>, out_bps=<n>
+.TP
+Sets the data rate in bits per second for the data.  Defaults to 2400
+for fsk and 1200 for afskmdm.
 .B samplerate=<n>, in_samplerate=<n>, out_samplerate=<n>
 The sample rate, samples per second, of the data.  By default this is
 fetched from the sound gensio.
+.TP
+.B format=none|float|floatc, in_format=..., out_format=...
+Sets the data format coming from the child.  Defaults to the value
+fetched from the child.  Only supports float (real) and floatc
+(complex).
 .TP
 .B checkax25[=true|false]
 Check that the packet is a valid AX.25 packet, that it has valid AX25

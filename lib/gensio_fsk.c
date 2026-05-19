@@ -16,6 +16,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <complex.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
@@ -192,6 +193,8 @@ struct xmit_entry {
 
 #include "xmitkey.h"
 
+enum fsk_format { FSK_FMT_NONE, FSK_FMT_FLOAT, FSK_FMT_FLOATC };
+
 struct fsk_filter {
     struct gensio_filter *filter;
     struct gensio_os_funcs *o;
@@ -202,14 +205,21 @@ struct fsk_filter {
 
     int err;
 
+    bool rx;
+    bool tx;
+
     unsigned int in_nchans;
     unsigned int in_chan;
     unsigned int out_nchans;
     unsigned int out_chans;
     unsigned int in_framesize; /* Size of a (sample * nchans) in bytes. */
     unsigned int out_framesize; /* Size of a (sample * nchans) in bytes. */
-    unsigned int in_chunksize; /* Frame count we get from the sound gensio. */
-    unsigned int out_chunksize; /* Frame count we send to the sound gensio. */
+    unsigned int in_samplesize; /* Size of a sample in bytes. */
+    unsigned int out_samplesize; /* Size of a sample in bytes. */
+    unsigned int in_bufsize; /* Frame count we get from the sound gensio. */
+    unsigned int out_bufsize; /* Frame count we send to the sound gensio. */
+    enum fsk_format in_format;
+    enum fsk_format out_format;
     bool full_duplex;
 
     unsigned int nsec_per_frame;
@@ -274,18 +284,28 @@ struct fsk_filter {
     gensiods deliver_data_pos;
     gensiods deliver_data_len;
 
-    /* IIR filter components. */
-    float coefa[2];
-    float coefb[3];
-    float iirhold[2];
+    /* filter components, IIR and FIR. */
+    unsigned int filt_coefs_n;
+    float *filt_coefs;
+    float *filt_hold;
 
-    /* FIR Filter components. */
-    float *fir_h;
-    unsigned int fir_h_n;
-    float *firhold;
+    /* IIR or FIR filter function. */
+    void (*do_filter)(float *inbuf, float *outbuf, unsigned int nsamples,
+		      unsigned int nchans, unsigned int chan,
+		      unsigned int n, float *coefs, float *hold);
 
     /* Filtered data. */
     float *filteredbuf;
+
+    /* Copy data in from the external data to the working buffer. */
+    void (*do_frame_in_copy)(float *dest, gensiods destpos,
+			     float *src, gensiods srcpos,
+			     unsigned int nchans, unsigned int chan,
+			     gensiods count);
+
+    /* Function to calculate DFT bins, either real or complex versions. */
+    void (*do_dftbin)(struct fsk_filter *sfilter, float *dftbin,
+		      float *buf, float *power);
 
     /*
      * DFT tables.  First 2 * in_bitsize values is sine, second 2 *
@@ -1004,6 +1024,12 @@ fsk_ul_write(struct gensio_filter *filter,
     uint16_t crc;
     int rv = 0;
 
+    if (!sfilter->tx) {
+	if (rcount)
+	    *rcount = count;
+	return 0;
+    }
+
     fsk_lock(sfilter);
     if (sfilter->err) {
 	rv = sfilter->err;
@@ -1488,8 +1514,8 @@ process_powers(struct fsk_filter *sfilter,
  * [in_bitsize + edge * 2].
  */
 static void
-fsk_dftbin(struct fsk_filter *sfilter, float *dftbin,
-	   float buf[], float power[])
+float_dftbin(struct fsk_filter *sfilter, float *dftbin,
+	     float *buf, float *power)
 {
     float *csin = dftbin;
     float *ccos = dftbin + 2 * sfilter->in_bitsize;
@@ -1528,6 +1554,44 @@ fsk_dftbin(struct fsk_filter *sfilter, float *dftbin,
     }
 }
 
+/* Like above, but complex. */
+static void
+floatc_dftbin(struct fsk_filter *sfilter, float *in_dftbin,
+	      float *in_buf, float *power)
+{
+    float complex *cwave = (float complex *) in_dftbin;
+    float complex *buf = (float complex *) in_buf;
+    float complex pow = 0;
+    float complex *firstv = (float complex *) sfilter->firstv;
+    unsigned int i, ppos = 0, fpos;
+
+    /* Calculate the beginning portion and save off the first values. */
+    for (i = 0; i < sfilter->workedge * 2; i++, cwave++) {
+	firstv[i] = *cwave * buf[i];
+	pow += sfilter->firstv[i];
+    }
+    /*
+     * Calculate the rest of the buffer to the point where we have the
+     * first value to save.
+     */
+    for (; i < sfilter->in_bitsize; i++, cwave++) {
+	pow += *cwave * buf[i];
+    }
+
+    /* Save the first value's power. */
+    power[ppos++] = cabsf(pow);
+
+    /*
+     * Now go through the rest of the buffer and calculate the power for
+     * each succeeding position.
+     */
+    for (fpos = 0; i < sfilter->worksize; i++, fpos++, cwave++) {
+	pow -= firstv[fpos];
+	pow += *cwave * buf[i];
+	power[ppos++] = cabsf(pow);
+    }
+}
+
 /*
  * Do DFT bin analysis at mark and space the data then call the bit
  * processing with the info extracted from the data.
@@ -1540,19 +1604,43 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
     float certainty = 0.0, m;
     int adj = 0;
 
-    fsk_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
-    fsk_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
+#if 0
+    printf("A:\n");
+    for (i = 0; i < sfilter->worksize * 2; i += 2) {
+	printf("  %u (%f %f)\n", i / 2, buf[i], buf[i+1]);
+    }
+#endif
+
+    sfilter->do_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
+    sfilter->do_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
 
     process_powers(sfilter, sfilter->pmark, sfilter->pspace,
 		   &best_pos, &certainty, &level);
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL) {
-	printf("WORK(%lu): %u\n", sfilter->framecount++, level);
-	for (i = 0; i < sfilter->workextra; i++)
-	    printf(" %f", sfilter->pmark[i]);
+	printf("WORK(%lu): level: %u (%u)  best_pos: %u (%u)\n",
+	       sfilter->framecount++,
+	       level, sfilter->prev_recv_level,
+	       best_pos, sfilter->prev_best_pos);
+	for (i = 0; i < sfilter->workextra; i++) {
+	    if (i == sfilter->workmiddle)
+		printf(" (");
+	    else
+		printf(" ");
+	    printf("%f", sfilter->pmark[i]);
+	    if (i == sfilter->workmiddle)
+		printf(")");
+	}
 	printf("\n");
-	for (i = 0; i < sfilter->workextra; i++)
-	    printf(" %f", sfilter->pspace[i]);
+	for (i = 0; i < sfilter->workextra; i++) {
+	    if (i == sfilter->workmiddle)
+		printf(" (");
+	    else
+		printf(" ");
+	    printf("%f", sfilter->pspace[i]);
+	    if (i == sfilter->workmiddle)
+		printf(")");
+	}
 	printf("\n");
     }
 
@@ -1614,12 +1702,37 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
  * Implement a basic 2nd-order IIR filter.
  */
 static void
-fsk_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-	       unsigned int nchans, unsigned int chan,
-	       float coefa[2], float coefb[3], float hold[2])
+float_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
+		 unsigned int nchans, unsigned int chan,
+		 unsigned int n, float *coefs, float *hold)
 {
     unsigned int i;
+    float *coefa = coefs;
+    float *coefb = coefs + 2;
     float tmp;
+
+    /* hold[0] = z^-1, hold[1] = z^-2 */
+    for (i = chan; i < nsamples * nchans; i += nchans) {
+	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
+	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
+	hold[1] = hold[0];
+	hold[0] = tmp;
+    }
+}
+
+/* Complex version of the above. */
+static void
+floatc_iir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
+		  unsigned int nchans, unsigned int chan,
+		  unsigned int n, float *coefs, float *in_hold)
+{
+    float complex *inbuf = (float complex *) in_inbuf;
+    float complex *outbuf = (float complex *) in_outbuf;
+    float complex *hold = (float complex *) in_hold;
+    float *coefa = coefs;
+    float *coefb = coefs + 2;
+    unsigned int i;
+    float complex tmp;
 
     /* hold[0] = z^-1, hold[1] = z^-2 */
     for (i = chan; i < nsamples * nchans; i += nchans) {
@@ -1669,9 +1782,9 @@ get_fir_val(unsigned int i, unsigned int holdsize, float *inbuf, float *hold,
  * fsk_calc_fir_coefs(), hold must be of size n * 2.
  */
 static void
-fsk_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-	       unsigned int nchans, unsigned int chan,
-	       unsigned int n, float *h, float *hold)
+float_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
+		 unsigned int nchans, unsigned int chan,
+		 unsigned int n, float *h, float *hold)
 {
     unsigned int i, j, k;
     unsigned int holdsize = n * 2;
@@ -1693,6 +1806,58 @@ fsk_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 				       nchans, chan) +
 			   get_fir_val(i + k, holdsize, inbuf, hold,
 				       nchans, chan));
+	}
+
+	outbuf[i * nchans + chan] = tmp;
+    }
+    for (i = 0; i < holdsize; i++) {
+	unsigned int pos = nsamples - holdsize + i;
+	hold[i] = inbuf[pos * nchans + chan];
+    }
+}
+
+/*
+ * Complex version of the above.
+ */
+static float complex
+getc_fir_val(unsigned int i, unsigned int holdsize,
+	     float complex *inbuf, float complex *hold,
+	     unsigned int nchans, unsigned int chan)
+{
+    if (i < holdsize)
+	return hold[i];
+    i -= holdsize;
+    i = (i * nchans) + chan;
+    return inbuf[i];
+}
+
+static void
+floatc_fir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
+		  unsigned int nchans, unsigned int chan,
+		  unsigned int n, float *h, float *in_hold)
+{
+    float complex *inbuf = (float complex *) in_inbuf;
+    float complex *outbuf = (float complex *) in_outbuf;
+    float complex *hold = (float complex *) in_hold;
+    unsigned int i, j, k;
+    unsigned int holdsize = n * 2;
+    float complex tmp;
+
+    for (i = 0; i < nsamples; i++) {
+	/* Get the middle value, it's always multiplied by 1. */
+	tmp = getc_fir_val(n + i, holdsize, inbuf, hold, nchans, chan);
+
+	/*
+	 * The h array is half of a symmetric waveform.  That waveform
+	 * is always an odd number of values, but we don't include the
+	 * middle value (it's always one, handled above) and h only
+	 * holds the left half of the waveform.
+	 */
+	for (j = 0, k = holdsize; j < n; j++, k--) {
+	    tmp += h[j] * (getc_fir_val(i + j, holdsize, inbuf, hold,
+					nchans, chan) +
+			   getc_fir_val(i + k, holdsize, inbuf, hold,
+					nchans, chan));
 	}
 
 	outbuf[i * nchans + chan] = tmp;
@@ -1769,11 +1934,27 @@ fsk_calc_fir_coefs(struct gensio_os_funcs *o,
  * and we only want one of the channels.
  */
 static void
-frame_in_copy(float *dest, gensiods destpos,
-	      float *src, gensiods srcpos,
-	      unsigned int nchans, unsigned int chan,
-	      gensiods count)
+float_frame_in_copy(float *dest, gensiods destpos,
+		    float *src, gensiods srcpos,
+		    unsigned int nchans, unsigned int chan,
+		    gensiods count)
 {
+    gensiods i;
+
+    dest += destpos;
+    src += srcpos * nchans + chan;
+    for (i = 0; i < count; i++, dest++, src += nchans)
+	*dest = *src;
+}
+
+static void
+floatc_frame_in_copy(float *in_dest, gensiods destpos,
+		     float *in_src, gensiods srcpos,
+		     unsigned int nchans, unsigned int chan,
+		     gensiods count)
+{
+    float complex *dest = (float complex *) in_dest;
+    float complex *src = (float complex *) in_src;
     gensiods i;
 
     dest += destpos;
@@ -1794,10 +1975,10 @@ fsk_ll_write(struct gensio_filter *filter,
     int err = 0;
     /* Work in float increments to simplify calculations. */
     float *buf = (float *) inbuf;
-    gensiods buflen = inbuflen / sizeof(float);
+    gensiods buflen = inbuflen / sfilter->in_samplesize;
 
-    if (gensio_str_in_auxdata(auxdata, "oob")) {
-	/* Ignore oob data. */
+    if (!sfilter->rx || gensio_str_in_auxdata(auxdata, "oob")) {
+	/* Ignore oob data or if we are only tx. */
 	if (rcount)
 	    *rcount = inbuflen;
 	return 0;
@@ -1811,26 +1992,23 @@ fsk_ll_write(struct gensio_filter *filter,
     if (buflen == 0)
 	goto try_deliver;
 
-    if (inbuflen != (gensiods) sfilter->in_chunksize * sfilter->in_framesize) {
+    if (inbuflen != (gensiods) sfilter->in_bufsize * sfilter->in_framesize) {
 	err = GE_INVAL;
 	goto out_err;
     }
 
     if (sfilter->filteredbuf) {
-	if (sfilter->fir_h) {
-	    fsk_fir_filter(buf, sfilter->filteredbuf,
-			   sfilter->in_chunksize,
+	sfilter->do_filter(buf, sfilter->filteredbuf,
+			   sfilter->in_bufsize,
 			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->fir_h_n, sfilter->fir_h,
-			   sfilter->firhold);
-	} else {
-	    fsk_iir_filter(buf, sfilter->filteredbuf,
-			   sfilter->in_chunksize,
-			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->coefa, sfilter->coefb,
-			   sfilter->iirhold);
-	}
+			   sfilter->filt_coefs_n, sfilter->filt_coefs,
+			   sfilter->filt_hold);
 	buf = sfilter->filteredbuf;
+    }
+    {
+	FILE *f = fopen("t1", "a");
+	fwrite(buf, sfilter->in_framesize, sfilter->in_bufsize, f);
+	fclose(f);
     }
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
@@ -1845,12 +2023,17 @@ fsk_ll_write(struct gensio_filter *filter,
     while (sfilter->worksize - sfilter->work_pos <= buflen - pos) {
 	bool in_sync = true;
 	int adj;
+	unsigned int j;
 
 	/* Copy the data from the incoming buffer into workbuf. */
-	frame_in_copy(sfilter->workbuf, sfilter->work_pos,
-		      buf, pos, sfilter->in_nchans, sfilter->in_chan,
-		      sfilter->worksize - sfilter->work_pos);
+	sfilter->do_frame_in_copy(sfilter->workbuf, sfilter->work_pos,
+				  buf, pos, sfilter->in_nchans, sfilter->in_chan,
+				  sfilter->worksize - sfilter->work_pos);
 	pos += sfilter->worksize - sfilter->work_pos;
+	if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
+	    printf("BIT(%lu+%u): ",
+		   sfilter->framenr + pos - sfilter->worksize,
+		   sfilter->workedge);
 	adj = fsk_check_for_data(sfilter, sfilter->workbuf, &in_sync);
 
 	if (in_sync) {
@@ -1902,22 +2085,23 @@ fsk_ll_write(struct gensio_filter *filter,
 	 * of the next  The last workedge bytes of this sample
 	 */
 	sfilter->work_pos = sfilter->workedge * 2 - adj;
+	j = sfilter->worksize - sfilter->work_pos;
 	memmove(sfilter->workbuf,
-		sfilter->workbuf + sfilter->worksize - sfilter->work_pos,
-		sfilter->work_pos * sizeof(float));
+		((char *) sfilter->workbuf) + j * sfilter->in_samplesize,
+		sfilter->work_pos * sfilter->in_samplesize);
     }
 
     /*
      * Copy what is left in the incoming buffer into the work buffer
      * to be processed on the next round.
      */
-    frame_in_copy(sfilter->workbuf, sfilter->work_pos,
-		  buf, pos, sfilter->in_nchans, sfilter->in_chan,
-		  buflen - pos);
+    sfilter->do_frame_in_copy(sfilter->workbuf, sfilter->work_pos,
+			      buf, pos, sfilter->in_nchans, sfilter->in_chan,
+			      buflen - pos);
     sfilter->work_pos += buflen - pos;
 
  skip_processing:
-    sfilter->framenr += sfilter->in_chunksize;
+    sfilter->framenr += sfilter->in_bufsize;
 
  try_deliver:
     if (sfilter->deliver_data_len > 0) {
@@ -2053,10 +2237,10 @@ fsk_sfilter_free(struct fsk_filter *sfilter)
     }
     if (sfilter->filteredbuf)
 	o->free(o, sfilter->filteredbuf);
-    if (sfilter->fir_h)
-	o->free(o, sfilter->fir_h);
-    if (sfilter->firhold)
-	o->free(o, sfilter->firhold);
+    if (sfilter->filt_coefs)
+	o->free(o, sfilter->filt_coefs);
+    if (sfilter->filt_hold)
+	o->free(o, sfilter->filt_hold);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     o->free(o, sfilter);
@@ -2280,7 +2464,8 @@ struct gensio_fsk_data {
     gensiods max_write_size;
     float mark_freq;
     float space_freq;
-    unsigned int data_rate;
+    unsigned int in_data_rate;
+    unsigned int out_data_rate;
     unsigned int debug;
     bool check_ax25;
     bool do_raw;
@@ -2288,10 +2473,14 @@ struct gensio_fsk_data {
     bool do_inv;
     bool do_diff;
     bool do_crc;
+    enum fsk_format in_format;
+    enum fsk_format out_format;
+    bool rx;
+    bool tx;
     unsigned int in_framerate;
     unsigned int out_framerate;
-    unsigned int in_chunksize;
-    unsigned int out_chunksize;
+    unsigned int in_bufsize;
+    unsigned int out_bufsize;
     unsigned int max_wmsgs;
     unsigned int wmsg_sets;
     float min_certainty;
@@ -2312,36 +2501,74 @@ struct gensio_fsk_data {
     bool full_duplex;
 };
 
+static void
+floatc_gen_sin(float *inbuf, unsigned int bufsize,
+	       double freq_incr, double fin_bitsize,
+	       double volume)
+{
+    float complex *buf = (float complex *) inbuf;
+    unsigned int i;
+
+    for (i = 0; i < bufsize; i++) {
+	float v = 2 * M_PI * freq_incr * ((float) i);
+
+	buf[i] = csin(v / fin_bitsize) * volume;
+    }
+}
+
+static void
+float_gen_sin(float *buf, unsigned int bufsize,
+	      double freq_incr, double fin_bitsize,
+	      double volume)
+{
+    unsigned int i;
+
+    for (i = 0; i < bufsize; i++) {
+	float v = 2 * M_PI * freq_incr * ((float) i);
+
+	buf[i] = sin(v / fin_bitsize) * volume;
+    }
+}
+
 static int
 fsk_setup_transmit(struct fsk_filter *sfilter,
 		   struct gensio_fsk_data *data,
 		   float fbitsize)
 {
     struct gensio_os_funcs *o = sfilter->o;
-    unsigned int i;
     struct xmit_entry *e;
 
     sfilter->mark_xmit_len = data->out_framerate / data->mark_freq * 2 + 2;
     if (sfilter->mark_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->mark_xmit_len = 2 * sfilter->out_bitsize + 1;
-    sfilter->mark_xmit = o->zalloc(o, sizeof(float) * sfilter->mark_xmit_len);
+    sfilter->mark_xmit = o->zalloc(o, (sfilter->out_samplesize
+				       * sfilter->mark_xmit_len));
     if (!sfilter->mark_xmit)
 	return GE_NOMEM;
-    for (i = 0; i < sfilter->mark_xmit_len; i++) {
-	float v = 2 * M_PI * (data->mark_freq / data->data_rate) * ((float) i);
-	sfilter->mark_xmit[i] = sin(v / fbitsize) * data->volume;
-    }
+    if (sfilter->in_format == FSK_FMT_FLOATC)
+	floatc_gen_sin(sfilter->mark_xmit, sfilter->mark_xmit_len,
+		       data->mark_freq / data->out_data_rate, fbitsize,
+		       data->volume);
+    else
+	float_gen_sin(sfilter->mark_xmit, sfilter->mark_xmit_len,
+		      data->mark_freq / data->out_data_rate, fbitsize,
+		      data->volume);
 
     sfilter->space_xmit_len = data->out_framerate / data->space_freq * 2 + 2;
     if (sfilter->space_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->space_xmit_len = 2 * sfilter->out_bitsize + 1;
-    sfilter->space_xmit = o->zalloc(o, sizeof(float) * sfilter->space_xmit_len);
+    sfilter->space_xmit = o->zalloc(o, (sfilter->out_samplesize
+					* sfilter->space_xmit_len));
     if (!sfilter->space_xmit)
 	return GE_NOMEM;
-    for (i = 0; i < sfilter->space_xmit_len; i++) {
-	float v = 2 * M_PI * (data->space_freq / data->data_rate) * ((float) i);
-	sfilter->space_xmit[i] = sin(v / fbitsize) * data->volume;
-    }
+    if (sfilter->in_format == FSK_FMT_FLOATC)
+	floatc_gen_sin(sfilter->space_xmit, sfilter->space_xmit_len,
+		       data->space_freq / data->out_data_rate, fbitsize,
+		       data->volume);
+    else
+	float_gen_sin(sfilter->space_xmit, sfilter->space_xmit_len,
+		      data->space_freq / data->out_data_rate, fbitsize,
+		      data->volume);
 
     /* Set up the first entry, just start with a space at zero phase. */
     e = o->zalloc(o, sizeof(*e));
@@ -2355,6 +2582,31 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
     sfilter->curr_xmit_ent = e;
 
     return fsk_setup_xmit_ent(sfilter, e);
+}
+
+static void
+floatc_gen_hz(float *inbuf, unsigned int bufsize,
+	      double freq, double samplerate)
+{
+    float complex *buf = (float complex *) inbuf;
+    unsigned int i;
+
+    for (i = 0; i < 2 * bufsize; i++)
+	buf[i] = cexpf(-I * 2 * M_PI * freq * ((float) i) / samplerate);
+}
+
+static void
+float_gen_hz(float *buf, unsigned int bufsize,
+	     double freq_incr, double fin_bitsize)
+{
+    unsigned int i;
+
+    for (i = 0; i < 2 * bufsize; i++) {
+	float v = 2 * M_PI * freq_incr * ((float) i);
+
+	buf[i] = sin(v / fin_bitsize);
+	buf[i + 2 * bufsize] = cos(v / fin_bitsize);
+    }
 }
 
 static struct gensio_filter *
@@ -2372,12 +2624,24 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	return NULL;
 
     sfilter->o = o;
+    sfilter->rx = data->rx;
+    sfilter->tx = data->tx;
     sfilter->in_nchans = data->in_nchans;
     sfilter->out_nchans = data->out_nchans;
     sfilter->in_chan = data->in_chan;
     sfilter->out_chans = data->out_chans;
-    sfilter->in_framesize = sizeof(float) * data->in_nchans;
-    sfilter->out_framesize = sizeof(float) * data->out_nchans;
+    sfilter->in_format = data->in_format;
+    sfilter->out_format = data->out_format;
+    if (sfilter->in_format == FSK_FMT_FLOATC)
+	sfilter->in_samplesize = sizeof(float complex);
+    else
+	sfilter->in_samplesize = sizeof(float);
+    sfilter->in_framesize = sfilter->in_samplesize * data->in_nchans;
+    if (sfilter->out_format == FSK_FMT_FLOATC)
+	sfilter->out_samplesize = sizeof(float complex);
+    else
+	sfilter->out_samplesize = sizeof(float);
+    sfilter->out_framesize = sfilter->out_samplesize * data->out_nchans;
     sfilter->max_write_size = data->max_write_size;
     sfilter->max_read_size = data->max_read_size + 2; /* Extra 2 for the CRC. */
     sfilter->debug = data->debug;
@@ -2389,8 +2653,8 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->do_diff = data->do_diff;
     sfilter->prev_xmit_level = 0;
     sfilter->prev_recv_level = 0;
-    sfilter->in_chunksize = data->in_chunksize;
-    sfilter->out_chunksize = data->out_chunksize;
+    sfilter->in_bufsize = data->in_bufsize;
+    sfilter->out_bufsize = data->out_bufsize;
     sfilter->max_wmsgs = data->max_wmsgs;
     sfilter->wmsg_sets = data->wmsg_sets;
     sfilter->min_certainty = data->min_certainty;
@@ -2402,209 +2666,260 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 		  key_open_finished, key_log, sfilter))
 	goto out_nomem;
 
-    /*
-     * Calculate the size of a bit in samples.  We round the size to
-     * the nearest integer.  We create the DFT tables with the actual
-     * floating point value, and we us that for adjust calculation, so
-     * get that here, too.
-     */
-    sfilter->in_bitsize = ((data->in_framerate + data->data_rate / 2)
-			    / data->data_rate);
-    if (sfilter->in_bitsize < 2 * MIN_WORKEDGE) {
-	gensio_pparm_log(p, "fsk: "
-			 "bit size is %u samples, but must be at least %u",
-			 sfilter->in_bitsize, 2 * MIN_WORKEDGE);
-	goto out_nomem;
-    }
-    sfilter->in_adj_time = (GENSIO_SECS_TO_NSECS(sfilter->in_bitsize) /
-			     data->in_framerate);
-    fin_bitsize = (float) data->in_framerate / data->data_rate;
-    if (data->in_framerate % data->data_rate != 0) {
-	/*
-	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded bitsize
-	 * up, then it needs to be adjusted down periodically,
-	 * otherwise we adjust up.
-	 *
-	 * Then take 1 divided by the distance from the ideal value,
-	 * and that should give how often we need to adjust.  This may
-	 * not be really exact, but for all practical values it works
-	 * out well, and the auto-adjusting should keep us in sync as
-	 * long as this is close.
-	 */
-	float err = fin_bitsize - truncf(fin_bitsize);
-
-	if (sfilter->in_bitsize > data->in_framerate / data->data_rate) {
-	    /* We rounded up. */
-	    err = 1. - err;
-	    sfilter->in_adj = -1;
-	} else {
-	    sfilter->in_adj = 1;
-	}
-	sfilter->in_adj_period = (unsigned int) ((1. / err) + 0.5);
-    }
-
-    sfilter->out_bitsize = ((data->out_framerate + data->data_rate / 2)
-			    / data->data_rate);
-    sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
-			     data->out_framerate);
-    fout_bitsize = (float) data->out_framerate / data->data_rate;
-    sfilter->max_out_bitsize = sfilter->out_bitsize;
-    if (data->out_framerate % data->data_rate != 0) {
-	/*
-	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded bitsize
-	 * up, then it needs to be adjusted down periodically,
-	 * otherwise we adjust up.
-	 *
-	 * Then take 1 divided by the distance from the ideal value,
-	 * and that should give how often we need to adjust.  This may
-	 * not be really exact, but for all practical values it works
-	 * out well, and the auto-adjusting should keep us in sync as
-	 * long as this is close.
-	 */
-	float err = fout_bitsize - truncf(fout_bitsize);
-
-	if (sfilter->out_bitsize > data->out_framerate / data->data_rate) {
-	    /* We rounded up. */
-	    err = 1. - err;
-	    sfilter->out_bit_adj = -1;
-	} else {
-	    sfilter->out_bit_adj = 1;
-	    sfilter->max_out_bitsize++;
-	}
-	sfilter->out_bit_period = (unsigned int) ((1. / err) + 0.5);
-    }
-
-    /*
-     * NOTE - this is in received bitsize periods, because it's measured
-     * in the receive portion.
-     */
-    sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_adj_time;
-
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
 	goto out_nomem;
 
-    sfilter->hzmark = o->zalloc(o, sizeof(float) * 4 * sfilter->in_bitsize);
-    if (!sfilter->hzmark)
-	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_bitsize; i++) {
-	float v = 2 * M_PI * (data->mark_freq / data->data_rate) * ((float) i);
-	sfilter->hzmark[i] = sin(v / fin_bitsize);
-	sfilter->hzmark[i + 2 * sfilter->in_bitsize] = cos(v / fin_bitsize);
-    }
+    if (sfilter->rx) {
+	/*
+	 * Calculate the size of a bit in samples.  We round the size to
+	 * the nearest integer.  We create the DFT tables with the actual
+	 * floating point value, and we us that for adjust calculation, so
+	 * get that here, too.
+	 */
+	sfilter->in_bitsize = ((data->in_framerate + data->in_data_rate / 2)
+			       / data->in_data_rate);
+	if (sfilter->in_bitsize < 2 * MIN_WORKEDGE) {
+	    gensio_pparm_log(p, "fsk: "
+			     "bit size is %u samples, but must be at least %u",
+			     sfilter->in_bitsize, 2 * MIN_WORKEDGE);
+	    goto out_nomem;
+	}
+	sfilter->in_adj_time = (GENSIO_SECS_TO_NSECS(sfilter->in_bitsize) /
+				data->in_framerate);
+	fin_bitsize = (float) data->in_framerate / data->in_data_rate;
+	if (data->in_framerate % data->in_data_rate != 0) {
+	    /*
+	     * Calculate how often to adjust for the frame rate not being
+	     * evenly divisible by the data rate.  If we rounded bitsize
+	     * up, then it needs to be adjusted down periodically,
+	     * otherwise we adjust up.
+	     *
+	     * Then take 1 divided by the distance from the ideal value,
+	     * and that should give how often we need to adjust.  This may
+	     * not be really exact, but for all practical values it works
+	     * out well, and the auto-adjusting should keep us in sync as
+	     * long as this is close.
+	     */
+	    float err = fin_bitsize - truncf(fin_bitsize);
 
-    sfilter->hzspace = o->zalloc(o, sizeof(float) * 4 * sfilter->in_bitsize);
-    if (!sfilter->hzspace)
-	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_bitsize; i++) {
-	float v = 2 * M_PI * (data->space_freq / data->data_rate) * ((float) i);
-	sfilter->hzspace[i] = sin(v / fin_bitsize);
-	sfilter->hzspace[i + 2 * sfilter->in_bitsize] = cos(v / fin_bitsize);
-    }
-
-    if (data->lpcutoff && data->filt_type != NO_FILT) {
-	if (data->filt_type == IIR_FILT) {
-	    fsk_calc_iir_coefs(data->in_framerate, data->lpcutoff,
-			       sfilter->coefa, sfilter->coefb);
-	} else {
-	    sfilter->fir_h =
-		fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
-				   data->transition_freq,
-				   &sfilter->fir_h_n);
-	    if (!sfilter->fir_h)
-		goto out_nomem;
-	    sfilter->firhold = o->zalloc(o,
-					 2 * sfilter->fir_h_n * sizeof(float));
-	    if (!sfilter->firhold)
-		goto out_nomem;
+	    if (sfilter->in_bitsize > data->in_framerate / data->in_data_rate) {
+		/* We rounded up. */
+		err = 1. - err;
+		sfilter->in_adj = -1;
+	    } else {
+		sfilter->in_adj = 1;
+	    }
+	    sfilter->in_adj_period = (unsigned int) ((1. / err) + 0.5);
 	}
 
-	sfilter->filteredbuf = o->zalloc(o,
-		sfilter->in_framesize * sfilter->in_chunksize);
-	if (!sfilter->filteredbuf)
+	/*
+	 * For complex, we don't have a separate sin and cos part,
+	 * it's e^(2 * I * w), so it's the same size real or float.
+	 */
+	sfilter->hzmark = o->zalloc(o, (sizeof(float) * 4
+					* sfilter->in_bitsize));
+	if (!sfilter->hzmark)
 	    goto out_nomem;
-    }
+	if (sfilter->in_format == FSK_FMT_FLOATC)
+	    floatc_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
+			  data->mark_freq, data->in_framerate);
+	else
+	    float_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
+			 data->mark_freq / data->in_data_rate,
+			 fin_bitsize);
 
-    sfilter->workedge = sfilter->in_bitsize / 10;
-    if (sfilter->workedge < MIN_WORKEDGE)
-	sfilter->workedge = MIN_WORKEDGE;
-    sfilter->workmiddle = sfilter->workedge + 1;
-    sfilter->workextra = (2 * sfilter->workedge) + 1;
-
-    sfilter->worksize = sfilter->in_bitsize + 2 * sfilter->workedge;
-    sfilter->workbuf = o->zalloc(o, sfilter->worksize * sizeof(float));
-    if (!sfilter->workbuf)
-	goto out_nomem;
-
-    sfilter->firstv = o->zalloc(o, sfilter->workedge * 4 * sizeof(float));
-    if (!sfilter->firstv)
-	goto out_nomem;
-
-    sfilter->pmark = o->zalloc(o, sfilter->workextra * sizeof(float));
-    if (!sfilter->pmark)
-	goto out_nomem;
-    sfilter->pspace = o->zalloc(o, sfilter->workextra * sizeof(float));
-    if (!sfilter->pspace)
-	goto out_nomem;
-    sfilter->pmark2 = o->zalloc(o, sfilter->workextra * sizeof(float));
-    if (!sfilter->pmark2)
-	goto out_nomem;
-    sfilter->pspace2 = o->zalloc(o, sfilter->workextra * sizeof(float));
-    if (!sfilter->pspace2)
-	goto out_nomem;
-
-    sfilter->wmsgsets = o->zalloc(o, (sizeof(struct wmsgset) *
-				      sfilter->wmsg_sets));
-    if (!sfilter->wmsgsets)
-	goto out_nomem;
-    for (i = 0; i < sfilter->wmsg_sets; i++) {
-	sfilter->wmsgsets[i].wmsgs =
-	    o->zalloc(o, sizeof(struct wmsg) * sfilter->max_wmsgs);
-	if (!sfilter->wmsgsets[i].wmsgs)
+	sfilter->hzspace = o->zalloc(o, (sizeof(float) * 4
+					 * sfilter->in_bitsize));
+	if (!sfilter->hzspace)
 	    goto out_nomem;
-	for (j = 0; j < sfilter->max_wmsgs; j++) {
-	    sfilter->wmsgsets[i].wmsgs[j].read_data =
-		o->zalloc(o, sfilter->max_read_size);
-	    if (!sfilter->wmsgsets[i].wmsgs[j].read_data)
-		goto out_nomem;
-	    if (sfilter->do_uncert) {
-		sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty =
-		    o->zalloc(o, sfilter->max_read_size * 8);
-		if (!sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty)
+	if (sfilter->in_format == FSK_FMT_FLOATC)
+	    floatc_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
+			  data->space_freq, data->in_framerate);
+	else
+	    float_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
+			 data->space_freq / data->in_data_rate,
+			 fin_bitsize);
+
+	if (sfilter->in_format == FSK_FMT_FLOATC) {
+	    sfilter->do_dftbin = floatc_dftbin;
+	    sfilter->do_frame_in_copy = floatc_frame_in_copy;
+	} else {
+	    sfilter->do_dftbin = float_dftbin;
+	    sfilter->do_frame_in_copy = float_frame_in_copy;
+	}
+
+	if (data->lpcutoff && data->filt_type != NO_FILT) {
+	    if (data->filt_type == IIR_FILT) {
+		if (sfilter->in_format == FSK_FMT_FLOATC)
+		    sfilter->do_filter = floatc_iir_filter;
+		else
+		    sfilter->do_filter = float_iir_filter;
+		sfilter->filt_coefs_n = 5;
+		sfilter->filt_coefs = o->zalloc(o, 5 * sizeof(float));
+		if (!sfilter->filt_coefs)
+		    goto out_nomem;
+		sfilter->filt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
+		if (!sfilter->filt_hold)
+		    goto out_nomem;
+		fsk_calc_iir_coefs(data->in_framerate, data->lpcutoff,
+				   sfilter->filt_coefs,
+				   sfilter->filt_coefs + 2);
+	    } else {
+		if (sfilter->in_format == FSK_FMT_FLOATC)
+		    sfilter->do_filter = floatc_fir_filter;
+		else
+		    sfilter->do_filter = float_fir_filter;
+		/* Calculate the FIR h parameters. */
+		sfilter->filt_coefs =
+		    fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
+				       data->transition_freq,
+				       &sfilter->filt_coefs_n);
+		if (!sfilter->filt_coefs)
+		    goto out_nomem;
+		sfilter->filt_hold = o->zalloc(o, (2 * sfilter->filt_coefs_n
+						   * sfilter->in_samplesize));
+		if (!sfilter->filt_hold)
 		    goto out_nomem;
 	    }
+
+	    sfilter->filteredbuf = o->zalloc(o, (sfilter->in_framesize
+						 * sfilter->in_bufsize));
+	    if (!sfilter->filteredbuf)
+		goto out_nomem;
 	}
-	sfilter->wmsgsets[i].wmsgs[0].in_use = true;
-	sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
-	sfilter->wmsgsets[i].curr_wmsgs = 1;
+
+	sfilter->workedge = sfilter->in_bitsize / 10;
+	if (sfilter->workedge < MIN_WORKEDGE)
+	    sfilter->workedge = MIN_WORKEDGE;
+	sfilter->workmiddle = sfilter->workedge + 1;
+	sfilter->workextra = (2 * sfilter->workedge) + 1;
+
+	sfilter->worksize = sfilter->in_bitsize + 2 * sfilter->workedge;
+	sfilter->workbuf = o->zalloc(o, (sfilter->worksize
+					 * sfilter->in_samplesize));
+	if (!sfilter->workbuf)
+	    goto out_nomem;
+
+	/*
+	 * Complex version stores e^(I * w), real version stores sin
+	 * and cos values, so they are the same size.
+	 */
+	sfilter->firstv = o->zalloc(o, sfilter->workedge * 4 * sizeof(float));
+	if (!sfilter->firstv)
+	    goto out_nomem;
+
+	sfilter->pmark = o->zalloc(o, (sfilter->workextra
+				       * sfilter->in_samplesize));
+	if (!sfilter->pmark)
+	    goto out_nomem;
+	sfilter->pspace = o->zalloc(o, (sfilter->workextra
+					* sfilter->in_samplesize));
+	if (!sfilter->pspace)
+	    goto out_nomem;
+	sfilter->pmark2 = o->zalloc(o, (sfilter->workextra
+					* sfilter->in_samplesize));
+	if (!sfilter->pmark2)
+	    goto out_nomem;
+	sfilter->pspace2 = o->zalloc(o, (sfilter->workextra
+					 * sfilter->in_samplesize));
+	if (!sfilter->pspace2)
+	    goto out_nomem;
+
+	sfilter->wmsgsets = o->zalloc(o, (sizeof(struct wmsgset) *
+					  sfilter->wmsg_sets));
+	if (!sfilter->wmsgsets)
+	    goto out_nomem;
+	for (i = 0; i < sfilter->wmsg_sets; i++) {
+	    sfilter->wmsgsets[i].wmsgs =
+		o->zalloc(o, sizeof(struct wmsg) * sfilter->max_wmsgs);
+	    if (!sfilter->wmsgsets[i].wmsgs)
+		goto out_nomem;
+	    for (j = 0; j < sfilter->max_wmsgs; j++) {
+		sfilter->wmsgsets[i].wmsgs[j].read_data =
+		    o->zalloc(o, sfilter->max_read_size);
+		if (!sfilter->wmsgsets[i].wmsgs[j].read_data)
+		    goto out_nomem;
+		if (sfilter->do_uncert) {
+		    sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty =
+			o->zalloc(o, sfilter->max_read_size * 8);
+		    if (!sfilter->wmsgsets[i].wmsgs[j].raw_uncertainty)
+			goto out_nomem;
+		}
+	    }
+	    sfilter->wmsgsets[i].wmsgs[0].in_use = true;
+	    sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
+	    sfilter->wmsgsets[i].curr_wmsgs = 1;
+	}
+
+	sfilter->deliver_data = o->zalloc(o, sfilter->max_read_size);
+	if (!sfilter->deliver_data)
+	    goto out_nomem;
+
+	sfilter->deliver_raw_uncertainty
+	    = o->zalloc(o, sfilter->max_read_size * 8);
+	if (!sfilter->deliver_raw_uncertainty)
+	    goto out_nomem;
+
+	/*
+	 * NOTE - this is in received bitsize periods, because it's measured
+	 * in the receive portion.
+	 */
+	sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_adj_time;
     }
 
-    sfilter->deliver_data = o->zalloc(o, sfilter->max_read_size);
-    if (!sfilter->deliver_data)
-	goto out_nomem;
+    if (sfilter->tx) {
+	sfilter->out_bitsize = ((data->out_framerate + data->out_data_rate / 2)
+				/ data->out_data_rate);
+	sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
+				 data->out_framerate);
+	fout_bitsize = (float) data->out_framerate / data->out_data_rate;
+	sfilter->max_out_bitsize = sfilter->out_bitsize;
+	if (data->out_framerate % data->out_data_rate != 0) {
+	    /*
+	     * Calculate how often to adjust for the frame rate not being
+	     * evenly divisible by the data rate.  If we rounded bitsize
+	     * up, then it needs to be adjusted down periodically,
+	     * otherwise we adjust up.
+	     *
+	     * Then take 1 divided by the distance from the ideal value,
+	     * and that should give how often we need to adjust.  This may
+	     * not be really exact, but for all practical values it works
+	     * out well, and the auto-adjusting should keep us in sync as
+	     * long as this is close.
+	     */
+	    float err = fout_bitsize - truncf(fout_bitsize);
 
-    sfilter->deliver_raw_uncertainty = o->zalloc(o, sfilter->max_read_size * 8);
-    if (!sfilter->deliver_raw_uncertainty)
-	goto out_nomem;
+	    if (sfilter->out_bitsize >
+			data->out_framerate / data->out_data_rate) {
+		/* We rounded up. */
+		err = 1. - err;
+		sfilter->out_bit_adj = -1;
+	    } else {
+		sfilter->out_bit_adj = 1;
+		sfilter->max_out_bitsize++;
+	    }
+	    sfilter->out_bit_period = (unsigned int) ((1. / err) + 0.5);
+	}
 
-    for (i = 0; i < NR_WRITE_BUFS; i++) {
-	gensiods wrsz = sfilter->max_write_size;
+	for (i = 0; i < NR_WRITE_BUFS; i++) {
+	    gensiods wrsz = sfilter->max_write_size;
 
-	if (sfilter->do_crc)
-	    /* Add 2 to allow for the CRC to be added. */
-	    wrsz += 2;
-	sfilter->wrbufs[i].data = o->zalloc(o, wrsz);
-	if (!sfilter->wrbufs[i].data)
+	    if (sfilter->do_crc)
+		/* Add 2 to allow for the CRC to be added. */
+		wrsz += 2;
+	    sfilter->wrbufs[i].data = o->zalloc(o, wrsz);
+	    if (!sfilter->wrbufs[i].data)
+		goto out_nomem;
+	}
+
+	sfilter->max_xmit_buf = sfilter->out_bufsize;
+	sfilter->xmit_buf = o->zalloc(o,
+				      ((gensiods) sfilter->out_bufsize
+				       *sfilter->out_framesize));
+	if (!sfilter->xmit_buf)
 	    goto out_nomem;
     }
-
-    sfilter->max_xmit_buf = sfilter->out_chunksize;
-    sfilter->xmit_buf = o->zalloc(o,
-		(gensiods) sfilter->out_chunksize * sfilter->out_framesize);
-    if (!sfilter->xmit_buf)
-	goto out_nomem;
 
     sfilter->filter = gensio_filter_alloc_data(o, gensio_fsk_filter_func,
 					       sfilter);
@@ -2613,7 +2928,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 
     sfilter->nsec_per_frame = (((float) 1) / (float) data->out_framerate *
 			       (float) GENSIO_NSECS_IN_SEC);
-    if (fsk_setup_transmit(sfilter, data, fout_bitsize))
+    if (sfilter->tx && fsk_setup_transmit(sfilter, data, fout_bitsize))
 	goto out_nomem;
 
     return sfilter->filter;
@@ -2646,6 +2961,13 @@ static struct gensio_enum_val filttype_enums[] = {
     { }
 };
 
+static struct gensio_enum_val fsk_format_enums[] = {
+    { .name = "none", .val = FSK_FMT_NONE },
+    { .name = "float", .val = FSK_FMT_FLOAT },
+    { .name = "floatc", .val = FSK_FMT_FLOATC },
+    { }
+};
+
 static int
 gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 			bool is_afsk,
@@ -2665,11 +2987,16 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.max_write_size = 256,
 	.mark_freq = 1200.,
 	.space_freq = 2400.,
-	.data_rate = 1200,
+	.in_data_rate = 2400,
+	.out_data_rate = 2400,
+	.in_format = FSK_FMT_NONE,
+	.out_format = FSK_FMT_NONE,
+	.rx = true,
+	.tx = true,
 	.in_framerate = 0,
 	.out_framerate = 0,
-	.in_chunksize = 0,
-	.out_chunksize = 0,
+	.in_bufsize = 0,
+	.out_bufsize = 0,
 	.max_wmsgs = 1,
 	.min_certainty = 3.5,
 	.filt_type = IIR_FILT,
@@ -2689,12 +3016,16 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     };
     unsigned int i;
     int err;
+    int intval;
+    unsigned int uintval;
     char cdata[30];
     gensiods cdata_len;
     unsigned int chan;
     unsigned int wmsg_extra = 0;
 
     if (is_afsk) {
+	data.in_data_rate = 1200,
+	data.out_data_rate = 1200,
 	data.space_freq = 2200.;
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
@@ -2705,61 +3036,63 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.do_raw = false;
     }
 
-    err = fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
-			    &data.in_chunksize);
-    if (err) {
-	gensio_pparm_slog(p, "Unable to get child input buffer size,"
-			  " is it a sound device?");
-	return GE_INCONSISTENT;
-    }
-
-    err = fsk_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
-			    &data.out_chunksize);
-    if (err) {
-	gensio_pparm_slog(p, "Unable to get child output buffer size,"
-			  " is it a sound device?");
-	return GE_INCONSISTENT;
-    }
-
     /* Don't care if these fail, we will check later. */
+    fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE, &data.in_bufsize);
     fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE, &data.in_framerate);
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE, &data.out_framerate);
     fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS, &data.in_nchans);
+
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE, &data.out_bufsize);
+    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE, &data.out_framerate);
     fsk_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS, &data.out_nchans);
 
     cdata_len = sizeof(cdata);
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_IN_FORMAT, cdata, &cdata_len);
-    if (err) {
-	gensio_pparm_slog(p, "Unable to get child input format,"
-			  " is it a sound device?");
-	return GE_INCONSISTENT;
-    }
-    if (strcmp(cdata, "float") != 0) {
-	gensio_pparm_slog(p, "Child input format is not float");
-	return GE_INCONSISTENT;
+    if (!err) {
+	if (strcmp(cdata, "float") == 0) {
+	    data.in_format = FSK_FMT_FLOAT;
+	} else if (strcmp(cdata, "floatc") == 0) {
+	    data.in_format = FSK_FMT_FLOATC;
+	} else {
+	    gensio_pparm_slog(p, "Child input format is not float or floatc");
+	    return GE_INCONSISTENT;
+	}
     }
 
     cdata_len = sizeof(cdata);
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_OUT_FORMAT, cdata, &cdata_len);
-    if (err) {
-	gensio_pparm_slog(p, "Unable to get child output format,"
-			  " is it a sound device?");
-	return GE_INCONSISTENT;
-    }
-    if (strcmp(cdata, "float") != 0) {
-	gensio_pparm_slog(p, "Child output format is not float");
-	return GE_INCONSISTENT;
+    if (!err) {
+	if (strcmp(cdata, "float") == 0) {
+	    data.out_format = FSK_FMT_FLOAT;
+	} else if (strcmp(cdata, "floatc") == 0) {
+	    data.out_format = FSK_FMT_FLOATC;
+	} else {
+	    gensio_pparm_slog(p, "Child output format is not float or floatc");
+	    return GE_INCONSISTENT;
+	}
     }
 
     for (i = 0; args && args[i]; i++) {
+	if (gensio_pparm_bool(p, args[i], "rx", &data.rx) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "tx", &data.tx) > 0)
+	    continue;
 	if (gensio_pparm_ds(p, args[i], "readbuf", &data.max_read_size) > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "writebuf", &data.max_write_size) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "nchans", &data.in_nchans) > 0) {
 	    data.out_nchans = data.in_nchans;
+	    continue;
+	}
+	if (gensio_pparm_uint(p, args[i], "in_bufsize", &data.in_bufsize) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "out_bufsize", &data.out_bufsize) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "bufsize", &uintval) > 0) {
+	    data.in_bufsize = uintval;
+	    data.out_bufsize = uintval;
 	    continue;
 	}
 	if (gensio_pparm_uint(p, args[i], "in_nchans", &data.in_nchans) > 0)
@@ -2778,6 +3111,18 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    data.out_chans = 1 << chan;
 	    continue;
 	}
+	if (gensio_pparm_enum(p, args[i], "format", fsk_format_enums,
+				 &intval) > 0) {
+	    data.in_format = intval;
+	    data.out_format = intval;
+	    continue;
+	}
+	if (gensio_pparm_enum(p, args[i], "in_format", fsk_format_enums,
+			      (int *) &data.in_format) > 0)
+	    continue;
+	if (gensio_pparm_enum(p, args[i], "out_format", fsk_format_enums,
+			      (int *) &data.out_format) > 0)
+	    continue;
 	if (gensio_pparm_uint(p, args[i], "samplerate",
 				 &data.in_framerate) > 0) {
 	    data.out_framerate = data.in_framerate;
@@ -2816,6 +3161,14 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_float(p, args[i], "volume", &data.volume) > 0)
 	    continue;
+	if (gensio_pparm_uint(p, args[i], "bps", &data.in_data_rate) > 0) {
+	    data.out_data_rate = data.in_data_rate;
+	    continue;
+	}
+	if (gensio_pparm_uint(p, args[i], "in_bps", &data.in_data_rate) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "out_bps", &data.in_data_rate) > 0)
+	    continue;
 	if (gensio_pparm_float(p, args[i], "space", &data.space_freq) > 0)
 	    continue;
 	if (gensio_pparm_float(p, args[i], "mark", &data.mark_freq) > 0)
@@ -2844,6 +3197,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	return GE_INVAL;
     }
 
+    if (!data.rx && !data.tx) {
+	gensio_pparm_slog(p, "RX and/or TX must be enabled\n");
+	return GE_INCONSISTENT;
+    }
+    if (data.tx && !data.rx)
+	data.full_duplex = true;
+
     /* Force things off that don't make sense. */
     if (data.do_raw)
 	data.do_crc = false;
@@ -2857,15 +3217,32 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	return GE_INVAL;						\
     }
 
-    CHECK_VAL(in_framerate, ==, 0);
-    CHECK_VAL(out_framerate, ==, 0);
-    CHECK_VAL(in_chunksize, ==, 0);
-    CHECK_VAL(out_chunksize, ==, 0);
-    CHECK_VAL(in_nchans, ==, 0);
-    CHECK_VAL(out_nchans, ==, 0);
-    CHECK_VAL(in_chan, >=, data.in_nchans);
-    CHECK_VAL(out_chans, >=, (1U << data.out_nchans))
-    CHECK_VAL(max_wmsgs, ==, 0);
+    if (data.rx) {
+	CHECK_VAL(in_framerate, ==, 0);
+	CHECK_VAL(in_bufsize, ==, 0);
+	CHECK_VAL(in_nchans, ==, 0);
+	CHECK_VAL(in_chan, >=, data.in_nchans);
+	CHECK_VAL(max_wmsgs, ==, 0);
+
+	if (data.in_format == FSK_FMT_NONE) {
+	    gensio_pparm_slog(p, "Unable to get child input format,"
+			      " is it a sound device?");
+	    return GE_INCONSISTENT;
+	}
+    }
+
+    if (data.tx) {
+	CHECK_VAL(out_framerate, ==, 0);
+	CHECK_VAL(out_bufsize, ==, 0);
+	CHECK_VAL(out_nchans, ==, 0);
+	CHECK_VAL(out_chans, >=, (1U << data.out_nchans));
+
+	if (data.out_format == FSK_FMT_NONE) {
+	    gensio_pparm_slog(p, "Unable to get child output format,"
+			      " is it a sound device?");
+	    return GE_INCONSISTENT;
+	}
+    }
 
     /*
      * For lower sample rates a FIR filter doesn't use as much CPU and
