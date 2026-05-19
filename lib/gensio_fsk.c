@@ -81,11 +81,10 @@
  * see where the power starts dropping off, letting the receiver
  * adjust the alignment of the incoming data.
  *
- * The receiver is constantly looking for 1200Hz (level 1, a mark) and
- * 2200Hz signals (level 0, a space).  If it finds a 0 in this mode,
- * it just then looks for 6 1's in a row.  Then, if the next bit is 0,
- * it starts receiving data for the message.  This sequence will also
- * terminate a message.
+ * The receiver is constantly looking for a mark (level 1) and a space
+ * (level 0).  If it finds a 0 in this mode, it just then looks for 6
+ * 1's in a row.  Then, if the next bit is 0, it starts receiving data
+ * for the message.  This sequence will also terminate a message.
  *
  * The code keeps track of multiple possible incoming messages at a
  * time.  If a bit is read that is uncertain (the difference between
@@ -1599,7 +1598,7 @@ floatc_dftbin(struct fsk_filter *sfilter, float *in_dftbin,
 static int
 fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 {
-    unsigned char level = sfilter->prev_recv_level;
+    unsigned char level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
     int adj = 0;
@@ -2538,7 +2537,7 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
     struct gensio_os_funcs *o = sfilter->o;
     struct xmit_entry *e;
 
-    sfilter->mark_xmit_len = data->out_framerate / data->mark_freq * 2 + 2;
+    sfilter->mark_xmit_len = data->out_framerate / fabsf(data->mark_freq) * 2 + 2;
     if (sfilter->mark_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->mark_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->mark_xmit = o->zalloc(o, (sfilter->out_samplesize
@@ -2554,7 +2553,7 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
 		      data->mark_freq / data->out_data_rate, fbitsize,
 		      data->volume);
 
-    sfilter->space_xmit_len = data->out_framerate / data->space_freq * 2 + 2;
+    sfilter->space_xmit_len = data->out_framerate / fabs(data->space_freq) * 2 + 2;
     if (sfilter->space_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->space_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->space_xmit = o->zalloc(o, (sfilter->out_samplesize
@@ -2985,8 +2984,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.out_chans = 1,
 	.max_read_size = 256,
 	.max_write_size = 256,
-	.mark_freq = 1200.,
-	.space_freq = 2400.,
+	.mark_freq = 2400.,
+	.space_freq = 1200.,
 	.in_data_rate = 2400,
 	.out_data_rate = 2400,
 	.in_format = FSK_FMT_NONE,
@@ -3026,7 +3025,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (is_afsk) {
 	data.in_data_rate = 1200,
 	data.out_data_rate = 1200,
-	data.space_freq = 2200.;
+	data.mark_freq = 2200.;
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
 	data.lpcutoff = 2300;
