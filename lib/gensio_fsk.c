@@ -245,6 +245,7 @@ struct fsk_filter {
     unsigned int in_adj_period; /* How often to add in_adj. */
     unsigned int in_adj_counter; /* Current receive counter for in_adj. */
     uint64_t in_adj_time; /* Time in nsec for a bitsize to be received. */
+    int maxadj; /* Maximum we can adjust the frame for alignment. */
 
     /*
      * The number of frames in a transmitted bit.  A similar
@@ -2096,10 +2097,10 @@ fsk_ll_write(struct gensio_filter *filter,
 	/*
 	 * You cannot adjust more than the edge
 	 */
-	if (adj > (int) sfilter->workedge)
-	    adj = (int) sfilter->workedge;
-	if (adj < - (int) sfilter->workedge)
-	    adj = - (int) sfilter->workedge;
+	if (adj > (int) sfilter->maxadj)
+	    adj = (int) sfilter->maxadj;
+	if (adj < - (int) sfilter->maxadj)
+	    adj = - (int) sfilter->maxadj;
 
 	/*
 	 * Copy the end of the buffer to the beginning.  In this
@@ -2523,6 +2524,7 @@ struct gensio_fsk_data {
     unsigned int hpcutoff;
     float hpgain;
     unsigned int transition_freq;
+    unsigned int maxadj;
 
     unsigned int tx_preamble_time;
     unsigned int tx_postamble_time;
@@ -2882,6 +2884,15 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	if (!sfilter->workbuf)
 	    goto out_nomem;
 
+	if (data->maxadj == 0)
+	    sfilter->maxadj = sfilter->workedge / 3;
+	else
+	    sfilter->maxadj = data->maxadj;
+	if (sfilter->maxadj == 0)
+	    sfilter->maxadj = 1;
+	if (data->maxadj > sfilter->workedge)
+	    data->maxadj = sfilter->workedge;
+
 	/*
 	 * Complex version stores e^(I * w), real version stores sin
 	 * and cos values, so they are the same size.
@@ -3084,8 +3095,9 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.filt_type_set = false,
 	.lpcutoff = 2500,
 	.lpgain = .9,
-	.hpcutoff = 200,
+	.hpcutoff = 250,
 	.hpgain = .9,
+	.maxadj = 0,
 	.transition_freq = 500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
@@ -3238,6 +3250,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_uint(p, args[i], "hpcutoff", &data.hpcutoff) > 0)
 	    continue;
 	if (gensio_pparm_float(p, args[i], "hpgain", &data.hpgain) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "maxadj", &data.maxadj) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "trfreq", &data.transition_freq) > 0)
 	    continue;

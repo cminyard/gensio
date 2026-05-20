@@ -2871,12 +2871,19 @@ This sets the gain for the low-pass filter.  Defaults to .9.
 .TP
 .B hpcutoff=<n>
 This sets the cutoff frequency for the input high pass filter.
-Setting it to zero disables it.  The default is 200 for fsk, 0 for
+Setting it to zero disables it.  The default is 250 for fsk, 0 for
 afskmdm.  This is useful if you have DC bias or low frequency noise on
 the signal.
 .TP
 .B lpgain=<n>
 This sets the gain for the low-pass filter.  Defaults to .9.
+.TP
+.B maxadj=<n>
+The input processing adjusts the frame position to keep it aligned
+with the incoming data.  This sets the maximum it can move the frame
+position (in frames) on each adjustment.  If 0 (the default) this will
+be automatically calculated.  Don't mess with this unless you really
+know what you are doing.
 .TP
 .B trfreq=<n>
 This sets the transition frequency width for the FIR filter.  This is
