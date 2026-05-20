@@ -26,6 +26,9 @@
 #include <gensio/gensio_ax25_addr.h>
 
 /* Add timestamps to messages. */
+#define GENSIO_FSK_DEBUG_OUTPUT_FILTERED	0x20
+
+/* Add timestamps to messages. */
 #define GENSIO_FSK_DEBUG_TIME	0x10
 
 /* Dump full received/sent messages. */
@@ -285,15 +288,25 @@ struct fsk_filter {
 
     /* Low pass filter components, IIR and FIR. */
     unsigned int lpfilt_coefs_n;
+    float lpfilt_gain;
     float *lpfilt_coefs;
     float *lpfilt_hold;
     /* Filtered data. */
     float *lpfilteredbuf;
 
+    /* High pass filter components, IIR only. */
+    unsigned int hpfilt_coefs_n;
+    float hpfilt_gain;
+    float *hpfilt_coefs;
+    float *hpfilt_hold;
+    /* Filtered data. */
+    float *hpfilteredbuf;
+
     /* IIR or FIR filter function. */
     void (*do_filter)(float *inbuf, float *outbuf, unsigned int nsamples,
 		      unsigned int nchans, unsigned int chan,
-		      unsigned int n, float *coefs, float *hold);
+		      unsigned int n, float *coefs, float *hold,
+		      float gain);
 
     /* Copy data in from the external data to the working buffer. */
     void (*do_frame_in_copy)(float *dest, gensiods destpos,
@@ -1696,7 +1709,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 static void
 float_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 		 unsigned int nchans, unsigned int chan,
-		 unsigned int n, float *coefs, float *hold)
+		 unsigned int n, float *coefs, float *hold, float gain)
 {
     unsigned int i;
     float *coefa = coefs;
@@ -1707,6 +1720,7 @@ float_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
     for (i = chan; i < nsamples * nchans; i += nchans) {
 	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
 	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
+	outbuf[i] *= gain;
 	hold[1] = hold[0];
 	hold[0] = tmp;
     }
@@ -1716,7 +1730,7 @@ float_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 static void
 floatc_iir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
 		  unsigned int nchans, unsigned int chan,
-		  unsigned int n, float *coefs, float *in_hold)
+		  unsigned int n, float *coefs, float *in_hold, float gain)
 {
     float complex *inbuf = (float complex *) in_inbuf;
     float complex *outbuf = (float complex *) in_outbuf;
@@ -1730,6 +1744,7 @@ floatc_iir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
     for (i = chan; i < nsamples * nchans; i += nchans) {
 	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
 	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
+	outbuf[i] *= gain;
 	hold[1] = hold[0];
 	hold[0] = tmp;
     }
@@ -1761,6 +1776,8 @@ fsk_calc_iir_coefs(bool lpf, float samplerate, float cutoff,
     if (lpf)
 	coefb[0] *= w2;
     coefb[1] = 2 * coefb[0];
+    if (!lpf)
+	coefb[0] *= -1.0;
     coefb[2] = coefb[0];
 }
 
@@ -1782,14 +1799,13 @@ get_fir_val(unsigned int i, unsigned int holdsize, float *inbuf, float *hold,
 static void
 float_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 		 unsigned int nchans, unsigned int chan,
-		 unsigned int n, float *h, float *hold)
+		 unsigned int n, float *h, float *hold, float gain)
 {
     unsigned int i, j, k;
     unsigned int holdsize = n * 2;
     float tmp;
 
     for (i = 0; i < nsamples; i++) {
-
 	/* Get the middle value, it's always multiplied by 1. */
 	tmp = get_fir_val(n + i, holdsize, inbuf, hold, nchans, chan);
 
@@ -1806,7 +1822,7 @@ float_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 				       nchans, chan));
 	}
 
-	outbuf[i * nchans + chan] = tmp;
+	outbuf[i * nchans + chan] = tmp * gain;
     }
     for (i = 0; i < holdsize; i++) {
 	unsigned int pos = nsamples - holdsize + i;
@@ -1832,7 +1848,7 @@ getc_fir_val(unsigned int i, unsigned int holdsize,
 static void
 floatc_fir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
 		  unsigned int nchans, unsigned int chan,
-		  unsigned int n, float *h, float *in_hold)
+		  unsigned int n, float *h, float *in_hold, float gain)
 {
     float complex *inbuf = (float complex *) in_inbuf;
     float complex *outbuf = (float complex *) in_outbuf;
@@ -1858,7 +1874,7 @@ floatc_fir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
 					nchans, chan));
 	}
 
-	outbuf[i * nchans + chan] = tmp;
+	outbuf[i * nchans + chan] = tmp * gain;
     }
     for (i = 0; i < holdsize; i++) {
 	unsigned int pos = nsamples - holdsize + i;
@@ -1995,15 +2011,23 @@ fsk_ll_write(struct gensio_filter *filter,
 	goto out_err;
     }
 
+    if (sfilter->hpfilteredbuf) {
+	sfilter->do_filter(buf, sfilter->hpfilteredbuf,
+			   sfilter->in_bufsize,
+			   sfilter->in_nchans, sfilter->in_chan,
+			   sfilter->hpfilt_coefs_n, sfilter->hpfilt_coefs,
+			   sfilter->hpfilt_hold, sfilter->hpfilt_gain);
+	buf = sfilter->hpfilteredbuf;
+    }
     if (sfilter->lpfilteredbuf) {
 	sfilter->do_filter(buf, sfilter->lpfilteredbuf,
 			   sfilter->in_bufsize,
 			   sfilter->in_nchans, sfilter->in_chan,
 			   sfilter->lpfilt_coefs_n, sfilter->lpfilt_coefs,
-			   sfilter->lpfilt_hold);
+			   sfilter->lpfilt_hold, sfilter->lpfilt_gain);
 	buf = sfilter->lpfilteredbuf;
     }
-    {
+    if (sfilter->debug & GENSIO_FSK_DEBUG_OUTPUT_FILTERED) {
 	FILE *f = fopen("t1", "a");
 	fwrite(buf, sfilter->in_framesize, sfilter->in_bufsize, f);
 	fclose(f);
@@ -2239,6 +2263,12 @@ fsk_sfilter_free(struct fsk_filter *sfilter)
 	o->free(o, sfilter->lpfilt_coefs);
     if (sfilter->lpfilt_hold)
 	o->free(o, sfilter->lpfilt_hold);
+    if (sfilter->hpfilteredbuf)
+	o->free(o, sfilter->hpfilteredbuf);
+    if (sfilter->hpfilt_coefs)
+	o->free(o, sfilter->hpfilt_coefs);
+    if (sfilter->hpfilt_hold)
+	o->free(o, sfilter->hpfilt_hold);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     o->free(o, sfilter);
@@ -2489,6 +2519,9 @@ struct gensio_fsk_data {
 #define FIR_FILT 2
     bool filt_type_set;
     unsigned int lpcutoff;
+    float lpgain;
+    unsigned int hpcutoff;
+    float hpgain;
     unsigned int transition_freq;
 
     unsigned int tx_preamble_time;
@@ -2613,23 +2646,39 @@ fsk_setup_iir_filter(struct fsk_filter *sfilter,
 {
     struct gensio_os_funcs *o = sfilter->o;
 
-    if (data->lpcutoff == 0)
-	return false;
-
     if (sfilter->in_format == FSK_FMT_FLOATC)
 	sfilter->do_filter = floatc_iir_filter;
     else
 	sfilter->do_filter = float_iir_filter;
-    sfilter->lpfilt_coefs_n = 5;
-    sfilter->lpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
-    if (!sfilter->lpfilt_coefs)
-	return true;
-    sfilter->lpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
-    if (!sfilter->lpfilt_hold)
-	return true;
-    fsk_calc_iir_coefs(true, data->in_framerate, data->lpcutoff,
-		       sfilter->lpfilt_coefs,
-		       sfilter->lpfilt_coefs + 2);
+
+    if (data->lpcutoff != 0) {
+	sfilter->lpfilt_gain = data->lpgain;
+	sfilter->lpfilt_coefs_n = 5;
+	sfilter->lpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
+	if (!sfilter->lpfilt_coefs)
+	    return true;
+	sfilter->lpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
+	if (!sfilter->lpfilt_hold)
+	    return true;
+	fsk_calc_iir_coefs(true, data->in_framerate, data->lpcutoff,
+			   sfilter->lpfilt_coefs,
+			   sfilter->lpfilt_coefs + 2);
+    }
+
+    if (data->hpcutoff != 0) {
+	sfilter->hpfilt_gain = data->hpgain;
+	sfilter->hpfilt_coefs_n = 5;
+	sfilter->hpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
+	if (!sfilter->hpfilt_coefs)
+	    return true;
+	sfilter->hpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
+	if (!sfilter->hpfilt_hold)
+	    return true;
+	fsk_calc_iir_coefs(false, data->in_framerate, data->hpcutoff,
+			   sfilter->hpfilt_coefs,
+			   sfilter->hpfilt_coefs + 2);
+    }
+
     return false;
 }
 
@@ -2812,6 +2861,12 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    sfilter->lpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
 						   * sfilter->in_bufsize));
 	    if (!sfilter->lpfilteredbuf)
+		goto out_nomem;
+	}
+	if (sfilter->hpfilt_coefs) {
+	    sfilter->hpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
+						   * sfilter->in_bufsize));
+	    if (!sfilter->hpfilteredbuf)
 		goto out_nomem;
 	}
 
@@ -3028,6 +3083,9 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.filt_type = IIR_FILT,
 	.filt_type_set = false,
 	.lpcutoff = 2500,
+	.lpgain = .9,
+	.hpcutoff = 200,
+	.hpgain = .9,
 	.transition_freq = 500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
@@ -3056,6 +3114,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
 	data.lpcutoff = 2300;
+	data.hpcutoff = 0;
 	data.do_crc = true;
 	data.do_inv = true;
 	data.do_diff = true;
@@ -3173,6 +3232,12 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	}
 	if (gensio_pparm_uint(p, args[i], "lpcutoff", &data.lpcutoff) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "lpgain", &data.lpgain) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "hpcutoff", &data.hpcutoff) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "hpgain", &data.hpgain) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "trfreq", &data.transition_freq) > 0)
 	    continue;

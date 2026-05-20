@@ -73,7 +73,7 @@ s => ----------
 Do the substitution and work out all the math:
 
           1     2          1
-	 --- + --- z^-1 + --- z^-2
+	 --- - --- z^-1 + --- z^-2
 	  d     d          d
 H(z) = ----------------------------------------
             2 wc^2 - 2        wc^2 - sqrt(2) wc + 1
@@ -81,5 +81,5 @@ H(z) = ----------------------------------------
                  d                       d
 
 Notice that the LPF only differs from the HPF in the wc^2 in all the
-top terms.  That means we can use basically the same calculations for
-both.
+top terms and the middle term is negative.  That means we can use
+basically the same calculations for both.

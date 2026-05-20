@@ -2862,8 +2862,21 @@ rates.  Lower sample rates don't work well with the IIR filter, but
 there's not much difference at higher sample rates.
 .TP
 .B lpcutoff=<n>
-This sets the cutoff frequency for the input filter.  Setting it to
-zero disables it.  The default is 2500Hz for fsk, 2300 for afskmdm.
+This sets the cutoff frequency for the input low pass filter.  Setting
+it to zero disables it.  The default is 2500Hz for fsk, 2300 for
+afskmdm.
+.TP
+.B lpgain=<n>
+This sets the gain for the low-pass filter.  Defaults to .9.
+.TP
+.B hpcutoff=<n>
+This sets the cutoff frequency for the input high pass filter.
+Setting it to zero disables it.  The default is 200 for fsk, 0 for
+afskmdm.  This is useful if you have DC bias or low frequency noise on
+the signal.
+.TP
+.B lpgain=<n>
+This sets the gain for the low-pass filter.  Defaults to .9.
 .TP
 .B trfreq=<n>
 This sets the transition frequency width for the FIR filter.  This is
