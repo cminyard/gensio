@@ -1,0 +1,85 @@
+
+See:
+
+https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter5.pdf
+
+for the theory here.  These are the equations worked out for high pass
+and low pass filters.
+
+Butterworth filter
+---------------------------
+
+                1
+H(s) = ----------------------
+       s^2 + sqrt(2) s + 1
+
+wc = normalized cutoff frequency
+
+     2 pi fc
+wc = --------
+        fs
+
+fc = cutoff frequency
+fs = sample rate
+
+
+Butterworth filter Low Pass
+---------------------------
+
+                s
+Low pass: s -> ----
+                wc
+
+                1
+H(s) = -----------------------------
+       (s/wc)^2 + sqrt(2) (s/wc) + 1
+
+
+Z transform
+
+      1 - z^-1
+s => ----------
+      1 + z^-1
+
+Do the substitution and work out all the math:
+
+         wc^2     2 wc^2        wc^2
+	 ----  +  ------ z^-1 + ---- z^-2
+	   d         d            d
+H(z) = ----------------------------------------
+            2 wc^2 - 2        wc^2 - sqrt(2) wc + 1
+       1 +  ---------- z^-1 + --------------------- z^-2
+                 d                       d
+
+
+Butterworth filter High Pass
+----------------------------
+
+                  wc
+High pass: s ->  ----
+                  2
+
+                1
+H(s) = -----------------------------
+       (wc/s)^2 + sqrt(2) (wc/s) + 1
+
+
+Z transform
+
+      1 - z^-1
+s => ----------
+      1 + z^-1
+
+Do the substitution and work out all the math:
+
+          1     2          1
+	 --- + --- z^-1 + --- z^-2
+	  d     d          d
+H(z) = ----------------------------------------
+            2 wc^2 - 2        wc^2 - sqrt(2) wc + 1
+       1 +  ---------- z^-1 + --------------------- z^-2
+                 d                       d
+
+Notice that the LPF only differs from the HPF in the wc^2 in all the
+top terms.  That means we can use basically the same calculations for
+both.

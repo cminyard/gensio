@@ -283,18 +283,17 @@ struct fsk_filter {
     gensiods deliver_data_pos;
     gensiods deliver_data_len;
 
-    /* filter components, IIR and FIR. */
-    unsigned int filt_coefs_n;
-    float *filt_coefs;
-    float *filt_hold;
+    /* Low pass filter components, IIR and FIR. */
+    unsigned int lpfilt_coefs_n;
+    float *lpfilt_coefs;
+    float *lpfilt_hold;
+    /* Filtered data. */
+    float *lpfilteredbuf;
 
     /* IIR or FIR filter function. */
     void (*do_filter)(float *inbuf, float *outbuf, unsigned int nsamples,
 		      unsigned int nchans, unsigned int chan,
 		      unsigned int n, float *coefs, float *hold);
-
-    /* Filtered data. */
-    float *filteredbuf;
 
     /* Copy data in from the external data to the working buffer. */
     void (*do_frame_in_copy)(float *dest, gensiods destpos,
@@ -1650,15 +1649,9 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 	 * boundary to check against.
 	 */
 
-	if (sfilter->prev_best_pos > sfilter->workmiddle)
-	    adj++;
-	else if (sfilter->prev_best_pos < sfilter->workmiddle)
-	    adj--;
+	adj += ((int) sfilter->prev_best_pos - (int) sfilter->workmiddle) / 2;
 
-	if (best_pos > sfilter->workmiddle)
-	    adj++;
-	else if (best_pos < sfilter->workmiddle)
-	    adj--;
+	adj += ((int) best_pos - (int) sfilter->workmiddle) / 2;
     }
 
     sfilter->prev_best_pos = best_pos;
@@ -1744,13 +1737,17 @@ floatc_iir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
 
 /*
  * Calculate 2nd order IIR filter coefficients for a low-pass
- * Butterworth filter.
+ * or high pass Butterworth filter.  The lpf parameter tells which
+ * filter to calculate.
  *
  * See https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter5.pdf
  * for more explanation.
+ *
+ * Also see IIR_Filter.txt in this directory for the equations worked
+ * out.
  */
 static void
-fsk_calc_iir_coefs(float samplerate, float cutoff,
+fsk_calc_iir_coefs(bool lpf, float samplerate, float cutoff,
 		   float coefa[], float coefb[])
 {
     float w1 = 2 * M_PI * cutoff / samplerate;
@@ -1760,7 +1757,9 @@ fsk_calc_iir_coefs(float samplerate, float cutoff,
 
     coefa[0] = (2 - 2 * w2) / denom;
     coefa[1] = - (1 - M_SQRT2 * w + w2) / denom;
-    coefb[0] = w2 / denom;
+    coefb[0] = 1 / denom;
+    if (lpf)
+	coefb[0] *= w2;
     coefb[1] = 2 * coefb[0];
     coefb[2] = coefb[0];
 }
@@ -1996,13 +1995,13 @@ fsk_ll_write(struct gensio_filter *filter,
 	goto out_err;
     }
 
-    if (sfilter->filteredbuf) {
-	sfilter->do_filter(buf, sfilter->filteredbuf,
+    if (sfilter->lpfilteredbuf) {
+	sfilter->do_filter(buf, sfilter->lpfilteredbuf,
 			   sfilter->in_bufsize,
 			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->filt_coefs_n, sfilter->filt_coefs,
-			   sfilter->filt_hold);
-	buf = sfilter->filteredbuf;
+			   sfilter->lpfilt_coefs_n, sfilter->lpfilt_coefs,
+			   sfilter->lpfilt_hold);
+	buf = sfilter->lpfilteredbuf;
     }
     {
 	FILE *f = fopen("t1", "a");
@@ -2234,12 +2233,12 @@ fsk_sfilter_free(struct fsk_filter *sfilter)
 	if (sfilter->wrbufs[i].data)
 	    o->free(o, sfilter->wrbufs[i].data);
     }
-    if (sfilter->filteredbuf)
-	o->free(o, sfilter->filteredbuf);
-    if (sfilter->filt_coefs)
-	o->free(o, sfilter->filt_coefs);
-    if (sfilter->filt_hold)
-	o->free(o, sfilter->filt_hold);
+    if (sfilter->lpfilteredbuf)
+	o->free(o, sfilter->lpfilteredbuf);
+    if (sfilter->lpfilt_coefs)
+	o->free(o, sfilter->lpfilt_coefs);
+    if (sfilter->lpfilt_hold)
+	o->free(o, sfilter->lpfilt_hold);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     o->free(o, sfilter);
@@ -2608,6 +2607,59 @@ float_gen_hz(float *buf, unsigned int bufsize,
     }
 }
 
+static bool
+fsk_setup_iir_filter(struct fsk_filter *sfilter,
+		     struct gensio_fsk_data *data)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+
+    if (data->lpcutoff == 0)
+	return false;
+
+    if (sfilter->in_format == FSK_FMT_FLOATC)
+	sfilter->do_filter = floatc_iir_filter;
+    else
+	sfilter->do_filter = float_iir_filter;
+    sfilter->lpfilt_coefs_n = 5;
+    sfilter->lpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
+    if (!sfilter->lpfilt_coefs)
+	return true;
+    sfilter->lpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
+    if (!sfilter->lpfilt_hold)
+	return true;
+    fsk_calc_iir_coefs(true, data->in_framerate, data->lpcutoff,
+		       sfilter->lpfilt_coefs,
+		       sfilter->lpfilt_coefs + 2);
+    return false;
+}
+
+static bool
+fsk_setup_fir_filter(struct fsk_filter *sfilter,
+		     struct gensio_fsk_data *data)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+
+    if (data->lpcutoff == 0)
+	return false;
+
+    if (sfilter->in_format == FSK_FMT_FLOATC)
+	sfilter->do_filter = floatc_fir_filter;
+    else
+	sfilter->do_filter = float_fir_filter;
+    /* Calculate the FIR h parameters. */
+    sfilter->lpfilt_coefs =
+	fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
+			   data->transition_freq,
+			   &sfilter->lpfilt_coefs_n);
+    if (!sfilter->lpfilt_coefs)
+	return true;
+    sfilter->lpfilt_hold = o->zalloc(o, (2 * sfilter->lpfilt_coefs_n
+					 * sfilter->in_samplesize));
+    if (!sfilter->lpfilt_hold)
+	return true;
+    return false;
+}
+
 static struct gensio_filter *
 gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 			    struct gensio_os_funcs *o,
@@ -2617,6 +2669,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     struct fsk_filter *sfilter;
     unsigned int i, j;
     float fin_bitsize, fout_bitsize;
+    bool err;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
@@ -2748,43 +2801,17 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    sfilter->do_frame_in_copy = float_frame_in_copy;
 	}
 
-	if (data->lpcutoff && data->filt_type != NO_FILT) {
-	    if (data->filt_type == IIR_FILT) {
-		if (sfilter->in_format == FSK_FMT_FLOATC)
-		    sfilter->do_filter = floatc_iir_filter;
-		else
-		    sfilter->do_filter = float_iir_filter;
-		sfilter->filt_coefs_n = 5;
-		sfilter->filt_coefs = o->zalloc(o, 5 * sizeof(float));
-		if (!sfilter->filt_coefs)
-		    goto out_nomem;
-		sfilter->filt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
-		if (!sfilter->filt_hold)
-		    goto out_nomem;
-		fsk_calc_iir_coefs(data->in_framerate, data->lpcutoff,
-				   sfilter->filt_coefs,
-				   sfilter->filt_coefs + 2);
-	    } else {
-		if (sfilter->in_format == FSK_FMT_FLOATC)
-		    sfilter->do_filter = floatc_fir_filter;
-		else
-		    sfilter->do_filter = float_fir_filter;
-		/* Calculate the FIR h parameters. */
-		sfilter->filt_coefs =
-		    fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
-				       data->transition_freq,
-				       &sfilter->filt_coefs_n);
-		if (!sfilter->filt_coefs)
-		    goto out_nomem;
-		sfilter->filt_hold = o->zalloc(o, (2 * sfilter->filt_coefs_n
-						   * sfilter->in_samplesize));
-		if (!sfilter->filt_hold)
-		    goto out_nomem;
-	    }
-
-	    sfilter->filteredbuf = o->zalloc(o, (sfilter->in_framesize
-						 * sfilter->in_bufsize));
-	    if (!sfilter->filteredbuf)
+	err = 0;
+	if (data->filt_type == IIR_FILT)
+	    err = fsk_setup_iir_filter(sfilter, data);
+	if (data->filt_type == FIR_FILT)
+	    err = fsk_setup_fir_filter(sfilter, data);
+	if (err)
+	    goto out_nomem;
+	if (sfilter->lpfilt_coefs) {
+	    sfilter->lpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
+						   * sfilter->in_bufsize));
+	    if (!sfilter->lpfilteredbuf)
 		goto out_nomem;
 	}
 
