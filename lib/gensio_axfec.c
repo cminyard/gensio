@@ -957,6 +957,9 @@ axfec_ll_write(struct gensio_filter *filter,
 		    bytes[1] = 0;
 		    convdecode_last_n_block(sfilter->ce, bytes, 16,
 					    NULL, NULL);
+		    if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+			printf("bytes: %2.2x %2.2x\n", bytes[0], bytes[1]);
+
 		    tmpbits16 = bytes[0] | (bytes[1] << 8);
 		    for (n = 0; n < 8; n++, tmpbits16 >>= 1) {
 			if (tmpbits16 & 1) {
