@@ -789,6 +789,17 @@ axfec_ll_write(struct gensio_filter *filter,
 	if (k >= 8) {
 	    k = 0;
 	    bits = buf[j];
+	    if (sfilter->debug & GENSIO_HDLC_DEBUG_BIT_HNDL) {
+		printf("In byte %2.2x", bits);
+		if (uncertainty) {
+		    unsigned int u1;
+
+		    printf(" uncert:");
+		    for (u1 = 0; u1 < 8; u1++)
+			printf(" %3u", uncertainty[upos + u1]);
+		}
+		printf("\n");
+	    }
 	}
 	for (; k < 8; k++, bits >>= 1) {
 	    bit = bits & 1;
