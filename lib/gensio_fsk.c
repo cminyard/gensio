@@ -267,6 +267,7 @@ struct fsk_filter {
     bool do_inv;
     bool do_diff;
     bool do_uncert;
+    float certainty_multiplier;
     gensiods framecount;
     gensiods framenr;
 
@@ -1135,11 +1136,11 @@ fsk_process_raw_bit(struct fsk_filter *sfilter, unsigned int bit,
     if (sfilter->do_uncert) {
 	/*
 	 * Convert the certainty to an uncertainty value ranging from
-	 * 0 to 100.  certainty comes in 0-50, invert that to get a
+	 * 0 to 50.  certainty comes in 0-50, invert that to get a
 	 * 50-0 integer uncertainty.
 	 */
 	w->raw_uncertainty[w->read_data_len * 8 + w->curr_bit_pos]
-	    = 100.0 - certainty;
+	    = 50.0 - certainty;
     }
     if (w->curr_bit_pos == 7) {
 	w->read_data[w->read_data_len] = w->curr_byte;
@@ -1489,6 +1490,7 @@ process_powers(struct fsk_filter *sfilter,
      * on good input.  Cap it there.  plus start it at 0.
      */
     *rcertainty -= 1.0;
+    *rcertainty *= sfilter->certainty_multiplier;
     if (*rcertainty > 50.0) /* Certainty ranges from 0 to 50. */
 	*rcertainty = 50.0;
 }
@@ -2499,6 +2501,7 @@ struct gensio_fsk_data {
     bool check_ax25;
     bool do_raw;
     bool do_uncert;
+    float certainty_multiplier;
     bool do_inv;
     bool do_diff;
     bool do_crc;
@@ -2752,6 +2755,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->do_crc = data->do_crc;
     sfilter->do_raw = data->do_raw;
     sfilter->do_uncert = data->do_uncert;
+    sfilter->certainty_multiplier = data->certainty_multiplier;
     sfilter->do_inv = data->do_inv;
     sfilter->do_diff = data->do_diff;
     sfilter->prev_xmit_level = 0;
@@ -3109,6 +3113,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.do_inv = false,
 	.do_diff = false,
 	.do_raw = true,
+	.certainty_multiplier = 1.0,
     };
     unsigned int i;
     int err;
@@ -3291,6 +3296,9 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_bool(p, args[i], "raw", &data.do_raw) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "uncert", &data.do_uncert) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "certmult",
+			       &data.certainty_multiplier) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "inv", &data.do_inv) > 0)
 	    continue;
