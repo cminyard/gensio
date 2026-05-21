@@ -1214,7 +1214,7 @@ static int gensio_axfec_filter_func(struct gensio_filter *filter, int op,
 	return axfec_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
-	return axfec_ll_write(filter, func, data, count, buf, buflen, NULL);
+	return axfec_ll_write(filter, func, data, count, buf, buflen, auxdata);
 
     case GENSIO_FILTER_FUNC_SETUP:
 	return axfec_setup(filter, data);
