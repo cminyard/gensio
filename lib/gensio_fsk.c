@@ -2493,8 +2493,10 @@ struct gensio_fsk_data {
     unsigned int out_chans;
     gensiods max_read_size;
     gensiods max_write_size;
-    float mark_freq;
-    float space_freq;
+    float in_mark_freq;
+    float in_space_freq;
+    float out_mark_freq;
+    float out_space_freq;
     unsigned int in_data_rate;
     unsigned int out_data_rate;
     unsigned int debug;
@@ -2574,7 +2576,8 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
     struct gensio_os_funcs *o = sfilter->o;
     struct xmit_entry *e;
 
-    sfilter->mark_xmit_len = data->out_framerate / fabsf(data->mark_freq) * 2 + 2;
+    sfilter->mark_xmit_len = (data->out_framerate
+			      / fabsf(data->out_mark_freq) * 2 + 2);
     if (sfilter->mark_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->mark_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->mark_xmit = o->zalloc(o, (sfilter->out_samplesize
@@ -2583,14 +2586,15 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
 	return GE_NOMEM;
     if (sfilter->in_format == FSK_FMT_FLOATC)
 	floatc_gen_sin(sfilter->mark_xmit, sfilter->mark_xmit_len,
-		       data->mark_freq / data->out_data_rate, fbitsize,
+		       data->out_mark_freq / data->out_data_rate, fbitsize,
 		       data->volume);
     else
 	float_gen_sin(sfilter->mark_xmit, sfilter->mark_xmit_len,
-		      data->mark_freq / data->out_data_rate, fbitsize,
+		      data->out_mark_freq / data->out_data_rate, fbitsize,
 		      data->volume);
 
-    sfilter->space_xmit_len = data->out_framerate / fabs(data->space_freq) * 2 + 2;
+    sfilter->space_xmit_len = (data->out_framerate
+			       / fabs(data->out_space_freq) * 2 + 2);
     if (sfilter->space_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->space_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->space_xmit = o->zalloc(o, (sfilter->out_samplesize
@@ -2599,11 +2603,11 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
 	return GE_NOMEM;
     if (sfilter->in_format == FSK_FMT_FLOATC)
 	floatc_gen_sin(sfilter->space_xmit, sfilter->space_xmit_len,
-		       data->space_freq / data->out_data_rate, fbitsize,
+		       data->out_space_freq / data->out_data_rate, fbitsize,
 		       data->volume);
     else
 	float_gen_sin(sfilter->space_xmit, sfilter->space_xmit_len,
-		      data->space_freq / data->out_data_rate, fbitsize,
+		      data->out_space_freq / data->out_data_rate, fbitsize,
 		      data->volume);
 
     /* Set up the first entry, just start with a space at zero phase. */
@@ -2830,10 +2834,10 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
 	if (sfilter->in_format == FSK_FMT_FLOATC)
 	    floatc_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
-			  data->mark_freq, data->in_framerate);
+			  data->in_mark_freq, data->in_framerate);
 	else
 	    float_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
-			 data->mark_freq / data->in_data_rate,
+			 data->in_mark_freq / data->in_data_rate,
 			 fin_bitsize);
 
 	sfilter->hzspace = o->zalloc(o, (sizeof(float) * 4
@@ -2842,10 +2846,10 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
 	if (sfilter->in_format == FSK_FMT_FLOATC)
 	    floatc_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
-			  data->space_freq, data->in_framerate);
+			  data->in_space_freq, data->in_framerate);
 	else
 	    float_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
-			 data->space_freq / data->in_data_rate,
+			 data->in_space_freq / data->in_data_rate,
 			 fin_bitsize);
 
 	if (sfilter->in_format == FSK_FMT_FLOATC) {
@@ -3081,8 +3085,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.out_chans = 1,
 	.max_read_size = 256,
 	.max_write_size = 256,
-	.mark_freq = 2400.,
-	.space_freq = 1200.,
+	.in_mark_freq = 2400.,
+	.out_mark_freq = 2400.,
+	.in_space_freq = 1200.,
+	.out_space_freq = 1200.,
 	.in_data_rate = 2400,
 	.out_data_rate = 2400,
 	.in_format = FSK_FMT_NONE,
@@ -3127,7 +3133,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (is_afsk) {
 	data.in_data_rate = 1200,
 	data.out_data_rate = 1200,
-	data.mark_freq = 2200.;
+	data.in_mark_freq = 2200.;
+	data.out_mark_freq = 2200.;
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
 	data.lpcutoff = 2300;
@@ -3279,9 +3286,22 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "out_bps", &data.in_data_rate) > 0)
 	    continue;
-	if (gensio_pparm_float(p, args[i], "space", &data.space_freq) > 0)
+	if (gensio_pparm_float(p, args[i], "space", &data.in_space_freq) > 0) {
+	    data.out_space_freq = data.in_space_freq;
 	    continue;
-	if (gensio_pparm_float(p, args[i], "mark", &data.mark_freq) > 0)
+	}
+	if (gensio_pparm_float(p, args[i], "in_space", &data.in_space_freq) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "out_space",
+			       &data.out_space_freq) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "mark", &data.in_mark_freq) > 0) {
+	    data.out_mark_freq = data.in_mark_freq;
+	    continue;
+	}
+	if (gensio_pparm_float(p, args[i], "in_mark", &data.in_mark_freq) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "out_mark", &data.out_mark_freq) > 0)
 	    continue;
 	if (key_pparm(p, args[i], &data.keydata))
 	    continue;
