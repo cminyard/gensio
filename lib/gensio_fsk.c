@@ -264,8 +264,10 @@ struct fsk_filter {
     bool check_ax25;
     bool do_crc;
     bool do_raw;
-    bool do_inv;
-    bool do_diff;
+    bool in_do_inv;
+    bool out_do_inv;
+    bool in_do_diff;
+    bool out_do_diff;
     bool do_uncert;
     float certainty_multiplier;
     gensiods framecount;
@@ -856,9 +858,9 @@ fsk_add_wrbit(struct fsk_filter *sfilter)
     sfilter->wrbyte_bit++;
 
  skip_increment:
-    if (sfilter->do_inv)
+    if (sfilter->out_do_inv)
 	bit = !bit;
-    if (sfilter->do_diff) {
+    if (sfilter->out_do_diff) {
 	/* If the bit is 1, change the frequency.  0 leaves it the same. */
 	if (bit)
 	    level = !level;
@@ -1129,9 +1131,9 @@ fsk_process_raw_bit(struct fsk_filter *sfilter, unsigned int bit,
 {
     struct wmsg *w = &sfilter->wmsgsets[0].wmsgs[0];
 
-    if (sfilter->do_diff)
+    if (sfilter->in_do_diff)
 	bit = sfilter->prev_recv_level != bit;
-    bit ^= sfilter->do_inv;
+    bit ^= sfilter->in_do_inv;
     w->curr_byte |= bit << w->curr_bit_pos;
     if (sfilter->do_uncert) {
 	/*
@@ -1373,11 +1375,11 @@ fsk_process_bit(struct fsk_filter *sfilter,
      * The bit is 0 if the frequency changed, 1 if the frequency
      * stayed the same.
      */
-    if (sfilter->do_diff)
+    if (sfilter->in_do_diff)
 	bit = level != w->prev_recv_level;
     else
 	bit = level;
-    bit ^= sfilter->do_inv;
+    bit ^= sfilter->in_do_inv;
     w->prev_recv_level = level;
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL)
@@ -2504,8 +2506,10 @@ struct gensio_fsk_data {
     bool do_raw;
     bool do_uncert;
     float certainty_multiplier;
-    bool do_inv;
-    bool do_diff;
+    bool in_do_inv;
+    bool out_do_inv;
+    bool in_do_diff;
+    bool out_do_diff;
     bool do_crc;
     enum fsk_format in_format;
     enum fsk_format out_format;
@@ -2760,8 +2764,10 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->do_raw = data->do_raw;
     sfilter->do_uncert = data->do_uncert;
     sfilter->certainty_multiplier = data->certainty_multiplier;
-    sfilter->do_inv = data->do_inv;
-    sfilter->do_diff = data->do_diff;
+    sfilter->in_do_inv = data->in_do_inv;
+    sfilter->out_do_inv = data->out_do_inv;
+    sfilter->in_do_diff = data->in_do_diff;
+    sfilter->out_do_diff = data->out_do_diff;
     sfilter->prev_xmit_level = 0;
     sfilter->prev_recv_level = 0;
     sfilter->in_bufsize = data->in_bufsize;
@@ -3116,8 +3122,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.full_duplex = false,
 	KEYDATA_INIT(.keydata),
 	.do_crc = false,
-	.do_inv = false,
-	.do_diff = false,
+	.in_do_inv = false,
+	.out_do_inv = false,
+	.in_do_diff = false,
+	.out_do_diff = false,
 	.do_raw = true,
 	.certainty_multiplier = 1.0,
     };
@@ -3140,8 +3148,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.lpcutoff = 2300;
 	data.hpcutoff = 0;
 	data.do_crc = true;
-	data.do_inv = true;
-	data.do_diff = true;
+	data.in_do_inv = true;
+	data.out_do_inv = true;
+	data.in_do_diff = true;
+	data.out_do_diff = true;
 	data.do_raw = false;
     }
 
@@ -3320,9 +3330,21 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_float(p, args[i], "certmult",
 			       &data.certainty_multiplier) > 0)
 	    continue;
-	if (gensio_pparm_bool(p, args[i], "inv", &data.do_inv) > 0)
+	if (gensio_pparm_bool(p, args[i], "inv", &data.in_do_inv) > 0) {
+	    data.out_do_inv = data.in_do_inv;
 	    continue;
-	if (gensio_pparm_bool(p, args[i], "diff", &data.do_diff) > 0)
+	}
+	if (gensio_pparm_bool(p, args[i], "in_inv", &data.in_do_inv) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "out_inv", &data.out_do_inv) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "diff", &data.in_do_diff) > 0) {
+	    data.out_do_diff = data.in_do_diff;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "in_diff", &data.in_do_diff) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "out_diff", &data.out_do_diff) > 0)
 	    continue;
 	if (gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;

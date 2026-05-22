@@ -2769,11 +2769,11 @@ Check and send CRCs on packets.  Normally you want the fsk code to do
 this, but can be useful for testing.  Defaults to false for fsk, true
 for afskmdm.
 .TP
-.B inv[=true|false]
+.B inv[=true|false], in_inv=..., out_inv=...
 Inverts the data on transmit and receive.  Default is false for fsk,
 true for afskmdm.
 .TP
-.B diff[=true|false]
+.B diff[=true|false], in_diff=..., out_diff=...
 Do differential encoding, where the values are driven by frequency
 changes, not by frequency values.  Default is false for fsk, true for
 afskmdm.
@@ -2788,11 +2788,11 @@ This forces crc to false.
 
 Defaults to true for fsk, false for afskmdm.
 .TP
-.B space=<n>
+.B space=<n>, in_space=<n>, out_space=<n>
 Sets the space (upper, 0) frequency for FSK.  Defaults to 2400 for
 fsk, 2200 for afskmdm.
 .TP
-.B mark=<n>
+.B mark=<n>, in_mark=<n>, out_mark=<n>
 Sets the mark (lower, 1) frequency for FSK.  Defaults to 1200.
 .TP
 .B uncert[=true|false]
