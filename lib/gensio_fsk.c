@@ -2489,6 +2489,7 @@ fsk_setup_xmit_ent(struct fsk_filter *sfilter, struct xmit_entry *e)
 }
 
 struct gensio_fsk_data {
+    const char *out_dev;
     unsigned int in_nchans;
     unsigned int in_chan;
     unsigned int out_nchans;
@@ -2725,7 +2726,7 @@ fsk_setup_fir_filter(struct fsk_filter *sfilter,
 static struct gensio_filter *
 gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 			    struct gensio_os_funcs *o,
-			    struct gensio *child,
+			    struct gensio *out_child,
 			    struct gensio_fsk_data *data)
 {
     struct fsk_filter *sfilter;
@@ -2779,7 +2780,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->tx_postamble_time = GENSIO_MSECS_TO_NSECS(data->tx_postamble_time);
     sfilter->tx_predelay_time = GENSIO_MSECS_TO_NSECS(data->tx_predelay_time);
     sfilter->full_duplex = data->full_duplex;
-    if (key_setup(&sfilter->keyinfo, &data->keydata, child, o, p,
+    if (key_setup(&sfilter->keyinfo, &data->keydata, out_child, o, p,
 		  key_open_finished, key_log, sfilter))
 	goto out_nomem;
 
@@ -3081,7 +3082,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 			struct gensio *child,
 			const char * const args[],
 			struct gensio_base_parms *parms,
-			struct gensio_filter **rfilter)
+			struct gensio_filter **rfilter,
+			struct gensio **rout_child)
 {
     struct gensio_filter *filter;
     struct gensio_fsk_data data = {
@@ -3137,6 +3139,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     gensiods cdata_len;
     unsigned int chan;
     unsigned int wmsg_extra = 0;
+    struct gensio *out_child = child;
 
     if (is_afsk) {
 	data.in_data_rate = 1200,
@@ -3155,44 +3158,9 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.do_raw = false;
     }
 
-    /* Don't care if these fail, we will check later. */
-    fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE, &data.in_bufsize);
-    fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE, &data.in_framerate);
-    fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS, &data.in_nchans);
-
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE, &data.out_bufsize);
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_RATE, &data.out_framerate);
-    fsk_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS, &data.out_nchans);
-
-    cdata_len = sizeof(cdata);
-    err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
-			 GENSIO_CONTROL_IN_FORMAT, cdata, &cdata_len);
-    if (!err) {
-	if (strcmp(cdata, "float") == 0) {
-	    data.in_format = FSK_FMT_FLOAT;
-	} else if (strcmp(cdata, "floatc") == 0) {
-	    data.in_format = FSK_FMT_FLOATC;
-	} else {
-	    gensio_pparm_slog(p, "Child input format is not float or floatc");
-	    return GE_INCONSISTENT;
-	}
-    }
-
-    cdata_len = sizeof(cdata);
-    err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
-			 GENSIO_CONTROL_OUT_FORMAT, cdata, &cdata_len);
-    if (!err) {
-	if (strcmp(cdata, "float") == 0) {
-	    data.out_format = FSK_FMT_FLOAT;
-	} else if (strcmp(cdata, "floatc") == 0) {
-	    data.out_format = FSK_FMT_FLOATC;
-	} else {
-	    gensio_pparm_slog(p, "Child output format is not float or floatc");
-	    return GE_INCONSISTENT;
-	}
-    }
-
     for (i = 0; args && args[i]; i++) {
+	if (gensio_pparm_value(p, args[i], "outdev", &data.out_dev) > 0)
+	    continue;
 	if (gensio_pparm_bool(p, args[i], "rx", &data.rx) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "tx", &data.tx) > 0)
@@ -3201,10 +3169,6 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "writebuf", &data.max_write_size) > 0)
 	    continue;
-	if (gensio_pparm_uint(p, args[i], "nchans", &data.in_nchans) > 0) {
-	    data.out_nchans = data.in_nchans;
-	    continue;
-	}
 	if (gensio_pparm_uint(p, args[i], "in_bufsize", &data.in_bufsize) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "out_bufsize", &data.out_bufsize) > 0)
@@ -3212,6 +3176,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_uint(p, args[i], "bufsize", &uintval) > 0) {
 	    data.in_bufsize = uintval;
 	    data.out_bufsize = uintval;
+	    continue;
+	}
+	if (gensio_pparm_uint(p, args[i], "nchans", &data.in_nchans) > 0) {
+	    data.out_nchans = data.in_nchans;
 	    continue;
 	}
 	if (gensio_pparm_uint(p, args[i], "in_nchans", &data.in_nchans) > 0)
@@ -3294,7 +3262,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	}
 	if (gensio_pparm_uint(p, args[i], "in_bps", &data.in_data_rate) > 0)
 	    continue;
-	if (gensio_pparm_uint(p, args[i], "out_bps", &data.in_data_rate) > 0)
+	if (gensio_pparm_uint(p, args[i], "out_bps", &data.out_data_rate) > 0)
 	    continue;
 	if (gensio_pparm_float(p, args[i], "space", &data.in_space_freq) > 0) {
 	    data.out_space_freq = data.in_space_freq;
@@ -3365,38 +3333,111 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     else
 	data.do_uncert = false;
 
+    if (data.out_dev) {
+	err = str_to_gensio(data.out_dev, o, NULL, NULL, &out_child);
+	if (err) {
+	    gensio_pparm_log(p, "cannot allocate outdev: %s\n", data.out_dev);
+	    return err;
+	}
+    }
+
+    /* After this point we must free out_child if we allocated it. */
 #define MY_STRINGIZE(s) #s
 #define CHECK_VAL(d, cmp, v)						\
     if (data.d cmp v) {							\
 	gensio_pparm_log(p, #d " cannot be " #cmp " %d\n", v);		\
-	return GE_INVAL;						\
+	goto out_inval;							\
+    }
+
+    if (data.rx && data.in_bufsize == 0) {
+	err = fsk_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
+				&data.in_bufsize);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get input bufsize, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+    if (data.rx && data.in_framerate == 0) {
+	err = fsk_child_getuint(child, GENSIO_CONTROL_IN_RATE,
+				&data.in_framerate);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get input framerate, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+    if (data.rx && data.in_nchans == 0) {
+	err = fsk_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS,
+				&data.in_nchans);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get input number of channels, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+
+    if (data.tx && data.out_bufsize == 0) {
+	err = fsk_child_getuint(out_child, GENSIO_CONTROL_OUT_BUFSIZE,
+				&data.out_bufsize);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get output bufsize, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+    if (data.tx && data.out_framerate == 0) {
+	err = fsk_child_getuint(out_child, GENSIO_CONTROL_OUT_RATE,
+				&data.out_framerate);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get output framerate, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+    if (data.tx && data.out_nchans == 0) {
+	err = fsk_child_getuint(out_child, GENSIO_CONTROL_OUT_NR_CHANS,
+				&data.out_nchans);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get output number of channels, is the child a sound card?");
+	    goto out_err;
+	}
+    }
+
+    if (data.rx && data.in_format == FSK_FMT_NONE) {
+	cdata_len = sizeof(cdata);
+	err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
+			     GENSIO_CONTROL_IN_FORMAT, cdata, &cdata_len);
+	if (!err) {
+	    if (strcmp(cdata, "float") == 0) {
+		data.in_format = FSK_FMT_FLOAT;
+	    } else if (strcmp(cdata, "floatc") == 0) {
+		data.in_format = FSK_FMT_FLOATC;
+	    } else {
+		gensio_pparm_slog(p, "Child input format is not float or floatc");
+		return GE_INCONSISTENT;
+	    }
+	}
+    }
+
+    if (data.tx && data.out_format == FSK_FMT_NONE) {
+	cdata_len = sizeof(cdata);
+	err = gensio_control(out_child, GENSIO_CONTROL_DEPTH_FIRST, true,
+			     GENSIO_CONTROL_OUT_FORMAT, cdata, &cdata_len);
+	if (!err) {
+	    if (strcmp(cdata, "float") == 0) {
+		data.out_format = FSK_FMT_FLOAT;
+	    } else if (strcmp(cdata, "floatc") == 0) {
+		data.out_format = FSK_FMT_FLOATC;
+	    } else {
+		gensio_pparm_slog(p, "Child output format is not float or floatc");
+		return GE_INCONSISTENT;
+	    }
+	}
     }
 
     if (data.rx) {
-	CHECK_VAL(in_framerate, ==, 0);
-	CHECK_VAL(in_bufsize, ==, 0);
-	CHECK_VAL(in_nchans, ==, 0);
 	CHECK_VAL(in_chan, >=, data.in_nchans);
 	CHECK_VAL(max_wmsgs, ==, 0);
-
-	if (data.in_format == FSK_FMT_NONE) {
-	    gensio_pparm_slog(p, "Unable to get child input format,"
-			      " is it a sound device?");
-	    return GE_INCONSISTENT;
-	}
     }
 
     if (data.tx) {
-	CHECK_VAL(out_framerate, ==, 0);
-	CHECK_VAL(out_bufsize, ==, 0);
-	CHECK_VAL(out_nchans, ==, 0);
 	CHECK_VAL(out_chans, >=, (1U << data.out_nchans));
-
-	if (data.out_format == FSK_FMT_NONE) {
-	    gensio_pparm_slog(p, "Unable to get child output format,"
-			      " is it a sound device?");
-	    return GE_INCONSISTENT;
-	}
     }
 
     /*
@@ -3413,12 +3454,20 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_fsk_filter_raw_alloc(p, o, child, &data);
+    filter = gensio_fsk_filter_raw_alloc(p, o, out_child, &data);
     if (!filter)
 	return GE_NOMEM;
 
     *rfilter = filter;
+    if (out_child != child)
+	*rout_child = out_child;
     return 0;
+ out_inval:
+    err = GE_INVAL;
+ out_err:
+    if (out_child != child)
+	gensio_free(out_child);
+    return err;
 }
 
 static int
@@ -3430,7 +3479,7 @@ i_fsk_gensio_alloc(struct gensio *child, const char *const args[],
     int err;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
-    struct gensio *io;
+    struct gensio *io, *out_child = NULL;
     struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "fsk", user_data);
 
@@ -3438,17 +3487,22 @@ i_fsk_gensio_alloc(struct gensio *child, const char *const args[],
     if (err)
 	goto out_err;
 
-    err = gensio_fsk_filter_alloc(&p, is_afsk, o, child, args, parms, &filter);
+    err = gensio_fsk_filter_alloc(&p, is_afsk, o, child, args, parms, &filter,
+				  &out_child);
     if (err)
 	goto out_err;
 
-    ll = gensio_gensio_ll_alloc(o, child);
+    ll = gensio_2gensio_ll_alloc(o, child, out_child);
     if (!ll) {
 	gensio_filter_free(filter);
 	goto out_nomem;
     }
 
-    gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
+    /*
+     * So gensio_ll_free doesn't free the child if this fails.  It
+     * will free out_child, but that's ok.
+     */
+    gensio_ref(child);
     io = base_gensio_alloc(o, ll, filter, child, "fsk", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
@@ -3485,7 +3539,7 @@ i_str_to_fsk_gensio(const char *str, const char * const args[],
     int err;
     struct gensio *io2;
 
-    /* cb is passed in for parmerr handling, it will be overriden later. */
+    /* cb is passed in for parmerr handling, it will be overridden later. */
     err = str_to_gensio(str, o, cb, user_data, &io2);
     if (err)
 	return err;

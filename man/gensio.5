@@ -2707,6 +2707,11 @@ are what's given above, you don't have to specify those here.
 Anything read in from the key gensio is ignored.
 .SS Options
 .TP
+.B outdev=<str>
+Allow a different output gensio stack to be specified for the output.
+It will write output to this gensio and use the other child for input
+only.
+.TP
 .B rx[=true|false]
 Enables/disables the receiver.  Default is true.
 .TP
