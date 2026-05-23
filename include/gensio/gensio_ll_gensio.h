@@ -15,4 +15,10 @@ GENSIO_DLL_PUBLIC
 struct gensio_ll *gensio_gensio_ll_alloc(struct gensio_os_funcs *o,
 					 struct gensio *child);
 
+/* Like the above, but separate gensio children for input and output. */
+GENSIO_DLL_PUBLIC
+struct gensio_ll * gensio_2gensio_ll_alloc(struct gensio_os_funcs *o,
+					   struct gensio *in_child,
+					   struct gensio *out_child);
+
 #endif /* GENSIO_LL_GENSIO_H */

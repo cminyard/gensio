@@ -37,7 +37,7 @@ libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS} \
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_base.c buffer.c \
-	ll_fd.c ll_gensio.c acc.c acc_gensio.c
+	ll_fd.c ll_gensio.c ll_2gensio.c acc.c acc_gensio.c
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
 libgensio_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden
