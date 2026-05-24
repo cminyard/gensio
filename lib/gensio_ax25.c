@@ -118,6 +118,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_acc_gensio.h>
@@ -508,7 +509,10 @@ struct ax25_base {
     uint8_t cmdrsp_pos;
     uint8_t cmdrsp_len;
 
-    struct gensio *child;
+    /* Lower level interface, we use an ll to simplify things. */
+    struct gensio_ll *ll;
+
+    struct gensio *in_child;
 
     gensio_refcount refcount;
 
@@ -832,7 +836,7 @@ ax25_chan_trace_msg(struct ax25_chan *chan,
 }
 
 static int i_ax25_base_child_close_done(struct ax25_base *base);
-static void ax25_base_child_close_done(struct gensio *child, void *open_data);
+static void ax25_base_child_close_done(void *ll_data, void *open_data);
 static void ax25_chan_sched_deferred_op(struct ax25_chan *chan);
 static int ax25_base_start_open(struct ax25_base *base);
 static void ax25_chan_prestart_connect(struct ax25_chan *chan);
@@ -970,8 +974,9 @@ ax25_base_finish_free(struct ax25_base *base)
 #endif
     if (base->addrlock)
 	base->o->free_lock(base->addrlock);
-    if (base->child)
-	gensio_free(base->child);
+    if (base->ll)
+	/* Note that this frees the child, too. */
+	gensio_ll_free(base->ll);
     gensio_refcount_cleanup(&base->refcount);
     base->o->free(base->o, base);
 }
@@ -1369,7 +1374,7 @@ ax25_print_msg_sg(struct ax25_base *base, char *t,
 
 static void
 ax25_print_msg(struct ax25_base *base, char *t,
-	       unsigned char *buf, unsigned int buflen)
+	       const unsigned char *buf, unsigned int buflen)
 {
     struct gensio_sg sg;
 
@@ -1500,7 +1505,7 @@ ax25_base_child_close(struct ax25_base *base)
 {
     int err;
 
-    err = gensio_close(base->child, ax25_base_child_close_done, base);
+    err = gensio_ll_close(base->ll, ax25_base_child_close_done, base);
     if (err)
 	i_ax25_base_child_close_done(base);
     else
@@ -1850,7 +1855,7 @@ ax25_base_handle_open_done(struct ax25_base *base, int err)
     } else {
 	/* Make sure all channels are not waiting open before enabling read. */
 	if (base->state == AX25_BASE_OPEN)
-	    gensio_set_read_callback_enable(base->child, true);
+	    gensio_ll_set_read_callback(base->ll, true);
     }
 }
 
@@ -1887,7 +1892,7 @@ i_ax25_base_child_close_done(struct ax25_base *base)
 }
 
 static void
-ax25_base_child_close_done(struct gensio *child, void *open_data)
+ax25_base_child_close_done(void *ll_data, void *open_data)
 {
     struct ax25_base *base = open_data;
     int rv;
@@ -1900,7 +1905,7 @@ ax25_base_child_close_done(struct gensio *child, void *open_data)
 }
 
 static void
-ax25_base_child_open_done(struct gensio *child, int err, void *open_data)
+ax25_base_child_open_done(void *ll_data, int err, void *open_data)
 {
     struct ax25_base *base = open_data;
 
@@ -1916,7 +1921,14 @@ ax25_base_start_open(struct ax25_base *base)
     int rv;
 
     base->child_err = 0;
-    rv = gensio_open(base->child, ax25_base_child_open_done, base);
+    rv = gensio_ll_open(base->ll, ax25_base_child_open_done, base);
+    if (rv == GE_INPROGRESS)
+	/*
+	 * Since this is a ll_gensio, this is normal.  It will always
+	 * return GE_INPROGRESS on success because it has to open the
+	 * sub-gensio.
+	 */
+	rv = 0;
     if (!rv) {
 	ax25_base_ref(base);
 	ax25_base_set_state(base, AX25_BASE_IN_CHILD_OPEN);
@@ -1993,7 +2005,7 @@ i_ax25_chan_schedule_write(struct ax25_chan *chan)
 	    if (ax25_chan_ref_if_nz(chan))
 		gensio_list_add_tail(&base->send_list, &chan->sendlink);
 	}
-	gensio_set_write_callback_enable(base->child, true);
+	gensio_ll_set_write_callback(base->ll, true);
     }
 }
 
@@ -2029,7 +2041,7 @@ ax25_base_send_rsp(struct ax25_base *base, struct gensio_addr *addr,
 	if (extra)
 	    memcpy(cr->extra_data, extra, extra_size);
 	base->cmdrsp_len++;
-	gensio_set_write_callback_enable(base->child, true);
+	gensio_ll_set_write_callback(base->ll, true);
     }
     ax25_base_unlock(base);
 }
@@ -3682,8 +3694,8 @@ i_ax25_base_handle_child_err(struct ax25_base *base, int err)
 	return;
     base->child_err = err;
 
-    gensio_set_read_callback_enable(base->child, false);
-    gensio_set_write_callback_enable(base->child, false);
+    gensio_ll_set_read_callback(base->ll, false);
+    gensio_ll_set_write_callback(base->ll, false);
 
     gensio_list_init(&to_deliver);
 
@@ -4005,7 +4017,7 @@ ax25_child_write_ready(struct ax25_base *base)
     bool re_add_chan;
 
     ax25_base_lock_and_ref(base);
-    gensio_set_write_callback_enable(base->child, false);
+    gensio_ll_set_write_callback(base->ll, false);
     while (!gensio_list_empty(&base->send_list)) {
 	l = gensio_list_first(&base->send_list);
 	gensio_list_rm(&base->send_list, l);
@@ -4086,7 +4098,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
 		ax25_print_msg_sg(base, "W", sg, sglen);
 
-	    rv = gensio_write_sg(base->child, &sendcnt, sg, sglen, NULL);
+	    rv = gensio_ll_write(base->ll, &sendcnt, sg, sglen, NULL);
 	    if (rv)
 		goto out_err_chan;
 	    if (sendcnt == 0)
@@ -4166,7 +4178,7 @@ ax25_child_write_ready(struct ax25_base *base)
 		if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
 		    ax25_print_msg_sg(base, "W", sg, sglen);
 
-		rv = gensio_write_sg(base->child, &sendcnt, sg, sglen, NULL);
+		rv = gensio_ll_write(base->ll, &sendcnt, sg, sglen, NULL);
 		chan->curr_drop++;
 	    }
 	    if (rv)
@@ -4191,14 +4203,15 @@ ax25_child_write_ready(struct ax25_base *base)
 		ax25_chan_transmit_enquiry(chan);
 	    }
 	} else if (!gensio_list_empty(&chan->raws)) {
-	    unsigned char *buf;
+	    struct gensio_sg sg;
 
 	    l = gensio_list_first(&chan->raws);
 	    raw = gensio_container_of(l, struct ax25_raw_data, link);
-	    buf = ((unsigned char *) raw) + sizeof(*raw);
+	    sg.buf = ((unsigned char *) raw) + sizeof(*raw);
+	    sg.buflen = raw->len;
 	    if (base->conf.debug & GENSIO_AX25_DEBUG_MSG)
-		ax25_print_msg(base, "W", buf, raw->len);
-	    rv = gensio_write(base->child, &sendcnt, buf, raw->len, NULL);
+		ax25_print_msg(base, "W", sg.buf, sg.buflen);
+	    rv = gensio_ll_write(base->ll, &sendcnt, &sg, 1, NULL);
 	    if (rv)
 		goto out_err_chan;
 	    if (sendcnt == 0)
@@ -4254,7 +4267,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	    sglen++;
 	    len += 2;
 	}
-	rv = gensio_write_sg(base->child, &sendcnt, sg, sglen, NULL);
+	rv = gensio_ll_write(base->ll, &sendcnt, sg, sglen, NULL);
 	if (rv)
 	    goto out_err_base;
 	if (sendcnt == 0)
@@ -4280,7 +4293,7 @@ ax25_child_write_ready(struct ax25_base *base)
     else
 	re_add_chan = false;
     if (ax25_chan_in_writable_state(chan))
-	gensio_set_write_callback_enable(base->child, true);
+	gensio_ll_set_write_callback(base->ll, true);
     ax25_base_deref_and_unlock(base);
     if (re_add_chan)
 	ax25_chan_unlock(chan); /* requeued, don't deref. */
@@ -4296,7 +4309,7 @@ ax25_child_write_ready(struct ax25_base *base)
  out_reenable_base:
     /* A write didn't complete, Reenable so we can know when we can finish. */
     if (base->state == AX25_BASE_OPEN)
-	gensio_set_write_callback_enable(base->child, true);
+	gensio_ll_set_write_callback(base->ll, true);
     ax25_base_deref_and_unlock(base);
     return 0;
  out_err_base:
@@ -4638,7 +4651,7 @@ ax25_chan_open_nochild(struct ax25_chan *chan,
 	if (err)
 	    ax25_base_set_state(base, AX25_BASE_CLOSED);
 	else
-	    gensio_set_read_callback_enable(base->child, true);
+	    gensio_ll_set_read_callback(base->ll, true);
     }
     ax25_chan_unlock(chan);
 
@@ -5062,8 +5075,8 @@ ax25_chan_func(struct gensio *io, int func, gensiods *count,
 	if (chan->state != AX25_CHAN_CLOSED) {
 	    ax25_chan_reset_data(chan);
 	    ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
-	    if (base->child)
-		gensio_disable(base->child);
+	    if (base->ll)
+		gensio_ll_disable(base->ll);
 	}
 	return 0;
 
@@ -5383,12 +5396,12 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	goto out_nomem;
 
     chan->io = gensio_data_alloc(o, cb, user_data, ax25_chan_func,
-				 base->child, "ax25", chan);
+				 base->in_child, "ax25", chan);
     if (!chan->io)
 	goto out_nomem;
     gensio_set_is_client(chan->io, true); /* FIXME */
 
-    gensio_set_attr_from_child(chan->io, base->child);
+    gensio_set_attr_from_child(chan->io, base->in_child);
     gensio_set_is_packet(chan->io, true);
     gensio_set_is_reliable(chan->io, true);
     gensio_set_is_mux(chan->io, true);
@@ -5476,20 +5489,33 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     if (!base->addrlock)
 	goto out_nomem;
 
-    base->child = child;
+    base->in_child = child;
 
     rv = ax25_chan_alloc(base, args, cb, user_data, AX25_CHAN_CLOSED,
 			 NULL, true, &chan);
-    if (rv) {
-	base->child = NULL; /* Caller will free this. */
+    if (rv)
 	goto out_err;
-    }
+
+    base->ll = gensio_gensio_ll_alloc(o, child);
+    if (!base->ll)
+	goto out_nomem;
+
+    /*
+     * So gensio_ll_free doesn't free the child if this fails.  It
+     * will free out_child, but that's ok.
+     */
+    gensio_ref(child);
+
     /*
      * chan alloc will increment the refcount, but we want the
      * refcount to match the number of channels here.
      */
     gensio_refcount_dec(&base->refcount);
 
+    /*
+     * Steal the callback back from the ll.  We only use the ll for
+     * open and close, not for event handling.
+     */
     gensio_set_callback(child, ax25_child_cb, base);
 
     base->conf = chan->conf;
@@ -5519,6 +5545,8 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 	}
 	o->free(o, my_addrs);
     }
+
+    gensio_free(child); /* Lose the ref we acquired. */
 
     *rchan = chan;
     return 0;
@@ -5627,7 +5655,7 @@ ax25a_new_child(struct ax25a_data *adata, void **finish_data,
 static int
 ax25a_finish_parent(struct ax25_chan *chan)
 {
-    gensio_set_read_callback_enable(chan->base->child, true);
+    gensio_ll_set_read_callback(chan->base->ll, true);
     return 0;
 }
 
