@@ -3336,7 +3336,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (data.out_dev) {
 	err = str_to_gensio(data.out_dev, o, NULL, NULL, &out_child);
 	if (err) {
-	    gensio_pparm_log(p, "cannot allocate outdev: %s\n", data.out_dev);
+	    gensio_pparm_log(p, "cannot allocate outdev '%s': %s\n",
+			     data.out_dev, gensio_err_to_str(err));
 	    return err;
 	}
     }
