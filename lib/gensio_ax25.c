@@ -5426,6 +5426,10 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	}
 	base->conf.out_dev = NULL;
     }
+    /*
+     * After this point, and until the ll is allocated, you must free
+     * base->out_child if it is set and you have an error.
+     */
 
     gensio_set_attr_from_child(chan->io, base->in_child);
     gensio_set_is_packet(chan->io, true);
@@ -5524,8 +5528,11 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 	goto out_err;
 
     base->ll = gensio_2gensio_ll_alloc(o, child, base->out_child);
-    if (!base->ll)
+    if (!base->ll) {
+	if (base->out_child)
+	    gensio_free(base->out_child);
 	goto out_nomem;
+    }
 
     /*
      * So gensio_ll_free doesn't free the child if this fails.  It
@@ -5541,7 +5548,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 
     /*
      * Steal the callback(s) back from the ll.  We only use the ll for
-     * open and close, not for event handling.
+     * open and close, write, and I/O enable, not for event handling.
      */
     if (base->out_child)
 	gensio_set_callback(base->out_child, ax25_child_cb, base);
