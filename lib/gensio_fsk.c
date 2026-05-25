@@ -2489,7 +2489,7 @@ fsk_setup_xmit_ent(struct fsk_filter *sfilter, struct xmit_entry *e)
 }
 
 struct gensio_fsk_data {
-    const char *out_dev;
+    const char *outgen;
     unsigned int in_nchans;
     unsigned int in_chan;
     unsigned int out_nchans;
@@ -3159,7 +3159,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_value(p, args[i], "outdev", &data.out_dev) > 0)
+	if (gensio_pparm_value(p, args[i], "outgen", &data.outgen) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "rx", &data.rx) > 0)
 	    continue;
@@ -3333,11 +3333,11 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     else
 	data.do_uncert = false;
 
-    if (data.out_dev) {
-	err = str_to_gensio(data.out_dev, o, NULL, NULL, &out_child);
+    if (data.outgen) {
+	err = str_to_gensio(data.outgen, o, NULL, NULL, &out_child);
 	if (err) {
 	    gensio_pparm_log(p, "cannot allocate outdev '%s': %s\n",
-			     data.out_dev, gensio_err_to_str(err));
+			     data.outgen, gensio_err_to_str(err));
 	    return err;
 	}
     }

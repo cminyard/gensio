@@ -424,7 +424,7 @@ struct ax25_base_cmdrsp {
 struct ax25_conf_data {
     gensiods max_read_size;
     gensiods max_write_size;
-    const char *out_dev;
+    const char *outgen;
     unsigned int readwindow;
     unsigned int writewindow;
     bool writewindow_set;
@@ -5167,7 +5167,7 @@ ax25_readconf(struct gensio_pparm_info *p,
 	    continue;
 	/* outdev is only allowed on an initial connecting channel. */
 	if (connector && firstchan &&
-		gensio_pparm_value(p, args[i], "outdev", &conf->out_dev))
+		gensio_pparm_value(p, args[i], "outgen", &conf->outgen))
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "extended", &conf->extended) > 0) {
 	    if (conf->extended > 2)
@@ -5417,14 +5417,14 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	goto out_nomem;
     gensio_set_is_client(chan->io, true); /* FIXME */
 
-    if (base->conf.out_dev) {
-	rv = str_to_gensio(base->conf.out_dev, o, NULL, NULL, &base->out_child);
+    if (base->conf.outgen) {
+	rv = str_to_gensio(base->conf.outgen, o, NULL, NULL, &base->out_child);
 	if (rv) {
 	    gensio_pparm_log(&p, "cannot allocate outdev '%s': %s\n",
-			     base->conf.out_dev, gensio_err_to_str(rv));
+			     base->conf.outgen, gensio_err_to_str(rv));
 	    goto out_err;
 	}
-	base->conf.out_dev = NULL;
+	base->conf.outgen = NULL;
     }
     /*
      * After this point, and until the ll is allocated, you must free
