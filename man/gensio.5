@@ -2237,6 +2237,12 @@ Sets the maximum packet size that can be read.  Defaults to 256.
 .B writebuf=<n>
 Sets the maximum packet size that can be written.  Defaults to 256.
 .TP
+.B outdev=<str>
+Allow a different output gensio stack to be specified for the output.
+It will write output to this gensio and use the other child for input
+only.  This can only be set on an initial gensio, not sub-channels,
+and only on connecting gensios.
+.TP
 .B readwindow=<n>
 Sets the maximum packet size that can be received and unacked.
 Defaults to 7 for extended and 4 for non-extended.

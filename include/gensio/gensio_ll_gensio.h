@@ -15,7 +15,11 @@ GENSIO_DLL_PUBLIC
 struct gensio_ll *gensio_gensio_ll_alloc(struct gensio_os_funcs *o,
 					 struct gensio *child);
 
-/* Like the above, but separate gensio children for input and output. */
+/*
+ * Like the above, but separate gensio children for input and output.
+ * If you pass in NULL for out_child, it calls
+ * gensio_gensio_ll_alloc() with in_child.
+ */
 GENSIO_DLL_PUBLIC
 struct gensio_ll * gensio_2gensio_ll_alloc(struct gensio_os_funcs *o,
 					   struct gensio *in_child,

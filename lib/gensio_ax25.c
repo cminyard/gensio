@@ -424,6 +424,7 @@ struct ax25_base_cmdrsp {
 struct ax25_conf_data {
     gensiods max_read_size;
     gensiods max_write_size;
+    const char *out_dev;
     unsigned int readwindow;
     unsigned int writewindow;
     bool writewindow_set;
@@ -513,6 +514,7 @@ struct ax25_base {
     struct gensio_ll *ll;
 
     struct gensio *in_child;
+    struct gensio *out_child;
 
     gensio_refcount refcount;
 
@@ -845,6 +847,7 @@ static int ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 			   gensio_event cb, void *user_data,
 			   enum ax25_chan_state start_state,
 			   struct gensio_addr *addr, bool firstchan,
+			   bool connector,
 			   struct ax25_chan **rchan);
 static void ax25_chan_start_t1(struct ax25_chan *chan);
 static void ax25_chan_stop_t1(struct ax25_chan *chan);
@@ -964,21 +967,23 @@ ax25_cleanup_conf(struct gensio_os_funcs *o, struct ax25_conf_data *conf)
 static void
 ax25_base_finish_free(struct ax25_base *base)
 {
-    ax25_cleanup_conf(base->o, &base->conf);
-    ax25_free_iaddr_list(base->o, &base->listen_addrs);
+    struct gensio_os_funcs *o = base->o;
+
+    ax25_cleanup_conf(o, &base->conf);
+    ax25_free_iaddr_list(o, &base->listen_addrs);
     if (base->lock)
-	base->o->free_lock(base->lock);
+	o->free_lock(base->lock);
 #ifdef DEBUG_STATE
     if (base->trace_lock)
-	base->o->free_lock(base->trace_lock);
+	o->free_lock(base->trace_lock);
 #endif
     if (base->addrlock)
-	base->o->free_lock(base->addrlock);
+	o->free_lock(base->addrlock);
     if (base->ll)
-	/* Note that this frees the child, too. */
+	/* Note that this frees the children, too. */
 	gensio_ll_free(base->ll);
     gensio_refcount_cleanup(&base->refcount);
-    base->o->free(base->o, base);
+    o->free(o, base);
 }
 
 static void
@@ -1032,7 +1037,7 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
     if (chan->io)
 	gensio_data_free(chan->io);
     if (base)
-	ax25_free_iaddr_list(base->o, &chan->ui_addrs);
+	ax25_free_iaddr_list(o, &chan->ui_addrs);
     if (chan->ui_addr_lock)
 	o->free_lock(chan->ui_addr_lock);
     if (chan->read_data) {
@@ -2781,7 +2786,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	    ax25_chan_report_open(chan);
 	} else {
 	    rv = ax25_chan_alloc(base, NULL, NULL, NULL, AX25_CHAN_OPEN,
-				 &addr->r, false, &chan);
+				 &addr->r, false, false, &chan);
 	    if (rv) {
 		ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		return NULL;
@@ -4328,10 +4333,16 @@ ax25_child_cb(struct gensio *io, void *user_data, int event,
 
     switch (event) {
     case GENSIO_EVENT_READ:
-	return ax25_child_read(base, err, buf, buflen, auxdata);
+	if (io == base->in_child)
+	    return ax25_child_read(base, err, buf, buflen, auxdata);
+	gensio_set_read_callback_enable(io, false);
+	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
-	return ax25_child_write_ready(base);
+	if (io == base->out_child)
+	    return ax25_child_write_ready(base);
+	gensio_set_write_callback_enable(io, false);
+	return 0;
 
     case GENSIO_EVENT_NEW_CHANNEL:
 	return GE_NOTSUP;
@@ -4829,7 +4840,7 @@ ax25_alloc_channel(struct ax25_chan *dummy,
     int rv;
 
     rv = ax25_chan_alloc(base, ocdata->args, ocdata->cb, ocdata->user_data,
-			 AX25_CHAN_CLOSED, NULL, false, &chan);
+			 AX25_CHAN_CLOSED, NULL, false, false, &chan);
     if (rv)
 	return rv;
 
@@ -5132,7 +5143,8 @@ ax25_scan_laddrs(struct gensio_os_funcs *o, const char *str,
 
 static int
 ax25_readconf(struct gensio_pparm_info *p,
-	      struct gensio_os_funcs *o, bool firstchan, bool noaddr,
+	      struct gensio_os_funcs *o, bool firstchan, bool connector,
+	      bool noaddr,
 	      struct ax25_conf_data *conf, const char *const args[])
 {
     int rv = 0;
@@ -5152,6 +5164,10 @@ ax25_readconf(struct gensio_pparm_info *p,
 	    continue;
 	}
 	if (gensio_pparm_uint(p, args[i], "debug", &conf->debug) > 0)
+	    continue;
+	/* outdev is only allowed on an initial connecting channel. */
+	if (connector && firstchan &&
+		gensio_pparm_value(p, args[i], "outdev", &conf->out_dev))
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "extended", &conf->extended) > 0) {
 	    if (conf->extended > 2)
@@ -5286,7 +5302,7 @@ static int
 ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 		gensio_event cb, void *user_data,
 		enum ax25_chan_state start_state,
-		struct gensio_addr *addr, bool firstchan,
+		struct gensio_addr *addr, bool firstchan, bool connector,
 		struct ax25_chan **rchan)
 {
     struct gensio_os_funcs *o = base->o;
@@ -5325,7 +5341,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	    return GE_NOMEM;
     }
 
-    rv = ax25_readconf(&p, base->o, firstchan, false, &chan->conf, args);
+    rv = ax25_readconf(&p, o, firstchan, connector, false, &chan->conf, args);
     if (rv)
 	goto out_err;
 
@@ -5348,7 +5364,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     if (chan->conf.num_conf_uiaddrs) {
 	/* Add the ui listen addresses to the list. */
 	for (i = 0; i < chan->conf.num_conf_uiaddrs; i++) {
-	    rv = ax25_add_iaddr(base->o, &chan->ui_addrs,
+	    rv = ax25_add_iaddr(o, &chan->ui_addrs,
 				&chan->conf.conf_uiaddrs[i]);
 	    if (rv)
 		goto out_err;
@@ -5401,6 +5417,16 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	goto out_nomem;
     gensio_set_is_client(chan->io, true); /* FIXME */
 
+    if (base->conf.out_dev) {
+	rv = str_to_gensio(base->conf.out_dev, o, NULL, NULL, &base->out_child);
+	if (rv) {
+	    gensio_pparm_log(&p, "cannot allocate outdev '%s': %s\n",
+			     base->conf.out_dev, gensio_err_to_str(rv));
+	    goto out_err;
+	}
+	base->conf.out_dev = NULL;
+    }
+
     gensio_set_attr_from_child(chan->io, base->in_child);
     gensio_set_is_packet(chan->io, true);
     gensio_set_is_reliable(chan->io, true);
@@ -5434,6 +5460,7 @@ static int
 ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 		       struct ax25_conf_data *conf,
 		       struct gensio_os_funcs *o,
+		       bool connector,
 		       gensio_event cb, void *user_data,
 		       struct ax25_chan **rchan)
 {
@@ -5492,11 +5519,11 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     base->in_child = child;
 
     rv = ax25_chan_alloc(base, args, cb, user_data, AX25_CHAN_CLOSED,
-			 NULL, true, &chan);
+			 NULL, true, connector, &chan);
     if (rv)
 	goto out_err;
 
-    base->ll = gensio_gensio_ll_alloc(o, child);
+    base->ll = gensio_2gensio_ll_alloc(o, child, base->out_child);
     if (!base->ll)
 	goto out_nomem;
 
@@ -5513,9 +5540,14 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     gensio_refcount_dec(&base->refcount);
 
     /*
-     * Steal the callback back from the ll.  We only use the ll for
+     * Steal the callback(s) back from the ll.  We only use the ll for
      * open and close, not for event handling.
      */
+    if (base->out_child)
+	gensio_set_callback(base->out_child, ax25_child_cb, base);
+    else
+	base->out_child = base->in_child;
+
     gensio_set_callback(child, ax25_child_cb, base);
 
     base->conf = chan->conf;
@@ -5539,7 +5571,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     if (num_my_addrs) {
 	/* Add the listen addresses to the list. */
 	for (i = 0; i < num_my_addrs; i++) {
-	    rv = ax25_add_iaddr(base->o, &base->listen_addrs, &my_addrs[i]);
+	    rv = ax25_add_iaddr(o, &base->listen_addrs, &my_addrs[i]);
 	    if (rv)
 		goto out_err;
 	}
@@ -5571,7 +5603,8 @@ ax25_gensio_alloc(struct gensio *child, const char *const args[],
     int err;
 
     ax25_defconf(&conf);
-    err = ax25_gensio_alloc_base(child, args, &conf, o, cb, user_data, &chan);
+    err = ax25_gensio_alloc_base(child, args, &conf, o, true,
+				 cb, user_data, &chan);
     if (err)
 	return err;
     *net = chan->io;
@@ -5635,7 +5668,7 @@ ax25a_new_child(struct ax25a_data *adata, void **finish_data,
     int err;
 
     err = ax25_gensio_alloc_base(ncio->child, NULL, &conf,
-				 adata->o, NULL, NULL, &chan);
+				 adata->o, false, NULL, NULL, &chan);
     if (err)
 	return err;
 
@@ -5699,7 +5732,7 @@ ax25_gensio_accepter_alloc(struct gensio_accepter *child,
 
     adata->o = o;
     ax25_defconf(&adata->conf);
-    err = ax25_readconf(&p, o, true, true, &adata->conf, args);
+    err = ax25_readconf(&p, o, true, false, true, &adata->conf, args);
     if (err) {
 	ax25_cleanup_conf(o, &adata->conf);
 	o->free(o, adata);
