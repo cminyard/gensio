@@ -1665,6 +1665,10 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 	 * Check re-align on a 1->0 or 0->1 level transition.  You
 	 * can't align on no transition because you have to have a
 	 * boundary to check against.
+	 *
+	 * Since we are only checking this boundary, only look at the
+	 * previous position if it moves the bar forward, and only look
+	 * at the current position if it move the bar backwards.
 	 */
 
 	if (sfilter->prev_best_pos > sfilter->workmiddle)
