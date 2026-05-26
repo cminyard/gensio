@@ -1667,9 +1667,11 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 	 * boundary to check against.
 	 */
 
-	adj += ((int) sfilter->prev_best_pos - (int) sfilter->workmiddle) / 2;
+	if (sfilter->prev_best_pos > sfilter->workmiddle)
+	    adj += ((int) sfilter->prev_best_pos - (int) sfilter->workmiddle) / 2;
 
-	adj += ((int) best_pos - (int) sfilter->workmiddle) / 2;
+	if (best_pos < sfilter->workmiddle)
+	    adj += ((int) best_pos - (int) sfilter->workmiddle) / 2;
     }
 
     sfilter->prev_best_pos = best_pos;
@@ -2900,7 +2902,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
 
 	if (data->maxadj == 0)
-	    sfilter->maxadj = sfilter->workedge / 3;
+	    sfilter->maxadj = sfilter->workedge / 2 + 1;
 	else
 	    sfilter->maxadj = data->maxadj;
 	if (sfilter->maxadj == 0)
