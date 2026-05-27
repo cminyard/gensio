@@ -107,6 +107,13 @@ Once you see a final flag, you can tell the interleaver to start
 looking for the synchronization sequence again.  And you can take the
 packet, unstuff the stuffed zeros, CRC check it, and deliver it.
 
+Except that the AX5043 behaves strangely here.  It encodes an HDLC
+flag at the end of the data, then enough zeros to fill out the rest of
+the interleaver.  It then puts out a couple of more encoded flags.  If
+you just stopped after the first end flags, you would see these flags
+after the zeros and start a new packet.  So you have to account for
+that, too.
+
 As you can see, all of these parts have to be fairly custom for this process.
 
 I think I have captured everything here.  It's been a long road to get

@@ -121,7 +121,7 @@ that to fsk using the sound gensio in file mode with something like:
 ```
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
     'axfec(debug=0x1f),
-     fsk(debug=0x00,format=floatc,bufsize=512,bps=100000,readbuf=1,
+     fsk(debug=0x00,format=floatc,bufsize=512,bps=50000,readbuf=1,
          uncert,certmult=50),
      sound(2500000-1-float,type=file,outdev=/dev/null),dump1.raw'
 ```
