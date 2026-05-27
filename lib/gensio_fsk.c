@@ -3099,10 +3099,10 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.out_chans = 1,
 	.max_read_size = 256,
 	.max_write_size = 256,
-	.in_mark_freq = 2400.,
-	.out_mark_freq = 2400.,
-	.in_space_freq = 1200.,
-	.out_space_freq = 1200.,
+	.in_mark_freq = 0,
+	.out_mark_freq = 0,
+	.in_space_freq = 0,
+	.out_space_freq = 0,
 	.in_data_rate = 2400,
 	.out_data_rate = 2400,
 	.in_format = FSK_FMT_NONE,
@@ -3117,7 +3117,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.min_certainty = 3.5,
 	.filt_type = IIR_FILT,
 	.filt_type_set = false,
-	.lpcutoff = 2500,
+	.lpcutoff = 0,
 	.lpgain = .9,
 	.hpcutoff = 250,
 	.hpgain = .9,
@@ -3152,6 +3152,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.out_data_rate = 1200,
 	data.in_mark_freq = 2200.;
 	data.out_mark_freq = 2200.;
+	data.in_space_freq = 1200.;
+	data.out_space_freq = 1200.;
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
 	data.lpcutoff = 2300;
@@ -3458,6 +3460,17 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	else
 	    data.filt_type = IIR_FILT;
     }
+
+    if (data.in_mark_freq < 0.1)
+	data.in_mark_freq = data.in_data_rate;
+    if (data.out_mark_freq < 0.1)
+	data.out_mark_freq = data.out_data_rate;
+    if (data.in_space_freq < 0.1)
+	data.in_space_freq = data.in_data_rate / 2;
+    if (data.out_space_freq < 0.1)
+	data.out_space_freq = data.out_data_rate / 2;
+    if (data.lpcutoff == 0)
+	data.lpcutoff = data.in_mark_freq * 2;
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 

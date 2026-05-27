@@ -2800,11 +2800,14 @@ This forces crc to false.
 Defaults to true for fsk, false for afskmdm.
 .TP
 .B space=<n>, in_space=<n>, out_space=<n>
-Sets the space (upper, 0) frequency for FSK.  Defaults to 2400 for
-fsk, 2200 for afskmdm.
+Sets the space (lower, 0) frequency for FSK.  Defaults to 2200 for
+afskmdm.  For fsk in_space defaults to (in_bps / 2), out_mark defaults
+to (out_bps / 2).  This, with the mark default, defaults to MSK.
 .TP
 .B mark=<n>, in_mark=<n>, out_mark=<n>
-Sets the mark (lower, 1) frequency for FSK.  Defaults to 1200.
+Sets the mark (higher, 1) frequency for FSK.  Defaults to 1200 for
+AFSK.  For fsk in_mark defaults to in_bps, out_mark defaults to
+out_bps.
 .TP
 .B uncert[=true|false]
 In raw mode, provide certainty data about each bit that is received in
@@ -2881,8 +2884,8 @@ there's not much difference at higher sample rates.
 .TP
 .B lpcutoff=<n>
 This sets the cutoff frequency for the input low pass filter.  Setting
-it to zero disables it.  The default is 2500Hz for fsk, 2300 for
-afskmdm.
+it to zero disables it.  The default is 2300 for afskmdm.  For fsk
+this defaults to (in_mark * 2).
 .TP
 .B lpgain=<n>
 This sets the gain for the low-pass filter.  Defaults to .9.
@@ -3070,6 +3073,9 @@ to split it up.
 This is here primarily for the AMSAT PacSat satellites which use the
 AX5043 with FEC.  But if you are using the AX5043 with FEC, well, you
 don't want to have to write all this code yourself.
+
+But it's also a general-purpose layer for doing FEC on a data link,
+and works well for that.
 .SS Options
 .TP
 .B readbuf=<n>
