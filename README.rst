@@ -251,9 +251,34 @@ sound
     little complicated, read the docs in gensio.5
 
 fsk
-    A filter gensio that sits on top of the sound gensio and does a
-    Frequency Shift Keying modem, like is used on AX.25 amateur
+    A filter gensio that sits on top of the sound or soapy gensio and
+    does a Frequency Shift Keying modem, like is used on AX.25 amateur
     radio.
+
+soapy
+    A gensio that hooks to the SoapySDR library to receive and transmit
+    with an SDR.
+
+hdlc
+    A filter gensio that does HDLC processing on data, generally from
+    something like the fsk gensio.
+
+convcode
+    A filter gensio that does convolutional coding/decoding on a data
+    stream.
+
+axfec
+    A filter gensio that does interleaving, convolutional coding, HDLC
+    processing in an integrated package.It does the the same way that
+    the AX5043 radio chip does, though it is general purpose and can
+    be used without that chip.
+
+    It turns out these things are hard to separate.  You really want
+    convolutional coding happening below the HDLC processing,
+    otherwise bit errors can mess up HDLC handling.  That means you
+    need some mechanism to recognize and align packets before they are
+    de-interleaved and decoded.  All of this is tricky and tied
+    together.
 
 kiss
     An amateur radio protocol for talking to TNCs.  This is used by AX25
