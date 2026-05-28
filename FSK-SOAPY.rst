@@ -106,6 +106,25 @@ off at +/-1.0.  If things are seriously clipped when viewing in
 audacity, you can adjust the gain on the soapy gensio to make it
 viewable.
 
+Sample rate and FSK receive
+===========================
+
+It appears that minimum sample rates depend on frequency spacing.
+
+For AFSK, with mark and space frequencies at 2200 and 1200, you need a
+minimum sample rate of around 12K if you have a quality transmitter.
+That's 10 samples per bit.  There are plenty of lousy transmitters out
+there, and this might have to be increased.  It works well at 24K for
+anything I've seen.
+
+For MSK, where the frequencies are closer together, you will need
+more.  For 2400bps MSK, you have mark and space frequencies of 2400
+and 1200, almost the same as AFSK, but twice the data rate.  To tease
+those frequencies apart you need higher sample rates.  Experiments
+have shown that you need around 30 samples per bit for reliable
+reception, so 36K in the 2400bps case.  This means at 100kbps you need
+3M sample rate, for instance.
+
 Using fsk on top of soapy
 =========================
 
