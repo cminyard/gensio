@@ -435,10 +435,23 @@ or 1 as a string.
 For a radio, the receive gain.  A double float as a string.
 .SS "GENSIO_CONTROL_OUT_GAIN"
 For a radio, the transmit gain.  A double float as a string.
+.SS "GENSIO_CONTROL_FREQUENCY"
+For a radio, the both frequencies.  For a get this return the in
+frequency.  If you set this on the fsk gensio, it will adjust the
+frequencies in its child gensio to match what it does, see the
+documentation for the fsk gensio for details.  A double float as a
+string.
 .SS "GENSIO_CONTROL_IN_FREQUENCY"
 For a radio, the receive frequency.  A double float as a string.
 .SS "GENSIO_CONTROL_OUT_FREQUENCY"
 For a radio, the transmit frequency.  A double float as a string.
+.SS "GENSIO_CONTROL_IN_FREQ_ADJ"
+For a radio, add an offset to the set input frequency.  This is so a
+modulator can move the frequency a bit to get the frequency it wants
+and still let something else control the radio frequency.  A double
+float as a string.
+.SS "GENSIO_CONTROL_OUT_FREQ_ADJ"
+Like the above, for the output frequency.
 .SS "GENSIO_CONTROL_IN_BANDWIDTH"
 For a radio, the receive bandwidth.  A double float as a string.
 .SS "GENSIO_CONTROL_OUT_BANDWIDTH"

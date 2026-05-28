@@ -75,7 +75,7 @@ enum gensio_soapy_ll_state {
 };
 
 struct soapy_config {
-    unsigned int samplerate;
+    double samplerate;
     const char *format;
     bool agc;
     bool gainset;
@@ -155,6 +155,16 @@ struct soapy_ll {
     /* Actual values */
     struct soapy_config realinc;
     struct soapy_config realoutc;
+
+    float in_freq_adj;
+    float out_freq_adj;
+
+    /*
+     * Configured frequencies, or current settings.  Actual values
+     * read back are in realinc and realoutc.
+     */
+    float in_freq;
+    float out_freq;
 
     unsigned int overflows;
     unsigned int underflows;
@@ -654,8 +664,10 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 		    struct soapy_config *conf, struct soapy_config *realconf,
 		    SoapySDRStream **stream)
 {
-    const char *rxtxs = rxtx == SOAPY_SDR_TX ? "tx" : "rx";
+    bool is_tx = rxtx == SOAPY_SDR_TX;
+    const char *rxtxs = is_tx ? "tx" : "rx";
     size_t chans[1] = { conf->channel };
+    int err;
 
     if (conf->antenna &&
 	SoapySDRDevice_setAntenna(soapyll->sdr, rxtx, conf->channel,
@@ -687,12 +699,18 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 	return GE_INVAL;
     }
 
-    if (conf->frequency > .1 &&
-	SoapySDRDevice_setFrequency(soapyll->sdr, rxtx, conf->channel,
-				    conf->frequency, NULL) != 0) {
-	gensio_pparm_log(p, "soapy set %s frequency failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->frequency > .1) {
+	err = SoapySDRDevice_setFrequency(soapyll->sdr, rxtx, conf->channel,
+					  conf->frequency, NULL);
+	if (err) {
+	    gensio_pparm_log(p, "soapy set %s frequency failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	if (is_tx)
+	    soapyll->out_freq = conf->frequency;
+	else
+	    soapyll->in_freq = conf->frequency;
     }
 
     if (conf->bandwidth > .1 &&
@@ -853,7 +871,7 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	    return GE_NOTSUP;
 	if (soapyll->inc.channel < 0)
 	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%lf",
 				       soapyll->realinc.samplerate);
 	return 0;
 
@@ -862,7 +880,7 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	    return GE_NOTSUP;
 	if (soapyll->outc.channel < 0)
 	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%lf",
 				       soapyll->realoutc.samplerate);
 	return 0;
 
@@ -998,7 +1016,69 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 				       soapyll->realoutc.gain);
 	return 0;
 
-    case GENSIO_CONTROL_IN_FREQUENCY: {
+    case GENSIO_CONTROL_FREQUENCY:
+    case GENSIO_CONTROL_IN_FREQUENCY:
+    case GENSIO_CONTROL_OUT_FREQUENCY: {
+	double freq;
+	char *end;
+
+	if (option == GENSIO_CONTROL_IN_FREQUENCY && soapyll->inc.channel < 0)
+	    return GE_NOTSUP;
+	if (option == GENSIO_CONTROL_OUT_FREQUENCY && soapyll->outc.channel < 0)
+	    return GE_NOTSUP;
+	if (!get) {
+	    if (!data || !*data)
+		return GE_INVAL;
+	    freq = strtod(data, &end);
+	    if (*end)
+		return GE_INVAL;
+	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->inc.channel < 0)
+			|| option == GENSIO_CONTROL_IN_FREQUENCY) {
+		if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_RX,
+						soapyll->inc.channel,
+						freq + soapyll->in_freq_adj,
+						NULL) != 0) {
+		    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			       "soapy set rx frequency failed: %s\n",
+			       SoapySDRDevice_lastError());
+		    return GE_INVAL;
+		}
+		soapyll->in_freq = freq;
+		soapyll->realinc.frequency =
+		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
+						soapyll->inc.channel)
+		    - soapyll->in_freq_adj;
+	    }
+	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->outc.channel< 0)
+			|| option == GENSIO_CONTROL_OUT_FREQUENCY) {
+		if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_TX,
+						soapyll->inc.channel,
+						freq + soapyll->out_freq_adj,
+						NULL) != 0) {
+		    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			       "soapy set rx frequency failed: %s\n",
+			       SoapySDRDevice_lastError());
+		    return GE_INVAL;
+		}
+		soapyll->out_freq = freq;
+		soapyll->realoutc.frequency =
+		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
+						soapyll->inc.channel)
+		    - soapyll->out_freq_adj;
+	    }
+	}
+	if (option == GENSIO_CONTROL_FREQUENCY
+		|| option == GENSIO_CONTROL_IN_FREQUENCY) {
+	    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+					   soapyll->realinc.frequency);
+	} else {
+	    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+					   soapyll->realoutc.frequency);
+	}
+	return 0;
+    }
+
+    case GENSIO_CONTROL_IN_FREQ_ADJ: {
 	double freq;
 	char *end;
 
@@ -1010,24 +1090,28 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	    freq = strtod(data, &end);
 	    if (*end)
 		return GE_INVAL;
+
 	    if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_RX,
 					    soapyll->inc.channel,
-					    freq, NULL) != 0) {
+					    soapyll->in_freq + freq,
+					    NULL) != 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
 			   "soapy set rx frequency failed: %s\n",
 			   SoapySDRDevice_lastError());
 		return GE_INVAL;
 	    }
+	    soapyll->in_freq_adj = freq;
 	    soapyll->realinc.frequency =
 		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
-					    soapyll->inc.channel);
+					    soapyll->inc.channel)
+		- soapyll->in_freq_adj;
 	}
 	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realinc.frequency);
+				       soapyll->in_freq_adj);
 	return 0;
     }
 
-    case GENSIO_CONTROL_OUT_FREQUENCY: {
+    case GENSIO_CONTROL_OUT_FREQ_ADJ: {
 	double freq;
 	char *end;
 
@@ -1039,20 +1123,25 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	    freq = strtod(data, &end);
 	    if (*end)
 		return GE_INVAL;
+
 	    if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_TX,
 					    soapyll->outc.channel,
-					    freq, NULL) != 0) {
+					    soapyll->out_freq + freq,
+					    NULL) != 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
 			   "soapy set rx frequency failed: %s\n",
 			   SoapySDRDevice_lastError());
 		return GE_INVAL;
+
+		soapyll->out_freq_adj = freq;
+		soapyll->realoutc.frequency =
+		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
+						soapyll->outc.channel)
+		    - soapyll->out_freq_adj;
 	    }
-	    soapyll->realoutc.frequency =
-		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
-					    soapyll->outc.channel);
 	}
 	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realoutc.frequency);
+				       soapyll->out_freq_adj);
 	return 0;
     }
 
@@ -1457,15 +1546,16 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_int(&p, args[i], "outchannel", &info.outc.channel) > 0)
 	    continue;
 
-	if (gensio_pparm_uint(&p, args[i], "rate", &uival) > 0) {
-	    info.inc.samplerate = uival;
+	if (gensio_pparm_double(&p, args[i], "rate",
+				&info.inc.samplerate) > 0) {
 	    info.outc.samplerate = uival;
 	    continue;
 	}
-	if (gensio_pparm_uint(&p, args[i], "inrate", &info.inc.samplerate) > 0)
+	if (gensio_pparm_double(&p, args[i], "inrate",
+				&info.inc.samplerate) > 0)
 	    continue;
-	if (gensio_pparm_uint(&p, args[i], "outrate",
-			      &info.outc.samplerate) > 0)
+	if (gensio_pparm_double(&p, args[i], "outrate",
+				&info.outc.samplerate) > 0)
 	    continue;
 
 	if (gensio_pparm_value(&p, args[i], "format", &sval) > 0) {
@@ -1478,15 +1568,15 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_value(&p, args[i], "outformat", &info.outc.format) > 0)
 	    continue;
 
-	if (gensio_pparm_double(&p, args[i], "frequency", &dval) > 0) {
+	if (gensio_pparm_double(&p, args[i], "freq", &dval) > 0) {
 	    info.inc.frequency = dval;
 	    info.outc.frequency = dval;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "infrequency",
+	if (gensio_pparm_double(&p, args[i], "infreq",
 				&info.inc.frequency) > 0)
 	    continue;
-	if (gensio_pparm_double(&p, args[i], "outfrequency",
+	if (gensio_pparm_double(&p, args[i], "outfreq",
 				&info.outc.frequency) > 0)
 	    continue;
 
