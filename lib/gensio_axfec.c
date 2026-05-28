@@ -692,7 +692,7 @@ axfec_ll_write(struct gensio_filter *filter,
 		unsigned char build_uncert[32];
 
 		if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
-		    printf("Got sync\n");
+		    printf("Got sync: %8.8x\n", sfilter->out_build_data);
 		/*
 		 * Maybe in sync!  Shove the data into the
 		 * encoder to prime it, then check for a flag.
@@ -736,7 +736,7 @@ axfec_ll_write(struct gensio_filter *filter,
 		convdecode_data_u(sfilter->ce, bytes, 6,
 				  build_uncert + 2);
 		convdecode_data_u(sfilter->ce, bytes + 1, 18,
-				  build_uncert + 10);
+				  build_uncert + 8);
 
 		/*
 		 * With the above processing, if you do a
