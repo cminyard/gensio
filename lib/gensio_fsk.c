@@ -3138,7 +3138,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.in_do_diff = false,
 	.out_do_diff = false,
 	.do_raw = true,
-	.certainty_multiplier = 40.0,
+	.certainty_multiplier = 100.0,
     };
     unsigned int i;
     int err;
