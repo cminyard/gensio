@@ -2241,9 +2241,11 @@ ax25_chan_recalc_t1(struct ax25_chan *chan, bool t1_expiry)
     /* Calculate how much time is left on t1. */
     o->get_monotonic_time(o, &now);
     diff = gensio_time_to_msecs(&now);
-    diff = chan->t1 - diff;
+    diff = (int64_t) chan->t1 - diff;
     if (diff < 0)
 	diff = 0;
+    if (diff > chan->t1v)
+	diff = chan->t1v; /* Shouldn't happen, just in case, though. */
 
     if (chan->retry_count == 0) {
 	chan->srt = (7 * chan->srt / 8) + (chan->t1v / 8) - (diff / 8);

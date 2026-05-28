@@ -69,14 +69,16 @@ int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
 #define GENSIO_MSECS_IN_SEC 1000LL
 #define GENSIO_USECS_IN_SEC 1000000LL
 #define GENSIO_NSECS_IN_SEC 1000000000LL
+#define GENSIO_NSECS_IN_MSEC 1000000LL
+#define GENSIO_NSECS_IN_USEC 1000LL
 
 /*
  * Convert time to a less granular value, rounding as necessary.
  * Then conversions from nanoseconds to different values.
  */
 #define GENSIO_TIME_CONV_DOWN(v,d) (((int64_t) (v) + (d / 2)) / d)
-#define GENSIO_NSECS_TO_MSECS(v) GENSIO_TIME_CONV_DOWN(v, GENSIO_MSECS_IN_SEC)
-#define GENSIO_NSECS_TO_USECS(v) GENSIO_TIME_CONV_DOWN(v, GENSIO_USECS_IN_SEC)
+#define GENSIO_NSECS_TO_MSECS(v) GENSIO_TIME_CONV_DOWN(v, GENSIO_NSECS_IN_MSEC)
+#define GENSIO_NSECS_TO_USECS(v) GENSIO_TIME_CONV_DOWN(v, GENSIO_NSECS_IN_USEC)
 #define GENSIO_NSECS_TO_SECS(v) GENSIO_TIME_CONV_DOWN(v, GENSIO_NSECS_IN_SEC)
 
 /*
@@ -84,8 +86,8 @@ int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
  * Then conversions to nanoseconds to different values.
  */
 #define GENSIO_TIME_CONV_UP(v,m) ((int64_t) (v) * m)
-#define GENSIO_MSECS_TO_NSECS(v) GENSIO_TIME_CONV_UP(v, 1000000LL)
-#define GENSIO_USECS_TO_NSECS(v) GENSIO_TIME_CONV_UP(v, 1000LL)
+#define GENSIO_MSECS_TO_NSECS(v) GENSIO_TIME_CONV_UP(v, GENSIO_NSECS_IN_MSEC)
+#define GENSIO_USECS_TO_NSECS(v) GENSIO_TIME_CONV_UP(v, GENSIO_NSECS_IN_USEC)
 #define GENSIO_SECS_TO_NSECS(v) GENSIO_TIME_CONV_UP(v, GENSIO_NSECS_IN_SEC)
 
 #define gensio_time_is_zero(v) ((v).secs == 0 && (v).nsecs == 0)
