@@ -1634,9 +1634,9 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 		   &best_pos, &certainty, &level);
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL) {
-	printf("WORK(%lu): level: %u (%u)  best_pos: %u (%u)\n",
+	printf("WORK(%lu): level: %u (%u)  cert: %f  best_pos: %u (%u)\n",
 	       sfilter->framecount++,
-	       level, sfilter->prev_recv_level,
+	       level, sfilter->prev_recv_level, certainty,
 	       best_pos, sfilter->prev_best_pos);
 	for (i = 0; i < sfilter->workextra; i++) {
 	    if (i == sfilter->workmiddle)
@@ -2506,6 +2506,8 @@ struct gensio_fsk_data {
     float in_space_freq;
     float out_mark_freq;
     float out_space_freq;
+    bool in_do_freqadj;
+    bool out_do_freqadj;
     unsigned int in_data_rate;
     unsigned int out_data_rate;
     unsigned int debug;
@@ -3092,6 +3094,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 			struct gensio **rout_child)
 {
     struct gensio_filter *filter;
+    struct fsk_filter *sfilter = NULL;
     struct gensio_fsk_data data = {
 	.in_nchans = 0,
 	.in_chan = 0,
@@ -3135,7 +3138,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.in_do_diff = false,
 	.out_do_diff = false,
 	.do_raw = true,
-	.certainty_multiplier = 1.0,
+	.certainty_multiplier = 25.0,
     };
     unsigned int i;
     int err;
@@ -3164,6 +3167,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.in_do_diff = true;
 	data.out_do_diff = true;
 	data.do_raw = false;
+	data.certainty_multiplier = 1.0;
     }
 
     for (i = 0; args && args[i]; i++) {
@@ -3228,6 +3232,17 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "out_samplerate",
 				 &data.in_framerate) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "freqadj",
+			      &data.in_do_freqadj) > 0) {
+	    data.out_do_freqadj = data.in_do_freqadj;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "in_freqadj",
+			      &data.in_do_freqadj) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "out_freqadj",
+			      &data.out_do_freqadj) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "wmsgs", &data.max_wmsgs) > 0)
 	    continue;
@@ -3462,21 +3477,49 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (data.in_mark_freq < 0.1)
-	data.in_mark_freq = data.in_data_rate;
+	data.in_mark_freq = data.in_data_rate * 3 / 2;
     if (data.out_mark_freq < 0.1)
-	data.out_mark_freq = data.out_data_rate;
+	data.out_mark_freq = data.out_data_rate * 3 / 2;
     if (data.in_space_freq < 0.1)
-	data.in_space_freq = data.in_data_rate / 2;
+	data.in_space_freq = data.in_data_rate;
     if (data.out_space_freq < 0.1)
-	data.out_space_freq = data.out_data_rate / 2;
+	data.out_space_freq = data.out_data_rate;
     if (data.lpcutoff == 0)
 	data.lpcutoff = data.in_mark_freq * 2;
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_fsk_filter_raw_alloc(p, o, out_child, &data);
+    filter = gensio_fsk_filter_raw_alloc(p, o, child, &data);
     if (!filter)
 	return GE_NOMEM;
+
+    sfilter = filter_to_fsk(filter);
+    if (data.in_do_freqadj && sfilter->rx) {
+	char adjstr[20];
+	gensiods len;
+
+	len = snprintf(adjstr, sizeof(adjstr), "%f",
+		       - (float) data.in_data_rate * 5 / 4);
+	err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, false,
+			    GENSIO_CONTROL_IN_FREQ_ADJ, adjstr, &len);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get set input frequency adjustment, can the child gensio do this?");
+	    goto out_err;
+	}
+    }
+    if (data.out_do_freqadj && sfilter->tx) {
+	char adjstr[20];
+	gensiods len;
+
+	len = snprintf(adjstr, sizeof(adjstr), "%f",
+		       - (float) data.out_data_rate * 3 / 4);
+	err = gensio_control(out_child, GENSIO_CONTROL_DEPTH_FIRST, false,
+			    GENSIO_CONTROL_OUT_FREQ_ADJ, adjstr, &len);
+	if (err) {
+	    gensio_pparm_slog(p, "Unable to get set output frequency adjustment, can the child gensio do this?");
+	    goto out_err;
+	}
+    }
 
     *rfilter = filter;
     if (out_child != child)
@@ -3485,6 +3528,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
  out_inval:
     err = GE_INVAL;
  out_err:
+    if (sfilter)
+	fsk_sfilter_free(sfilter);
     if (out_child != child)
 	gensio_free(out_child);
     return err;

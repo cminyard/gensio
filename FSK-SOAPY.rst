@@ -21,7 +21,7 @@ If you want to dump data from an SDR to a file, do something like:
 
 ```
 gensiot -d -d -i 'file(outfile=dump1.raw,create)' \
-  'soapy(frequency=435685000,inchannel=0,rate=2500000,bandwidth=200000),driver=miri'
+  'soapy(frequency=435.6975M,inchannel=0,rate=2.5M,bandwidth=200K),driver=miri'
 ```
 
 You can use ^C to stop it.
@@ -33,9 +33,53 @@ negative frequencies, above will be positive, up to the bandwidth in
 either direction.  If you don't understand this, it's too much to
 cover here, you need to find a tutorial on DSP and I/Q processing.
 
-The data that comes from soapy depends on the SDR, but it will either
-be complex floating point (floatc) or real floating point (float)
-numbers depending on the SDR.
+But the negative frequencies seem to not work with FSK.  FSK allows
+this, but for some reason it doesn't work.  This hasn't been analyzed,
+but I suspect it has to do with DC bias or the short measurement
+windows not having enough resolution.
+
+For FSK, you need to modify the frequency based on the data rate.  You
+might think that you can shift it so the mark frequency is bps and the
+space frequency is bps/2.  But especially for MSK, DC bias will again
+cause issues on receive if it's present.  You could apply a high-pass
+filter (one is present in the fsk gensio) but that will have a
+significant effect on the space frequency because it's so close to
+zero.
+
+The solution for receive is to shift the frequencies up so that DC
+bias doesn't affect them.  Shift the frequency so that the space
+frequency is bps above 0, and the mark frequency is at (bps + 3 / 2)
+above 0.  For instance, if your center frequency is 435.76MHz
+(435760000), and your datarate is 50000bps, you would use the
+following calculation to get the actual frequency to tune to:
+
+```
+435760000 - (50000 * 5 / 4) = 435697500
+```
+
+then set space to 50000 and mark to 75000.
+
+For transmit, you want the mark and space frequencies to be bps/2 and
+bps for MSK to work.  So for transmit, you set the actual frequency to:
+
+```
+435760000 - (50000 * 3 / 4) = 435722500
+```
+
+and set space to 25000 and mark to 50000.
+
+Note that the mark and space frequencies given above will be the
+default for the fsk gensio based upon the bps setting.
+
+If you set the "freqadj" option to the fsk gensio, it will
+automatically adjust the frequency for the child gensio as described
+above.  If using fsk on top of soapy, you should almost certainly do
+this.  That, along with the default mark and space frequencies, will
+result in MSK with minimal settings.
+
+The data that comes from/goes to soapy depends on the SDR, but it will
+either be complex floating point (floatc) or real floating point
+(float) numbers depending on the SDR.
 
 Viewing SDR and sound data
 ==========================
@@ -53,12 +97,14 @@ Channel".  Leave the rest alone.
 The sample rate for audacity only goes to 384k, so it doesn't go to
 2.5M like we sampled above.  However, that doesn't matter.  Just
 always choose the default value there, and things will remain
-consistent.
+consistent.  Just remember that if you use any audacity filters or
+effects you will need to adjust the frequencies.
 
-You can look at the data, and the peak values of a received packet
-should be between .5 and 1.  It's better to be a little lower and not
-clip than to be too high.  You can adjust the gain on the soapy gensio
-to get it to the values you want.
+Depending on the SDR and its default gain setting, the data may not be
+viewable.  The values don't matter to the fsk gensio but audacity cuts
+off at +/-1.0.  If things are seriously clipped when viewing in
+audacity, you can adjust the gain on the soapy gensio to make it
+viewable.
 
 Using fsk on top of soapy
 =========================
@@ -67,8 +113,8 @@ To put FSK on top of soapy, do something like:
 
 ```
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
-   'fsk(debug=0x00,bps=50000,tx=off),
-    soapy(frequency=435685000,inchannel=0,rate=2500000,bandwidth=200000),
+   'fsk(debug=0x00,bps=50000,tx=off,freqadj),
+    soapy(frequency=435.67M,inchannel=0,rate=2.5M,bandwidth=200K),
       driver=miri'
 ```
 
@@ -91,7 +137,7 @@ To use the axfec gensio on top of this, you would do:
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
    'axfec(debug=0x1f),
     fsk(debug=0x00,bps=50000,tx=off,uncert,certmult=50),
-    soapy(frequency=435685000,inchannel=0,rate=2500000,bandwidth=200000),
+    soapy(frequency=435.67M,inchannel=0,rate=2.5M,bandwidth=200K),
       driver=miri'
 ```
 
@@ -141,3 +187,7 @@ need half that because each sample is two float values, thus
 This is primarily useful if you are working on the fsk gensio, trying
 to debug things or tweak values.  You can save something and play it
 over and over trying different things.
+
+NOTE: The uncert does not work well on 19200bps.  It seems to work
+fine with the other speeds.  The reason for this is unknown at the
+moment.

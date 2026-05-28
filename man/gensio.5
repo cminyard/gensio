@@ -2584,8 +2584,9 @@ Specify the buffer size, in samples (not bytes).  This defaults to 1024.
 Specify the number of buffers to use.  Defaults to 100.
 .TP
 .B inrate=<n>, outrate=<n>, rate=<n>
-The sample rate, in samples per second.  This may be constrained by
-the particular hardware.
+The sample rate, in samples per second.  You may put a "K", "M", or
+"G" at the end of this for Khz, MHz, and GHz.  This may be constrained
+by the particular hardware.
 .TP
 .B informat=<n>, outformat=<n>, format=<n>
 Set the type of data to supply to the user.  This is one of: float64,
@@ -2594,13 +2595,15 @@ values.  User samples are always signed and either floating point or
 integer.  Floating point is normalized from -1.0 to 1.0.  Defaults to
 floatc.  This may be constrained by the particular hardware.
 .TP
-.B infrequency=<n>, outfrequency=<n>, frequency=<n>
+.B infreq=<n>, outfreq=<n>, freq=<n>
 Specify the frequency to tune the SDR to.  May not be supported on all
-devices.  Defaults to not specified.
+devices.  You may put a "K", "M", or "G" at the end of this for Khz,
+MHz, and GHz.  Defaults to not specified.
 .TP
 .B inbandwidth=<n>, outbandwidth=<n>, bandwidth=<n>
 Specify the bandwidth for the channel.  May not be supported on all
-devices.  Defaults to not specified.
+devices.  You may put a "K", "M", or "G" at the end of this for Khz,
+MHz, and GHz.  Defaults to not specified.
 .TP
 .B inagc=<n>, outagc=<n>, agc=<n>
 Specify automatic gain control for the channel.  May not be supported
@@ -2791,7 +2794,7 @@ afskmdm.
 .TP
 .B raw[=true|false]
 Instead of doing HDLC processing, just stream up the FSK bits to the
-layer above and accepts streamed FSK bits to transmit.  no wmsg
+layer above and accept streamed FSK bits to transmit.  no wmsg
 processing is done with this option.  The transmitter is keyed
 whenever bits are being transmitted.
 
@@ -2801,13 +2804,60 @@ Defaults to true for fsk, false for afskmdm.
 .TP
 .B space=<n>, in_space=<n>, out_space=<n>
 Sets the space (lower, 0) frequency for FSK.  Defaults to 2200 for
-afskmdm.  For fsk in_space defaults to (in_bps / 2), out_mark defaults
-to (out_bps / 2).  This, with the mark default, defaults to MSK.
+afskmdm.
+
+For fsk, in_space defaults to in_bps, out_space defaults to
+(out_bps / 2).  This, with the mark default, defaults to MSK.
+
+For receive, this requires that the frequency in the lower-level
+gensio supplying the data is set to (center_freq - (in_bps * 5 / 4)).
+
+For receive, this requires that the frequency in the lower-level
+gensio supplying the data is set to (center_freq - (in_bps * 3 / 4)).
+
+See the discussion on freqadj below for details.
 .TP
 .B mark=<n>, in_mark=<n>, out_mark=<n>
 Sets the mark (higher, 1) frequency for FSK.  Defaults to 1200 for
-AFSK.  For fsk in_mark defaults to in_bps, out_mark defaults to
-out_bps.
+AFSK.  For fsk in_mark defaults to (in_bps * 3 / 2), out_mark defaults
+to out_bps.
+.TP
+.B in_freqadj[=true|false], out_freqadj=..., freqadj=...
+Automatically adjust the frequency of the child gensio.  This tells
+the child gensio to adjust it's frequency and any frequency set later
+so the mark and space frequencies will be in the proper location if
+the set frequency is the center frequency.  Remember, the frequency
+set for FSK on an SDR is generally the center frequency, precisely
+between the mark and space frequencies.
+
+This is designed to work with the automatic mark and space settings
+discussed above.  For receive, the adjust is (-in_bps * 5 / 4).  For
+transmit, the adjust is (-in_bps * 3 / 4).
+
+For instance, if in_bps is 25000, the in_mark is 37500 and in_space is
+25000.  If the frequency is 450000000, that means that the space
+frequency is 449993750 and the mark frequency is 450006250.  We want
+to shift the frequency so the space will appear at 25000 after
+downconversion, so we set the frequency down by -31250, to 449968750,
+which will put the space at 25000 after downconversion.
+
+We do this to keep our working frequencies away from zero.  Some SDRs
+have significant DC bias at zero, and with MSK the space frequency
+will be very close to zero if downconverted so it was at (in_bps / 2).
+You can do the high pass filter, but that has a significant affect on
+the space frequency, causing errors especially around certainty
+calculations.  So we downconvert it and move the frequencies up so
+they aren't close to zero.
+
+Transmit doesn't have the DC bias issue, but we want to send using the
+standard mark and space frequencies (in the 25000bps case that would
+be 12500 for space and 25000 for mark).  That way it's true MSK.  So
+the transmit frequency is set so that space and mark will be
+upconverted and be centered on the center frequency.
+
+Defaults to false.  You almost certainly want to set this if you are
+sitting on the soapy gensio and using MSK, otherwise you have to do
+all this calculation yourself.
 .TP
 .B uncert[=true|false]
 In raw mode, provide certainty data about each bit that is received in
@@ -2886,6 +2936,11 @@ there's not much difference at higher sample rates.
 This sets the cutoff frequency for the input low pass filter.  Setting
 it to zero disables it.  The default is 2300 for afskmdm.  For fsk
 this defaults to (in_mark * 2).
+
+Note that this is not a complex filter.  It is a simple real filter;
+on complex data it is applied to the I and Q equally.  This means that
+on complex input, if you set it to, say, 10KHz, it will filter at
+above 10KHz and below -10KHz.
 .TP
 .B lpgain=<n>
 This sets the gain for the low-pass filter.  Defaults to .9.
@@ -2895,6 +2950,9 @@ This sets the cutoff frequency for the input high pass filter.
 Setting it to zero disables it.  The default is 250 for fsk, 0 for
 afskmdm.  This is useful if you have DC bias or low frequency noise on
 the signal.
+
+Like the lpcutoff low pass filter, this is a simple real filter.  See
+that for details.
 .TP
 .B lpgain=<n>
 This sets the gain for the low-pass filter.  Defaults to .9.
