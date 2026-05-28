@@ -2283,8 +2283,16 @@ gensio_pparm_float(struct gensio_pparm_info *p,
 
     value = strtod(sval, &end);
     if (*end != '\0') {
-	gensio_pparm_log(p, "invalid number in parameter %s", str);
-	return -1;
+	if (*end == 'k' || *end == 'K')
+	    value *= 1000;
+	else if (*end == 'm' || *end == 'M')
+	    value *= 1000000;
+	else if (*end == 'g' || *end == 'G')
+	    value *= 1000000000;
+	else {
+	    gensio_pparm_log(p, "invalid number in parameter %s", str);
+	    return -1;
+	}
     }
 
     *rvalue = value;
@@ -2310,8 +2318,16 @@ gensio_pparm_double(struct gensio_pparm_info *p,
 
     value = strtod(sval, &end);
     if (*end != '\0') {
-	gensio_pparm_log(p, "invalid number in parameter %s", str);
-	return -1;
+	if (*end == 'k' || *end == 'K')
+	    value *= 1000;
+	else if (*end == 'm' || *end == 'M')
+	    value *= 1000000;
+	else if (*end == 'g' || *end == 'G')
+	    value *= 1000000000;
+	else {
+	    gensio_pparm_log(p, "invalid number in parameter %s", str);
+	    return -1;
+	}
     }
 
     *rvalue = value;
