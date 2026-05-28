@@ -2893,7 +2893,8 @@ Multiply the certainty by the given floating point value when
 calculating it.  Depending on the various settings the certainty will
 vary, you will need to adjust this depending on your settings.  This
 affects the certainty calculations for wmsgs and the uncertainty
-calculations for delivered raw data.  Defaults to 1.0.
+calculations for delivered raw data.  Defaults to 1.0 for afskmdm, 40
+for fsk.
 .TP
 .B wmsgs=<n>
 The number of working receive messages at the same time.  If the bit
@@ -2935,7 +2936,8 @@ there's not much difference at higher sample rates.
 .B lpcutoff=<n>
 This sets the cutoff frequency for the input low pass filter.  Setting
 it to zero disables it.  The default is 2300 for afskmdm.  For fsk
-this defaults to (in_mark * 2).
+this defaults to zero.  Generally you can set the bandwidth on the SDR
+so you don't have to filter here.
 
 Note that this is not a complex filter.  It is a simple real filter;
 on complex data it is applied to the I and Q equally.  This means that
@@ -2947,9 +2949,8 @@ This sets the gain for the low-pass filter.  Defaults to .9.
 .TP
 .B hpcutoff=<n>
 This sets the cutoff frequency for the input high pass filter.
-Setting it to zero disables it.  The default is 250 for fsk, 0 for
-afskmdm.  This is useful if you have DC bias or low frequency noise on
-the signal.
+Setting it to zero disables it.  The default is 0.  This is useful if
+you have DC bias or low frequency noise on the signal.
 
 Like the lpcutoff low pass filter, this is a simple real filter.  See
 that for details.

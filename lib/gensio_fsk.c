@@ -3122,7 +3122,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.filt_type_set = false,
 	.lpcutoff = 0,
 	.lpgain = .9,
-	.hpcutoff = 250,
+	.hpcutoff = 0,
 	.hpgain = .9,
 	.maxadj = 0,
 	.transition_freq = 500,
@@ -3138,7 +3138,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	.in_do_diff = false,
 	.out_do_diff = false,
 	.do_raw = true,
-	.certainty_multiplier = 25.0,
+	.certainty_multiplier = 40.0,
     };
     unsigned int i;
     int err;
@@ -3160,7 +3160,6 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	data.max_wmsgs = 32;
 	wmsg_extra = 1;
 	data.lpcutoff = 2300;
-	data.hpcutoff = 0;
 	data.do_crc = true;
 	data.in_do_inv = true;
 	data.out_do_inv = true;
