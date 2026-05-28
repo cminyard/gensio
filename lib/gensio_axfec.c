@@ -634,7 +634,7 @@ axfec_ll_write(struct gensio_filter *filter,
     unsigned char bits, tmpbits, bytes[4];
     uint16_t tmpbits16;
     uint32_t bit; /* Needs to be 32 for shifting. */
-    unsigned int cbuf, j, k, upos;
+    unsigned int cbuf, j, k, upos, l;
     int err = 0;
 
     if (gensio_str_in_auxdata(auxdata, "oob")) {
@@ -716,6 +716,14 @@ axfec_ll_write(struct gensio_filter *filter,
 		byte_shift(build_uncert, 32,
 			   (sfilter->build_uncert_pos + 1) % 32);
 
+		if (uncertainty &&
+		    (sfilter->debug & GENSIO_HDLC_DEBUG_BIT_HNDL)) {
+		    printf(" uncert:");
+		    for (l = 0; l < 32; l++)
+			printf(" %3u", build_uncert[l]);
+		    printf("\n");
+		}
+
 		interleave_bits(bytes, build_uncert);
 		interleave_bits(bytes + 2, build_uncert + 16);
 
@@ -792,11 +800,9 @@ axfec_ll_write(struct gensio_filter *filter,
 	    if (sfilter->debug & GENSIO_HDLC_DEBUG_BIT_HNDL) {
 		printf("In byte %2.2x", bits);
 		if (uncertainty) {
-		    unsigned int u1;
-
 		    printf(" uncert:");
-		    for (u1 = 0; u1 < 8; u1++)
-			printf(" %3u", uncertainty[upos + u1]);
+		    for (l = 0; l < 8; l++)
+			printf(" %3u", uncertainty[upos + l]);
 		}
 		printf("\n");
 	    }
