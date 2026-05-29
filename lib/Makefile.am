@@ -430,7 +430,8 @@ install-gensiolibexecLTLIBRARIES gensiolibexec-dummyprereq: install-libLTLIBRARI
 
 .PHONY gensiolibexec-dummyprereq:
 
-EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
+EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in \
+	AXFEC.md IIR_Filter.txt
 
 DISTCLEANFILES = builtin_gensios.h
 
