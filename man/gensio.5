@@ -2806,11 +2806,11 @@ Defaults to true for fsk, false for afskmdm.
 Sets the space (lower, 0) frequency for FSK.  Defaults to 2200 for
 afskmdm.
 
-For fsk, in_space defaults to in_bps, out_space defaults to
+For fsk, in_space defaults to (in_bps * 3 / 2), out_space defaults to
 (out_bps / 2).  This, with the mark default, defaults to MSK.
 
 For receive, this requires that the frequency in the lower-level
-gensio supplying the data is set to (center_freq - (in_bps * 5 / 4)).
+gensio supplying the data is set to (center_freq - (in_bps * 7 / 4)).
 
 For receive, this requires that the frequency in the lower-level
 gensio supplying the data is set to (center_freq - (in_bps * 3 / 4)).
@@ -2819,7 +2819,7 @@ See the discussion on freqadj below for details.
 .TP
 .B mark=<n>, in_mark=<n>, out_mark=<n>
 Sets the mark (higher, 1) frequency for FSK.  Defaults to 1200 for
-AFSK.  For fsk in_mark defaults to (in_bps * 3 / 2), out_mark defaults
+AFSK.  For fsk in_mark defaults to (in_bps * 2), out_mark defaults
 to out_bps.
 .TP
 .B in_freqadj[=true|false], out_freqadj=..., freqadj=...
@@ -2831,15 +2831,15 @@ set for FSK on an SDR is generally the center frequency, precisely
 between the mark and space frequencies.
 
 This is designed to work with the automatic mark and space settings
-discussed above.  For receive, the adjust is (-in_bps * 5 / 4).  For
+discussed above.  For receive, the adjust is (-in_bps * 7 / 4).  For
 transmit, the adjust is (-in_bps * 3 / 4).
 
-For instance, if in_bps is 25000, the in_mark is 37500 and in_space is
-25000.  If the frequency is 450000000, that means that the space
+For instance, if in_bps is 25000, the in_mark is 50000 and in_space is
+37500.  If the frequency is 450000000, that means that the space
 frequency is 449993750 and the mark frequency is 450006250.  We want
-to shift the frequency so the space will appear at 25000 after
+to shift the frequency so the space will appear at 37500 after
 downconversion, so we set the frequency down by -31250, to 449968750,
-which will put the space at 25000 after downconversion.
+which will put the space at 37500 after downconversion.
 
 We do this to keep our working frequencies away from zero.  Some SDRs
 have significant DC bias at zero, and with MSK the space frequency
@@ -2847,7 +2847,8 @@ will be very close to zero if downconverted so it was at (in_bps / 2).
 You can do the high pass filter, but that has a significant affect on
 the space frequency, causing errors especially around certainty
 calculations.  So we downconvert it and move the frequencies up so
-they aren't close to zero.
+they aren't close to zero.  And we move them up enough give some room
+around the frequencies to adjust for frequency deviation.
 
 Transmit doesn't have the DC bias issue, but we want to send using the
 standard mark and space frequencies (in the 25000bps case that would

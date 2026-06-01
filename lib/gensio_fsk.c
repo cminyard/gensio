@@ -25,7 +25,10 @@
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_ax25_addr.h>
 
-/* Add timestamps to messages. */
+/* Dump parameters. */
+#define GENSIO_FSK_DEBUG_DUMP_PARMS	0x40
+
+/* Send filtered output to a file named "t1". */
 #define GENSIO_FSK_DEBUG_OUTPUT_FILTERED	0x20
 
 /* Add timestamps to messages. */
@@ -3476,13 +3479,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (data.in_mark_freq < 0.1)
-	data.in_mark_freq = data.in_data_rate * 3 / 2;
+	data.in_mark_freq = data.in_data_rate * 2;
     if (data.out_mark_freq < 0.1)
-	data.out_mark_freq = data.out_data_rate * 3 / 2;
+	data.out_mark_freq = data.out_data_rate;
     if (data.in_space_freq < 0.1)
-	data.in_space_freq = data.in_data_rate;
+	data.in_space_freq = data.in_data_rate * 3 / 2;
     if (data.out_space_freq < 0.1)
-	data.out_space_freq = data.out_data_rate;
+	data.out_space_freq = data.out_data_rate / 2;
     if (data.lpcutoff == 0)
 	data.lpcutoff = data.in_mark_freq * 2;
 
@@ -3498,7 +3501,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	gensiods len;
 
 	len = snprintf(adjstr, sizeof(adjstr), "%f",
-		       - (float) data.in_data_rate * 5 / 4);
+		       - (float) data.in_data_rate * 7 / 4);
 	err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, false,
 			    GENSIO_CONTROL_IN_FREQ_ADJ, adjstr, &len);
 	if (err) {
@@ -3518,6 +3521,20 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    gensio_pparm_slog(p, "Unable to get set output frequency adjustment, can the child gensio do this?");
 	    goto out_err;
 	}
+    }
+
+    if (data.debug & GENSIO_FSK_DEBUG_DUMP_PARMS && data.rx) {
+	printf("in_mark = %f\n", data.in_mark_freq);
+	printf("in_space = %f\n", data.in_space_freq);
+	printf("in_freqadj = %f\n", - (float) data.in_data_rate * 5 / 4);
+	printf("lpcutoff = %u\n", data.lpcutoff);
+	printf("hpcutoff = %u\n", data.hpcutoff);
+    }
+
+    if (data.debug & GENSIO_FSK_DEBUG_DUMP_PARMS && data.tx) {
+	printf("out_mark = %f\n", data.out_mark_freq);
+	printf("out_space = %f\n", data.out_space_freq);
+	printf("out_freqadj = %f\n", - (float) data.out_data_rate * 3 / 4);
     }
 
     *rfilter = filter;

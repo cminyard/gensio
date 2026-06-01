@@ -48,19 +48,20 @@ zero.
 
 The solution for receive is to shift the frequencies up so that DC
 bias doesn't affect them.  Shift the frequency so that the space
-frequency is bps above 0, and the mark frequency is at (bps + 3 / 2)
+frequency is (bps * 3 / 2), and the mark frequency is at (bps * 2)
 above 0.  For instance, if your center frequency is 435.76MHz
 (435760000), and your datarate is 50000bps, you would use the
 following calculation to get the actual frequency to tune to:
 
 ```
-435760000 - (50000 * 5 / 4) = 435697500
+435760000 - (50000 * 7 / 4) = 435697500
 ```
 
-then set space to 50000 and mark to 75000.
+then set space to 75000 and mark to 100000.
 
-For transmit, you want the mark and space frequencies to be bps/2 and
-bps for MSK to work.  So for transmit, you set the actual frequency to:
+For transmit, you want the mark and space frequencies to be bps and
+bps/2 for MSK to work.  So for transmit, you set the actual frequency
+to:
 
 ```
 435760000 - (50000 * 3 / 4) = 435722500
