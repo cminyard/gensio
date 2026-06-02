@@ -3474,7 +3474,17 @@ static int
 ax25_chan_handle_recovery_rsp(struct ax25_chan *chan, uint8_t nr,
 			      uint8_t pf, bool is_cmd)
 {
-    if (!is_cmd && pf) {
+    /*
+     * The poll_pending check below is not in the spec.  However, some
+     * stations will not respond with a RR/RNR response with f set
+     * when they get an RR/RNR command with p set like the spec says
+     * they should.
+     *
+     * So if we are in poll_pending, treat any RR/RNR as one to do a
+     * retransmit on.  We've already had a T1 timeout, so there should
+     * have been plenty of time for the other end to get the packets.
+     */
+    if ((!is_cmd && pf) || chan->poll_pending) {
 	ax25_chan_recalc_t1(chan, false);
 	ax25_chan_stop_t1(chan);
 	if (!ax25_chan_seq_in_range(chan, nr))
