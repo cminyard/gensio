@@ -215,7 +215,7 @@ static int
 child_close(struct gensio_ll *ll, gensio_ll_close_done done, void *close_data)
 {
     struct ll_2gensio_child *cdata = ll_to_child(ll);
-    int rv;
+    int rv = 0;
 
     ll_2gensio_lock(cdata);
     switch (cdata->state) {
