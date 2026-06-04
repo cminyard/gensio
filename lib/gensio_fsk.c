@@ -323,14 +323,22 @@ struct fsk_filter {
 
     /* Function to calculate DFT bins, either real or complex versions. */
     void (*do_dftbin)(struct fsk_filter *sfilter, float *dftbin,
-		      float *buf, float *power);
+		      float *buf, float *power, float *maxp);
 
     /*
      * DFT tables.  First 2 * in_bitsize values is sine, second 2 *
      * in_bitsize values is cosine.
      */
-    float *hzmark;
-    float *hzspace;
+#define MAX_HZ_BINS 7
+    float *hzbin[MAX_HZ_BINS];
+    unsigned int nr_hz_bins;
+
+    /*
+     * Storage for power measurements, each workextra samples long.
+     */
+    float *pmeas[MAX_HZ_BINS];
+    float *pmark2;
+    float *pspace2;
 
 /*
  * Use this to tell if we are receiving valid data, mostly to know if
@@ -377,14 +385,6 @@ struct fsk_filter {
      * off later.  This is workedge * 4 samples long.
      */
     float *firstv;
-
-    /*
-     * Storage for power measurements, each workextra samples long.
-     */
-    float *pmark;
-    float *pspace;
-    float *pmark2;
-    float *pspace2;
 
     /*
      * Messages we are currently working on assembling.
@@ -1534,7 +1534,7 @@ process_powers(struct fsk_filter *sfilter,
  */
 static void
 float_dftbin(struct fsk_filter *sfilter, float *dftbin,
-	     float *buf, float *power)
+	     float *buf, float *power, float *maxp)
 {
     float *csin = dftbin;
     float *ccos = dftbin + 2 * sfilter->in_bitsize;
@@ -1558,25 +1558,29 @@ float_dftbin(struct fsk_filter *sfilter, float *dftbin,
     }
 
     /* Save the first value's power. */
-    power[ppos++] = psin * psin + pcos * pcos;
+    power[ppos] = psin * psin + pcos * pcos;
+    *maxp = power[ppos];
+    ppos++;
 
     /*
      * Now go through the rest of the buffer and calculate the power for
      * each succeeding position.
      */
-    for (fpos = 0; i < sfilter->worksize; i++, fpos++) {
+    for (fpos = 0; i < sfilter->worksize; i++, fpos++, ppos++) {
 	psin -= sfilter->firstv[fpos * 2];
 	pcos -= sfilter->firstv[fpos * 2 + 1];
 	psin += *csin++ * buf[i];
 	pcos += *ccos++ * buf[i];
-	power[ppos++] = psin * psin + pcos * pcos;
+	power[ppos] = psin * psin + pcos * pcos;
+	if (power[ppos] > *maxp)
+	    *maxp = power[ppos];
     }
 }
 
 /* Like above, but complex. */
 static void
 floatc_dftbin(struct fsk_filter *sfilter, float *in_dftbin,
-	      float *in_buf, float *power)
+	      float *in_buf, float *power, float *maxp)
 {
     float complex *cwave = (float complex *) in_dftbin;
     float complex *buf = (float complex *) in_buf;
@@ -1598,16 +1602,20 @@ floatc_dftbin(struct fsk_filter *sfilter, float *in_dftbin,
     }
 
     /* Save the first value's power. */
-    power[ppos++] = cabsf(pow);
+    power[ppos] = cabsf(pow);
+    *maxp = power[ppos];
+    ppos++;
 
     /*
      * Now go through the rest of the buffer and calculate the power for
      * each succeeding position.
      */
-    for (fpos = 0; i < sfilter->worksize; i++, fpos++, cwave++) {
+    for (fpos = 0; i < sfilter->worksize; i++, fpos++, cwave++, ppos++) {
 	pow -= firstv[fpos];
 	pow += *cwave * buf[i];
-	power[ppos++] = cabsf(pow);
+	power[ppos] = cabsf(pow);
+	if (power[ppos] > *maxp)
+	    *maxp = power[ppos];
     }
 }
 
@@ -1622,6 +1630,8 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
     int adj = 0;
+    unsigned int markbin, spacebin;
+    float maxp[MAX_HZ_BINS] = {0};
 
 #if 0
     printf("A:\n");
@@ -1630,10 +1640,35 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
     }
 #endif
 
-    sfilter->do_dftbin(sfilter, sfilter->hzmark, buf, sfilter->pmark);
-    sfilter->do_dftbin(sfilter, sfilter->hzspace, buf, sfilter->pspace);
+    for (i = 0; i < sfilter->nr_hz_bins; i++)
+	sfilter->do_dftbin(sfilter, sfilter->hzbin[i], buf, sfilter->pmeas[i],
+			   &maxp[i]);
+    if (sfilter->nr_hz_bins == 2) {
+	spacebin = 0;
+	markbin = 1;
+    } else {
+	unsigned int maxp_p = 0;
 
-    process_powers(sfilter, sfilter->pmark, sfilter->pspace,
+	for (i = 1; i < sfilter->nr_hz_bins; i++) {
+	    if (maxp[i] > maxp[maxp_p])
+		maxp_p = i;
+	}
+	if (maxp_p < 2) {
+	    /* On the lower portion, must be a space. */
+	    spacebin = maxp_p;
+	    markbin = spacebin + 2;
+	} else if (maxp_p + 2 >= sfilter->nr_hz_bins) {
+	    /* On the upper portion, must be a mark. */
+	    markbin = maxp_p;
+	    spacebin = markbin - 2;
+	} else {
+	    /* In the middle, might be a mark or space. */
+	}
+	spacebin = 2;
+	markbin = 4;
+    }
+
+    process_powers(sfilter, sfilter->pmeas[markbin], sfilter->pmeas[spacebin],
 		   &best_pos, &certainty, &level);
 
     if (sfilter->debug & GENSIO_FSK_DEBUG_BIT_HNDL) {
@@ -1646,7 +1681,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 		printf(" (");
 	    else
 		printf(" ");
-	    printf("%f", sfilter->pmark[i]);
+	    printf("%f", sfilter->pmeas[markbin][i]);
 	    if (i == sfilter->workmiddle)
 		printf(")");
 	}
@@ -1656,7 +1691,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 		printf(" (");
 	    else
 		printf(" ");
-	    printf("%f", sfilter->pspace[i]);
+	    printf("%f", sfilter->pmeas[spacebin][i]);
 	    if (i == sfilter->workmiddle)
 		printf(")");
 	}
@@ -1696,18 +1731,18 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
 	for (i = 0; i < sfilter->workextra; i++)
-	    sfilter->pmark2[i] = sfilter->pmark[i] * m;
+	    sfilter->pmark2[i] = sfilter->pmeas[markbin][i] * m;
 	certainty = 0.0;
-	process_powers(sfilter, sfilter->pmark2, sfilter->pspace,
+	process_powers(sfilter, sfilter->pmark2, sfilter->pmeas[spacebin],
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
 	    fsk_process_bit(sfilter, wset, i, level, certainty, in_sync);
 
 	for (i = 0; i < sfilter->workextra; i++)
-	    sfilter->pspace2[i] = sfilter->pspace[i] * m;
+	    sfilter->pspace2[i] = sfilter->pmeas[spacebin][i] * m;
 	certainty = 0.0;
-	process_powers(sfilter, sfilter->pmark, sfilter->pspace2,
+	process_powers(sfilter, sfilter->pmeas[markbin], sfilter->pspace2,
 		       &best_pos, &certainty, &level);
 	sfilter->wmsgsets[wset + 1].got_flag = false;
 	for (i = 0; i < sfilter->max_wmsgs; i++)
@@ -2231,18 +2266,18 @@ fsk_sfilter_free(struct fsk_filter *sfilter)
 	o->free(o, sfilter->space_xmit);
     if (sfilter->lock)
 	o->free_lock(sfilter->lock);
-    if (sfilter->hzmark)
-	o->free(o, sfilter->hzmark);
-    if (sfilter->hzspace)
-	o->free(o, sfilter->hzspace);
+    for (i = 0; i < sfilter->nr_hz_bins; i++) {
+	if (sfilter->hzbin[i])
+	    o->free(o, sfilter->hzbin[i]);
+    }
     if (sfilter->workbuf)
 	o->free(o, sfilter->workbuf);
     if (sfilter->firstv)
 	o->free(o, sfilter->firstv);
-    if (sfilter->pmark)
-	o->free(o, sfilter->pmark);
-    if (sfilter->pspace)
-	o->free(o, sfilter->pspace);
+    for (i = 0; i < sfilter->nr_hz_bins; i++) {
+	if (sfilter->pmeas[i])
+	    o->free(o, sfilter->pmeas[i]);
+    }
     if (sfilter->pmark2)
 	o->free(o, sfilter->pmark2);
     if (sfilter->pspace2)
@@ -2738,11 +2773,12 @@ static struct gensio_filter *
 gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 			    struct gensio_os_funcs *o,
 			    struct gensio *out_child,
+			    bool is_afsk,
 			    struct gensio_fsk_data *data)
 {
     struct fsk_filter *sfilter;
     unsigned int i, j;
-    float fin_bitsize, fout_bitsize;
+    float fin_bitsize, fout_bitsize, freq, freq_incr;
     bool err;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
@@ -2842,33 +2878,40 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    sfilter->in_adj_period = (unsigned int) ((1. / err) + 0.5);
 	}
 
+	if (is_afsk || data->in_data_rate > 12000) {
+	    sfilter->nr_hz_bins = 2;
+	} else if (data->in_data_rate > 4800) {
+	    sfilter->nr_hz_bins = 5;
+	} else {
+	    sfilter->nr_hz_bins = 7;
+	}
+
 	/*
 	 * For complex, we don't have a separate sin and cos part,
 	 * it's e^(2 * I * w), so it's the same size real or float.
 	 */
-	sfilter->hzmark = o->zalloc(o, (sizeof(float) * 4
-					* sfilter->in_bitsize));
-	if (!sfilter->hzmark)
-	    goto out_nomem;
-	if (sfilter->in_format == FSK_FMT_FLOATC)
-	    floatc_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
-			  data->in_mark_freq, data->in_framerate);
-	else
-	    float_gen_hz(sfilter->hzmark, sfilter->in_bitsize,
-			 data->in_mark_freq / data->in_data_rate,
-			 fin_bitsize);
-
-	sfilter->hzspace = o->zalloc(o, (sizeof(float) * 4
-					 * sfilter->in_bitsize));
-	if (!sfilter->hzspace)
-	    goto out_nomem;
-	if (sfilter->in_format == FSK_FMT_FLOATC)
-	    floatc_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
-			  data->in_space_freq, data->in_framerate);
-	else
-	    float_gen_hz(sfilter->hzspace, sfilter->in_bitsize,
-			 data->in_space_freq / data->in_data_rate,
-			 fin_bitsize);
+	if (sfilter->nr_hz_bins < 5) {
+	    /* Really, below 5 is 2, as 3 and 4 are not useful numbers. */
+	    freq_incr = data->in_mark_freq - data->in_space_freq;
+	    freq = data->in_space_freq;
+	} else {
+	    freq_incr = 1200;
+	    freq = (data->in_space_freq
+		    - (sfilter->nr_hz_bins / 2 - 1) * freq_incr);
+	}
+	for (i = 0; i < sfilter->nr_hz_bins; i++, freq += freq_incr) {
+	    sfilter->hzbin[i] = o->zalloc(o, (sizeof(float) * 4
+					      * sfilter->in_bitsize));
+	    if (!sfilter->hzbin[i])
+		goto out_nomem;
+	    if (sfilter->in_format == FSK_FMT_FLOATC)
+		floatc_gen_hz(sfilter->hzbin[i], sfilter->in_bitsize,
+			      freq, data->in_framerate);
+	    else
+		float_gen_hz(sfilter->hzbin[i], sfilter->in_bitsize,
+			     freq / data->in_data_rate,
+			     fin_bitsize);
+	}
 
 	if (sfilter->in_format == FSK_FMT_FLOATC) {
 	    sfilter->do_dftbin = floatc_dftbin;
@@ -2927,14 +2970,12 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	if (!sfilter->firstv)
 	    goto out_nomem;
 
-	sfilter->pmark = o->zalloc(o, (sfilter->workextra
-				       * sfilter->in_samplesize));
-	if (!sfilter->pmark)
-	    goto out_nomem;
-	sfilter->pspace = o->zalloc(o, (sfilter->workextra
-					* sfilter->in_samplesize));
-	if (!sfilter->pspace)
-	    goto out_nomem;
+	for (i = 0; i < sfilter->nr_hz_bins; i++) {
+	    sfilter->pmeas[i] = o->zalloc(o, (sfilter->workextra
+					      * sfilter->in_samplesize));
+	    if (!sfilter->pmeas[i])
+		goto out_nomem;
+	}
 	sfilter->pmark2 = o->zalloc(o, (sfilter->workextra
 					* sfilter->in_samplesize));
 	if (!sfilter->pmark2)
@@ -3491,7 +3532,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_fsk_filter_raw_alloc(p, o, child, &data);
+    filter = gensio_fsk_filter_raw_alloc(p, o, child, is_afsk, &data);
     if (!filter)
 	return GE_NOMEM;
 
