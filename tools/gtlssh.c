@@ -570,13 +570,13 @@ calc_timediff(int *days, int *seconds, const ASN1_TIME *t)
 	return GE_NOMEM;
 
     /* Per rfc5280 generalized time is in the form: YYYYMMDDHHMMSSZ. */
-    if (g->length != 15) {
+    if (ASN1_STRING_length(g) != 15) {
 	ASN1_STRING_free((ASN1_STRING *) g);
 	return -1;
     }
 
     /* Extract all the fields into integers. */
-    rv = sscanf((char *) g->data, "%4d%2d%2d%2d%2d%2d",
+    rv = sscanf((char *) ASN1_STRING_get0_data(g), "%4d%2d%2d%2d%2d%2d",
 		&tm.tm_year, &tm.tm_mon, &tm.tm_mday,
 		&tm.tm_hour, &tm.tm_min, &tm.tm_sec);
     ASN1_STRING_free((ASN1_STRING *) g);
