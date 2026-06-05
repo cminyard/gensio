@@ -832,7 +832,7 @@ gensio_soapy_ll_close(struct soapy_ll *soapyll,
 		gensio_os_norun_waiter_wake(soapyll->inwaiter);
 	    }
 	}
-	if (soapyll->outc.channel >= 0 && !soapyll->inbufs.stopped) {
+	if (soapyll->outc.channel >= 0 && !soapyll->outbufs.stopped) {
 	    soapyll->outbufs.stop = true;
 	    if (soapyll->outbufs.blocked) {
 		soapyll->outbufs.blocked = false;
