@@ -832,7 +832,6 @@ fsk_add_wrbit(struct fsk_filter *sfilter)
     unsigned char level = sfilter->prev_xmit_level;
     struct xmit_entry *curr = sfilter->curr_xmit_ent;
     unsigned int send_alt = 0, i, j;
-    float *s;
 
     if (sfilter->out_bit_adj) {
 	sfilter->out_bit_counter++;
@@ -875,14 +874,30 @@ fsk_add_wrbit(struct fsk_filter *sfilter)
     curr = curr->next_send[level + send_alt];
     sfilter->curr_xmit_ent = curr;
 
-    s = (float *) sfilter->xmit_buf;
-    s += sfilter->xmit_buf_len * sfilter->out_nchans;
-    for (i = 0; i < curr->size; i++) {
-	for (j = 0; j < sfilter->out_nchans; j++) {
-	    if ((1 << j) & sfilter->out_chans)
-		*s++ = curr->data[i];
-	    else
-		*s++ = 0.;
+    if (sfilter->out_format == FSK_FMT_FLOATC) {
+	float complex *s = (float complex *) sfilter->xmit_buf;
+	float complex *data = (float complex *) curr->data;
+
+	s += sfilter->xmit_buf_len * sfilter->out_nchans;
+	for (i = 0; i < curr->size; i++) {
+	    for (j = 0; j < sfilter->out_nchans; j++) {
+		if ((1 << j) & sfilter->out_chans)
+		    *s++ = data[i];
+		else
+		    *s++ = 0.;
+	    }
+	}
+    } else {
+	float *s = (float *) sfilter->xmit_buf;
+
+	s += sfilter->xmit_buf_len * sfilter->out_nchans;
+	for (i = 0; i < curr->size; i++) {
+	    for (j = 0; j < sfilter->out_nchans; j++) {
+		if ((1 << j) & sfilter->out_chans)
+		    *s++ = curr->data[i];
+		else
+		    *s++ = 0.;
+	    }
 	}
     }
     sfilter->xmit_buf_len += curr->size;
@@ -2231,15 +2246,17 @@ fsk_cleanup(struct gensio_filter *filter)
     key_cleanup(&sfilter->keyinfo);
     sfilter->prev_xmit_level = 0;
     sfilter->prev_recv_level = 0;
-    for (i = 0; i < sfilter->wmsg_sets; i++) {
-	sfilter->wmsgsets[i].wmsgs[0].in_use = true;
-	sfilter->wmsgsets[i].wmsgs[0].read_data_len = 0;
-	sfilter->wmsgsets[i].wmsgs[0].num_uncertain = 0;
-	sfilter->wmsgsets[i].wmsgs[0].certainty = 0.0;
-	sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
-	for (j = 1; j < sfilter->max_wmsgs; j++)
-	    sfilter->wmsgsets[i].wmsgs[j].in_use = false;
-	sfilter->wmsgsets[i].curr_wmsgs = 1;
+    if (sfilter->wmsgsets) {
+	for (i = 0; i < sfilter->wmsg_sets; i++) {
+	    sfilter->wmsgsets[i].wmsgs[0].in_use = true;
+	    sfilter->wmsgsets[i].wmsgs[0].read_data_len = 0;
+	    sfilter->wmsgsets[i].wmsgs[0].num_uncertain = 0;
+	    sfilter->wmsgsets[i].wmsgs[0].certainty = 0.0;
+	    sfilter->wmsgsets[i].wmsgs[0].state = FSK_STATE_PREAMBLE_FIRST_0;
+	    for (j = 1; j < sfilter->max_wmsgs; j++)
+		sfilter->wmsgsets[i].wmsgs[j].in_use = false;
+	    sfilter->wmsgsets[i].curr_wmsgs = 1;
+	}
     }
     sfilter->work_pos = 0;
     sfilter->deliver_data_len = 0;
@@ -2404,8 +2421,47 @@ static int gensio_fsk_filter_func(struct gensio_filter *filter, int op,
 }
 
 static unsigned int
-fsk_find_wave_pos(float *wave, unsigned int wave_size,
-		  float v, bool ascend, unsigned int size)
+fsk_floatc_find_wave_pos(float complex *wave, unsigned int wave_size,
+			 float complex v, bool ascend, unsigned int size)
+{
+    unsigned int i;
+
+    /* Only match against the real part, the complex part should match. */
+    for (i = 0; i < wave_size - size; i++) {
+	if (creal(wave[i]) <= creal(wave[i + 1])
+		&& creal(wave[i + 1]) >= creal(wave[i + 2])) {
+	    /* At a peak. */
+	    if (creal(v) > creal(wave[i + 1]))
+		break;
+	}
+	if (creal(wave[i]) >= creal(wave[i + 1])
+		&& creal(wave[i + 1]) <= creal(wave[i + 2])) {
+	    /* At a trough */
+	    if (creal(v) < creal(wave[i + 1]))
+		break;
+	}
+	if (ascend) {
+	    if (creal(v) >= creal(wave[i]) && creal(v) <= creal(wave[i + 1])) {
+		float avg = (creal(wave[i]) + creal(wave[i + 1])) / 2;
+		if (creal(v) > avg)
+		    i++;
+		break;
+	    }
+	} else {
+	    if (creal(v) <= creal(wave[i]) && creal(v) >= creal(wave[i + 1])) {
+		float avg = (creal(wave[i]) + creal(wave[i + 1])) / 2;
+		if (creal(v) < avg)
+		    i++;
+		break;
+	    }
+	}
+    }
+    return i;
+}
+
+static unsigned int
+fsk_float_find_wave_pos(float *wave, unsigned int wave_size,
+			float v, bool ascend, unsigned int size)
 {
     unsigned int i;
 
@@ -2444,7 +2500,7 @@ static int fsk_setup_xmit_ent(struct fsk_filter *sfilter,
 
 static struct xmit_entry *
 fsk_create_xmit_ent(struct fsk_filter *sfilter, bool is_mark,
-		    unsigned int pos, float *data, unsigned int size)
+		    float *data, unsigned int size)
 {
     struct xmit_entry *e;
 
@@ -2465,34 +2521,68 @@ fsk_create_xmit_ent(struct fsk_filter *sfilter, bool is_mark,
 
 static struct xmit_entry *
 fsk_find_xmit_ent(struct fsk_filter *sfilter, bool is_mark,
-		  float v, bool ascend, unsigned int size)
+		  struct xmit_entry *prev_e, unsigned int size)
 {
     struct xmit_entry *e = sfilter->xmit_ent_list;
-    float *wave;
     unsigned int wave_size, pos;
 
-    if (is_mark) {
-	wave = sfilter->mark_xmit;
-	wave_size = sfilter->mark_xmit_len;
+    if (sfilter->out_format == FSK_FMT_FLOATC) {
+	float complex *prev_data = (float complex *) prev_e->data;
+	float complex v = prev_data[prev_e->size];
+	bool ascend = creal(v) > creal(prev_data[prev_e->size - 1]);
+	float complex *wave;
+
+	if (is_mark) {
+	    wave = (float complex *) sfilter->mark_xmit;
+	    wave_size = sfilter->mark_xmit_len;
+	} else {
+	    wave = (float complex *) sfilter->space_xmit;
+	    wave_size = sfilter->space_xmit_len;
+	}
+
+	pos = fsk_floatc_find_wave_pos(wave, wave_size, v, ascend, size);
+	if (pos >= wave_size - size)
+	    return NULL;
+
+	for(; e; e = e->next) {
+	    if (is_mark != e->is_mark)
+		continue;
+	    if (size != e->size)
+		continue;
+	    if (wave + pos == (float complex *) e->data)
+		break;
+	}
+	if (!e)
+	    e = fsk_create_xmit_ent(sfilter, is_mark,
+				    (float *) (wave + pos), size);
     } else {
-	wave = sfilter->space_xmit;
-	wave_size = sfilter->space_xmit_len;
-    }
+	float v = prev_e->data[prev_e->size];
+	bool ascend = v > prev_e->data[prev_e->size - 1];
+	float *wave;
 
-    pos = fsk_find_wave_pos(wave, wave_size, v, ascend, size);
-    if (pos >= wave_size - size)
-	return NULL;
+	if (is_mark) {
+	    wave = sfilter->mark_xmit;
+	    wave_size = sfilter->mark_xmit_len;
+	} else {
+	    wave = sfilter->space_xmit;
+	    wave_size = sfilter->space_xmit_len;
+	}
 
-    for(; e; e = e->next) {
-	if (is_mark != e->is_mark)
-	    continue;
-	if (size != e->size)
-	    continue;
-	if (wave + pos == e->data)
-	    break;
+	pos = fsk_float_find_wave_pos(wave, wave_size, v, ascend, size);
+	if (pos >= wave_size - size)
+	    return NULL;
+
+	for(; e; e = e->next) {
+	    if (is_mark != e->is_mark)
+		continue;
+	    if (size != e->size)
+		continue;
+	    if (wave + pos == e->data)
+		break;
+	}
+	if (!e)
+	    e = fsk_create_xmit_ent(sfilter, is_mark, wave + pos, size);
     }
-    if (!e)
-	e = fsk_create_xmit_ent(sfilter, is_mark, pos, wave + pos, size);
     return e;
 }
 
@@ -2503,17 +2593,15 @@ fsk_setup_xmit_ent(struct fsk_filter *sfilter, struct xmit_entry *e)
      * We index one of the end of e->data, but the array it points to
      * has entries there, and it's the next value we want.
      */
-    float v = e->data[e->size];
-    bool ascend = v > e->data[e->size - 1];
     struct xmit_entry *ne;
     unsigned int size = sfilter->out_bitsize;
 
-    ne = fsk_find_xmit_ent(sfilter, false, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, false, e, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[0] = ne;
 
-    ne = fsk_find_xmit_ent(sfilter, true, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, true, e, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[1] = ne;
@@ -2522,12 +2610,12 @@ fsk_setup_xmit_ent(struct fsk_filter *sfilter, struct xmit_entry *e)
 	return 0;
 
     size += sfilter->out_bit_adj;
-    ne = fsk_find_xmit_ent(sfilter, false, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, false, e, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[2] = ne;
 
-    ne = fsk_find_xmit_ent(sfilter, true, v, ascend, size);
+    ne = fsk_find_xmit_ent(sfilter, true, e, size);
     if (!ne)
 	return GE_NOMEM;
     e->next_send[3] = ne;
@@ -2602,9 +2690,9 @@ floatc_gen_sin(float *inbuf, unsigned int bufsize,
     unsigned int i;
 
     for (i = 0; i < bufsize; i++) {
-	float v = 2 * M_PI * freq_incr * ((float) i);
+	float complex v = - I * 2 * M_PI * freq_incr * ((float) i);
 
-	buf[i] = csin(v / fin_bitsize) * volume;
+	buf[i] = cexpf(v / fin_bitsize) * volume;
     }
 }
 
@@ -2638,7 +2726,7 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
 				       * sfilter->mark_xmit_len));
     if (!sfilter->mark_xmit)
 	return GE_NOMEM;
-    if (sfilter->in_format == FSK_FMT_FLOATC)
+    if (sfilter->out_format == FSK_FMT_FLOATC)
 	floatc_gen_sin(sfilter->mark_xmit, sfilter->mark_xmit_len,
 		       data->out_mark_freq / data->out_data_rate, fbitsize,
 		       data->volume);
@@ -2655,7 +2743,7 @@ fsk_setup_transmit(struct fsk_filter *sfilter,
 					* sfilter->space_xmit_len));
     if (!sfilter->space_xmit)
 	return GE_NOMEM;
-    if (sfilter->in_format == FSK_FMT_FLOATC)
+    if (sfilter->out_format == FSK_FMT_FLOATC)
 	floatc_gen_sin(sfilter->space_xmit, sfilter->space_xmit_len,
 		       data->out_space_freq / data->out_data_rate, fbitsize,
 		       data->volume);
@@ -2888,6 +2976,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	} else {
 	    sfilter->nr_hz_bins = 7;
 	}
+	sfilter->nr_hz_bins = 2;
 
 	/*
 	 * For complex, we don't have a separate sin and cos part,
@@ -3553,12 +3642,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    goto out_err;
 	}
     }
+    printf("A: %d %d\n", data.out_do_freqadj, sfilter->tx);
     if (data.out_do_freqadj && sfilter->tx) {
 	char adjstr[20];
 	gensiods len;
 
 	len = snprintf(adjstr, sizeof(adjstr), "%f",
-		       - (float) data.out_data_rate * 3 / 4);
+		       - (float) data.out_data_rate * 1 / 4);
 	err = gensio_control(out_child, GENSIO_CONTROL_DEPTH_FIRST, false,
 			    GENSIO_CONTROL_OUT_FREQ_ADJ, adjstr, &len);
 	if (err) {
@@ -3578,7 +3668,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (data.debug & GENSIO_FSK_DEBUG_DUMP_PARMS && data.tx) {
 	printf("out_mark = %f\n", data.out_mark_freq);
 	printf("out_space = %f\n", data.out_space_freq);
-	printf("out_freqadj = %f\n", - (float) data.out_data_rate * 3 / 4);
+	printf("out_freqadj = %f\n", - (float) data.out_data_rate * 1 / 4);
     }
 
     *rfilter = filter;
