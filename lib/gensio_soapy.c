@@ -1444,24 +1444,28 @@ gensio_soapy_ll_alloc(struct gensio_pparm_info *p,
     if (!soapyll->lock)
 	goto out_nomem;
 
-    soapyll->inwaiter = gensio_os_alloc_norun_waiter(o);
-    if (!soapyll->inwaiter)
-	goto out_nomem;
-    err = gensio_os_new_thread(o, gensio_soapy_inthread,
-			       soapyll, &soapyll->inthread);
-    if (err) {
-	if (err == GE_NOTSUP)
-	    gensio_pparm_slog(p, "soapy gensio requires threaded os handler");
-	goto out_err;
+    if (info->inc.channel >= 0) {
+	soapyll->inwaiter = gensio_os_alloc_norun_waiter(o);
+	if (!soapyll->inwaiter)
+	    goto out_nomem;
+	err = gensio_os_new_thread(o, gensio_soapy_inthread,
+				   soapyll, &soapyll->inthread);
+	if (err) {
+	    if (err == GE_NOTSUP)
+		gensio_pparm_slog(p, "soapy gensio requires threaded os handler");
+	    goto out_err;
+	}
     }
 
-    soapyll->outwaiter = gensio_os_alloc_norun_waiter(o);
-    if (!soapyll->outwaiter)
-	goto out_nomem;
-    err = gensio_os_new_thread(o, gensio_soapy_outthread,
-			       soapyll, &soapyll->outthread);
-    if (err)
-	goto out_err;
+    if (info->outc.channel >= 0) {
+	soapyll->outwaiter = gensio_os_alloc_norun_waiter(o);
+	if (!soapyll->outwaiter)
+	    goto out_nomem;
+	err = gensio_os_new_thread(o, gensio_soapy_outthread,
+				   soapyll, &soapyll->outthread);
+	if (err)
+	    goto out_err;
+    }
 
     soapyll->ll = gensio_ll_alloc_data(o, gensio_soapy_ll_func, soapyll);
     if (!soapyll->ll)
