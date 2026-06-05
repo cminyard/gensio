@@ -1122,6 +1122,13 @@ fsk_ul_write(struct gensio_filter *filter,
  out_process:
     fsk_handle_send(sfilter, handler, cb_data);
  out:
+    /*
+     * Make sure to clear the output buffer if there's anything left
+     * and we can still write.  Otherwise the base handler won't know
+     * we have data left to send.
+     */
+    if (sfilter->xmit_buf_len > 0)
+	fsk_send_buffer(sfilter, handler, cb_data);
     fsk_unlock(sfilter);
     if (!rv && rcount)
 	*rcount = count;
