@@ -1131,16 +1131,15 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 					    soapyll->out_freq + freq,
 					    NULL) != 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
-			   "soapy set rx frequency failed: %s\n",
+			   "soapy set tx frequency failed: %s\n",
 			   SoapySDRDevice_lastError());
 		return GE_INVAL;
-
-		soapyll->out_freq_adj = freq;
-		soapyll->realoutc.frequency =
-		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
-						soapyll->outc.channel)
-		    - soapyll->out_freq_adj;
 	    }
+	    soapyll->out_freq_adj = freq;
+	    soapyll->realoutc.frequency =
+		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
+					    soapyll->outc.channel)
+		- soapyll->out_freq_adj;
 	}
 	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
 				       soapyll->out_freq_adj);
