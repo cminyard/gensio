@@ -564,7 +564,8 @@ gensio_soapy_outthread(void *data)
 	    gensio_soapy_ll_lock(soapyll);
 	    if (rv < 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
-			   "soapy write stream failed: %s\n",
+			   "soapy write stream failed(%d): %s\n",
+			   SoapySDRDevice_lastStatus(),
 			   SoapySDRDevice_lastError());
 		soapyll->err = GE_IOERR;
 		if (soapyll->write_enabled)
@@ -574,7 +575,7 @@ gensio_soapy_outthread(void *data)
 		goto block;
 	    }
 	    if (rv + sb->curreadpos >= sb->bufsize) {
-		/* Filled the buffer.  Wake the write ready. */
+		/* Wrote the buffer.  Wake the write ready. */
 		sb->numbufs--;
 		sb->curbuf++;
 		if (sb->curbuf >= sb->bufslen)
@@ -634,10 +635,11 @@ gensio_soapy_ll_write(struct soapy_ll *soapyll, gensiods *rcount,
 
 	sb->curwritepos += len;
 	if (sb->curwritepos >= sb->bufbsize) {
+	    sb->curwritepos = 0;
 	    sb->numbufs++;
 	    if (sb->blocked) {
 		sb->blocked = false;
-		gensio_os_norun_waiter_wake(soapyll->inwaiter);
+		gensio_os_norun_waiter_wake(soapyll->outwaiter);
 	    }
 	}
 
@@ -1518,11 +1520,11 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
     info.outc.channel = -1;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_ds(&p, args[i], "inbufsize", &dsval) > 0) {
+	if (gensio_pparm_ds(&p, args[i], "in_bufsize", &dsval) > 0) {
 	    info.inbufsize = dsval;
 	    continue;
 	}
-	if (gensio_pparm_ds(&p, args[i], "outbufsize", &dsval) > 0) {
+	if (gensio_pparm_ds(&p, args[i], "out_bufsize", &dsval) > 0) {
 	    info.outbufsize = dsval;
 	    continue;
 	}
@@ -1531,9 +1533,9 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outbufsize = dsval;
 	    continue;
 	}
-	if (gensio_pparm_uint(&p, args[i], "innbufs", &info.innumbufs) > 0)
+	if (gensio_pparm_uint(&p, args[i], "in_nbufs", &info.innumbufs) > 0)
 	    continue;
-	if (gensio_pparm_uint(&p, args[i], "outnbufs", &info.outnumbufs) > 0)
+	if (gensio_pparm_uint(&p, args[i], "out_nbufs", &info.outnumbufs) > 0)
 	    continue;
 	if (gensio_pparm_uint(&p, args[i], "nbufs", &uival) > 0) {
 	    info.innumbufs = uival;
@@ -1541,9 +1543,9 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    continue;
 	}
 
-	if (gensio_pparm_int(&p, args[i], "inchannel", &info.inc.channel) > 0)
+	if (gensio_pparm_int(&p, args[i], "in_channel", &info.inc.channel) > 0)
 	    continue;
-	if (gensio_pparm_int(&p, args[i], "outchannel", &info.outc.channel) > 0)
+	if (gensio_pparm_int(&p, args[i], "out_channel", &info.outc.channel) > 0)
 	    continue;
 
 	if (gensio_pparm_double(&p, args[i], "rate",
@@ -1551,10 +1553,10 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.samplerate = uival;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "inrate",
+	if (gensio_pparm_double(&p, args[i], "in_rate",
 				&info.inc.samplerate) > 0)
 	    continue;
-	if (gensio_pparm_double(&p, args[i], "outrate",
+	if (gensio_pparm_double(&p, args[i], "out_rate",
 				&info.outc.samplerate) > 0)
 	    continue;
 
@@ -1563,9 +1565,9 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.format = sval;
 	    continue;
 	}
-	if (gensio_pparm_value(&p, args[i], "informat", &info.inc.format) > 0)
+	if (gensio_pparm_value(&p, args[i], "in_format", &info.inc.format) > 0)
 	    continue;
-	if (gensio_pparm_value(&p, args[i], "outformat", &info.outc.format) > 0)
+	if (gensio_pparm_value(&p, args[i], "out_format", &info.outc.format) > 0)
 	    continue;
 
 	if (gensio_pparm_double(&p, args[i], "freq", &dval) > 0) {
@@ -1573,10 +1575,10 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.frequency = dval;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "infreq",
+	if (gensio_pparm_double(&p, args[i], "in_freq",
 				&info.inc.frequency) > 0)
 	    continue;
-	if (gensio_pparm_double(&p, args[i], "outfreq",
+	if (gensio_pparm_double(&p, args[i], "out_freq",
 				&info.outc.frequency) > 0)
 	    continue;
 
@@ -1585,10 +1587,10 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.bandwidth = dval;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "inbandwidth",
+	if (gensio_pparm_double(&p, args[i], "in_bandwidth",
 				&info.inc.bandwidth) > 0)
 	    continue;
-	if (gensio_pparm_double(&p, args[i], "outbandwidth",
+	if (gensio_pparm_double(&p, args[i], "out_bandwidth",
 				&info.outc.bandwidth) > 0)
 	    continue;
 
@@ -1597,9 +1599,9 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.agc = bval;
 	    continue;
 	}
-	if (gensio_pparm_bool(&p, args[i], "inagc", &info.inc.agc) > 0)
+	if (gensio_pparm_bool(&p, args[i], "in_agc", &info.inc.agc) > 0)
 	    continue;
-	if (gensio_pparm_bool(&p, args[i], "outagc", &info.outc.agc) > 0)
+	if (gensio_pparm_bool(&p, args[i], "out_agc", &info.outc.agc) > 0)
 	    continue;
 
 	if (gensio_pparm_double(&p, args[i], "gain", &dval) > 0) {
@@ -1609,11 +1611,11 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outc.gain = dval;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "ingain", &info.inc.gain) > 0) {
+	if (gensio_pparm_double(&p, args[i], "in_gain", &info.inc.gain) > 0) {
 	    info.inc.gainset = true;
 	    continue;
 	}
-	if (gensio_pparm_double(&p, args[i], "outgain", &info.outc.gain) > 0) {
+	if (gensio_pparm_double(&p, args[i], "out_gain", &info.outc.gain) > 0) {
 	    info.outc.gainset = true;
 	    continue;
 	}
@@ -1623,9 +1625,9 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    info.outantenna = sval;
 	    continue;
 	}
-	if (gensio_pparm_value(&p, args[i], "inantenna", &info.inantenna) > 0)
+	if (gensio_pparm_value(&p, args[i], "in_antenna", &info.inantenna) > 0)
 	    continue;
-	if (gensio_pparm_value(&p, args[i], "outantenna", &info.outantenna) > 0)
+	if (gensio_pparm_value(&p, args[i], "out_antenna", &info.outantenna) > 0)
 	    continue;
 
 	gensio_pparm_unknown_parm(&p, args[i]);
