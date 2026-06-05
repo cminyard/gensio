@@ -548,11 +548,11 @@ gensio_soapy_outthread(void *data)
 	    if (sb->numbufs == 0) {
 		/* We only have a partial buffer to write. */
 		sb->numbufs++;
-		sb->curbuflen = sb->curwritepos;
+		sb->curbuflen = sb->curwritepos / sb->framesize;
 		sb->curwritepos = 0;
 	    } else if (sb->curbuflen == 0) {
 		/* Full buffer. */
-		sb->curbuflen = sb->bufbsize;
+		sb->curbuflen = sb->bufsize;
 	    }
 
 	    vbufs[0] = sb->bufs[cbuf] + (sb->curreadpos * sb->framesize);
@@ -574,7 +574,7 @@ gensio_soapy_outthread(void *data)
 		sb->stop = false;
 		goto block;
 	    }
-	    if (rv + sb->curreadpos >= sb->bufsize) {
+	    if (rv + sb->curreadpos >= sb->curbuflen) {
 		/* Wrote the buffer.  Wake the write ready. */
 		sb->numbufs--;
 		sb->curbuf++;
