@@ -1043,8 +1043,11 @@ fsk_ul_write(struct gensio_filter *filter,
     int rv = 0;
 
     if (!sfilter->tx) {
-	if (rcount)
+	if (rcount) {
+	    for (i = 0; i < sglen; i++)
+		count += sg[i].buflen;
 	    *rcount = count;
+	}
 	return 0;
     }
 
