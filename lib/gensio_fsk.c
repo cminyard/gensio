@@ -2697,7 +2697,7 @@ floatc_gen_sin(float *inbuf, unsigned int bufsize,
     unsigned int i;
 
     for (i = 0; i < bufsize; i++) {
-	float complex v = - I * 2 * M_PI * freq_incr * ((float) i);
+	float complex v = I * 2 * M_PI * freq_incr * ((float) i);
 
 	buf[i] = cexpf(v / fin_bitsize) * volume;
     }
@@ -3619,13 +3619,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (data.in_mark_freq < 0.1)
-	data.in_mark_freq = data.in_data_rate * 2;
+	data.in_mark_freq = data.in_data_rate * 4;
     if (data.out_mark_freq < 0.1)
-	data.out_mark_freq = data.out_data_rate;
+	data.out_mark_freq = data.out_data_rate * 4;
     if (data.in_space_freq < 0.1)
-	data.in_space_freq = data.in_data_rate * 3 / 2;
+	data.in_space_freq = data.in_mark_freq - data.in_data_rate / 2;
     if (data.out_space_freq < 0.1)
-	data.out_space_freq = data.out_data_rate / 2;
+	data.out_space_freq = data.out_mark_freq - data.out_data_rate / 2;
     if (data.lpcutoff == 0)
 	data.lpcutoff = data.in_mark_freq * 2;
 
@@ -3641,7 +3641,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	gensiods len;
 
 	len = snprintf(adjstr, sizeof(adjstr), "%f",
-		       - (float) data.in_data_rate * 7 / 4);
+		       - (float) data.in_data_rate * 14 / 4);
 	err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, false,
 			    GENSIO_CONTROL_IN_FREQ_ADJ, adjstr, &len);
 	if (err) {
@@ -3649,13 +3649,12 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    goto out_err;
 	}
     }
-    printf("A: %d %d\n", data.out_do_freqadj, sfilter->tx);
     if (data.out_do_freqadj && sfilter->tx) {
 	char adjstr[20];
 	gensiods len;
 
 	len = snprintf(adjstr, sizeof(adjstr), "%f",
-		       - (float) data.out_data_rate * 3 / 4);
+		       - (float) data.out_data_rate * 14 / 4);
 	err = gensio_control(out_child, GENSIO_CONTROL_DEPTH_FIRST, false,
 			    GENSIO_CONTROL_OUT_FREQ_ADJ, adjstr, &len);
 	if (err) {
@@ -3667,7 +3666,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (data.debug & GENSIO_FSK_DEBUG_DUMP_PARMS && data.rx) {
 	printf("in_mark = %f\n", data.in_mark_freq);
 	printf("in_space = %f\n", data.in_space_freq);
-	printf("in_freqadj = %f\n", - (float) data.in_data_rate * 7 / 4);
+	printf("in_freqadj = %f\n", - (float) data.in_data_rate * 14 / 4);
 	printf("lpcutoff = %u\n", data.lpcutoff);
 	printf("hpcutoff = %u\n", data.hpcutoff);
     }
@@ -3675,7 +3674,7 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     if (data.debug & GENSIO_FSK_DEBUG_DUMP_PARMS && data.tx) {
 	printf("out_mark = %f\n", data.out_mark_freq);
 	printf("out_space = %f\n", data.out_space_freq);
-	printf("out_freqadj = %f\n", - (float) data.out_data_rate * 3 / 4);
+	printf("out_freqadj = %f\n", - (float) data.out_data_rate * 14 / 4);
     }
 
     *rfilter = filter;
