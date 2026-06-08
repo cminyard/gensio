@@ -702,17 +702,34 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
     }
 
     if (conf->frequency > .1) {
+	float adj;
+
+	if (is_tx)
+	    adj = soapyll->out_freq_adj;
+	else
+	    adj = soapyll->in_freq_adj;
+
 	err = SoapySDRDevice_setFrequency(soapyll->sdr, rxtx, conf->channel,
-					  conf->frequency, NULL);
+					  conf->frequency + adj, NULL);
 	if (err) {
 	    gensio_pparm_log(p, "soapy set %s frequency failed: %s\n", rxtxs,
 			     SoapySDRDevice_lastError());
 	    return GE_INVAL;
 	}
-	if (is_tx)
+
+	if (is_tx) {
 	    soapyll->out_freq = conf->frequency;
-	else
+	    soapyll->realoutc.frequency =
+		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
+					    soapyll->inc.channel)
+		- soapyll->out_freq_adj;
+	} else {
 	    soapyll->in_freq = conf->frequency;
+	    soapyll->realinc.frequency =
+		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
+					    soapyll->inc.channel)
+		- soapyll->in_freq_adj;
+	}
     }
 
     if (conf->bandwidth > .1 &&
