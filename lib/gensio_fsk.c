@@ -1127,8 +1127,13 @@ fsk_ul_write(struct gensio_filter *filter,
      * and we can still write.  Otherwise the base handler won't know
      * we have data left to send.
      */
-    if (sfilter->xmit_buf_len > 0)
+    if (!rv && sfilter->xmit_buf_len > 0)
 	fsk_send_buffer(sfilter, handler, cb_data);
+    if (!rv && sfilter->xmit_buf_len == 0)
+	/*
+	 * No more data to send, start the timer now.
+	 */
+	fsk_start_drain_timer(sfilter);
     fsk_unlock(sfilter);
     if (!rv && rcount)
 	*rcount = count;
