@@ -443,7 +443,7 @@ axfec_ul_write(struct gensio_filter *filter,
     outbitpos = 0;
 
     /* convcode requires the buffer to be zero-ed first. */
-    memset(outbuf, 0, sfilter->read_deliver_size);
+    memset(outbuf, 0, sfilter->write_deliver_size);
 
     /*
      * We have to shove in one extra bit at the beginning to make the
