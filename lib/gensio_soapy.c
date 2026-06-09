@@ -472,7 +472,7 @@ gensio_soapy_inthread(void *data)
 	    void *vbufs[1];
 	    int rv;
 	    int flags = 0; /* FIXME - do something with flags. */
-	    long long timeNs;
+	    long long timeNs = 0;
 
 	    gensio_soapy_ll_unlock(soapyll);
 	    cbuf = sb->curbuf + sb->numbufs;
@@ -484,9 +484,13 @@ gensio_soapy_inthread(void *data)
 					   vbufs, sb->bufsize - sb->curwritepos,
 					   &flags, &timeNs, 1000000);
 	    gensio_soapy_ll_lock(soapyll);
+	    if (rv == SOAPY_SDR_OVERFLOW) {
+		/* FIXME - log or count this somehow. */
+		rv = 0;
+	    }
 	    if (rv < 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
-			   "soapy read stream failed: %s\n",
+			   "soapy read stream failed(%d): %s\n", rv,
 			   SoapySDRDevice_lastError());
 		soapyll->err = GE_IOERR;
 		if (soapyll->read_enabled)
@@ -541,7 +545,7 @@ gensio_soapy_outthread(void *data)
 	while ((sb->numbufs > 0 || sb->curwritepos > 0) && !sb->stop) {
 	    const void *vbufs[1];
 	    int rv;
-	    int flags; /* FIXME - do something with flags. */
+	    int flags = 0; /* FIXME - do something with flags. */
 	    long long timeNs = 0;
 
 	    cbuf = sb->curbuf;
@@ -562,6 +566,10 @@ gensio_soapy_outthread(void *data)
 					    sb->curbuflen - sb->curreadpos,
 					    &flags, timeNs, 1000000);
 	    gensio_soapy_ll_lock(soapyll);
+	    if (rv == SOAPY_SDR_UNDERFLOW) {
+		/* FIXME - log or count this somehow. */
+		rv = 0;
+	    }
 	    if (rv < 0) {
 		gensio_log(soapyll->o, GENSIO_LOG_INFO,
 			   "soapy write stream failed(%d): %s\n",
