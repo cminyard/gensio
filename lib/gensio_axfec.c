@@ -499,8 +499,8 @@ axfec_ul_write(struct gensio_filter *filter,
     convencode_block_partial(sfilter->ce, &byte, 8, &outbuf, &outbitpos);
     convencode_block_final(sfilter->ce, &outbuf, &outbitpos);
 
-    /* Extend out to a multiple of 16 bits. */
-    len = outbuf - sfilter->writemsgs[cbuf].data;
+    /* Calculate the final length. */
+    len = outbuf - sfilter->writemsgs[cbuf].data + 1;
     if (outbitpos > 0)
 	len++;
     if (len & 1)
@@ -823,6 +823,8 @@ axfec_ll_write(struct gensio_filter *filter,
 		 */
 		bytes[0] = sfilter->out_build_data & 0xff;
 		bytes[1] = (sfilter->out_build_data >> 8) & 0xff;
+		if (sfilter->debug & GENSIO_HDLC_DEBUG_STATE)
+		    printf("Raw bytes %2.2x %2.2x\n", bytes[0], bytes[1]);
 		interleave_bits(bytes, sfilter->build_uncert);
 		bytes[0] ^= 0x55;
 		bytes[1] ^= 0x55;
