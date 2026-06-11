@@ -2824,7 +2824,10 @@ Defaults to true for fsk, false for afskmdm.
 .TP
 .B mark=<n>, in_mark=<n>, out_mark=<n>
 Sets the mark (higher, 1) frequency for FSK.  Defaults to 1200 for
-AFSK.  For fsk mark defaults to (bps * 4).
+AFSK.  For fsk mark defaults to (bps * 4) if freqadj is set, bps if
+freqadj is not set and the data format is float (real valued), and
+(bps / 4) if freqadj is not set and the data format is floatc
+(complex, or I/Q).
 .TP
 .B space=<n>, in_space=<n>, out_space=<n>
 Sets the space (lower, 0) frequency for FSK.  Defaults to 2200 for
@@ -2833,21 +2836,25 @@ afskmdm.
 For fsk, this defaults to (mark - bps / 2).  This, with the mark default,
 defaults to MSK.
 
-For receive, this requires that the frequency in the lower-level
-gensio supplying the data is set to (center_freq - (mark + space) / 2).
-
 See the discussion on freqadj below for details.
 .TP
 .B in_freqadj[=true|false], out_freqadj=..., freqadj=...
-Automatically adjust the frequency of the child gensio.  This tells
-the child gensio to adjust it's frequency and any frequency set later
-so the mark and space frequencies will be in the proper location if
-the set frequency is the center frequency.  Remember, the frequency
-set for FSK on an SDR is generally the center frequency, precisely
-between the mark and space frequencies.
+If freqadj is not set, for real-valued (float) data the frequency is
+assumed to be set so that mark and space frequencies are at there
+appropriate offsets.  For complex (I/Q) data this assumes the set
+frequency is half-way between the mark and the space (the space
+frequency will be negative).
 
-This is designed to work with the automatic mark and space settings
-discussed above.  
+If freqadj is set, automatically adjust the frequency of the child
+gensio to keep the frequencies away from zero to avoid DC offsets.
+This tells the child gensio to adjust it's frequency and any frequency
+set later so the mark and space frequencies will be in the proper
+location if the set frequency is the center frequency.  Remember, the
+frequency set for FSK on an SDR is generally the center frequency,
+precisely between the mark and space frequencies.
+
+This is designed to work with the default mark and space settings
+discussed above.
 
 For instance, if in_bps is 25000, the in_mark is 100000 and in_space is
 87500.  If the frequency is 450000000, that means that the space
@@ -2867,9 +2874,11 @@ around the frequencies to adjust for frequency deviation.
 
 Transmit has the DC bias issue, so it is adjusted the same way.
 
-Defaults to false.  You almost certainly want to set this if you are
-sitting on the soapy gensio and using MSK, otherwise you have to do
-all this calculation yourself.
+Defaults to false.  DC bias is a problem on most SDRs, so you almost
+certainly want to set this if you are sitting on the soapy gensio and
+using MSK, otherwise you have to do all this calculation yourself.
+You might be able to adjust the soapy gensio for the DC bias, but it's
+really more reliable to just set this and not worry about it.
 .TP
 .B uncert[=true|false]
 In raw mode, provide certainty data about each bit that is received in

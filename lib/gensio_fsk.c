@@ -3623,16 +3623,45 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    data.filt_type = IIR_FILT;
     }
 
-    if (data.in_mark_freq < 0.1)
-	data.in_mark_freq = data.in_data_rate * 4;
-    if (data.out_mark_freq < 0.1)
-	data.out_mark_freq = data.out_data_rate * 4;
-    if (data.in_space_freq < 0.1)
-	data.in_space_freq = data.in_mark_freq - data.in_data_rate / 2;
-    if (data.out_space_freq < 0.1)
-	data.out_space_freq = data.out_mark_freq - data.out_data_rate / 2;
-    if (data.lpcutoff == 0)
-	data.lpcutoff = data.in_mark_freq * 2;
+    if (data.in_do_freqadj) {
+	if (data.in_mark_freq < 0.1)
+	    data.in_mark_freq = data.in_data_rate * 4;
+	if (data.in_space_freq < 0.1)
+	    data.in_space_freq = data.in_mark_freq - data.in_data_rate / 2;
+    } else if (data.in_format == FSK_FMT_FLOATC) {
+	if (data.in_mark_freq < 0.1)
+	    data.in_mark_freq = data.in_data_rate / 4;
+	if (data.in_space_freq < 0.1)
+	    data.in_space_freq = -data.in_mark_freq;
+    } else {
+	if (data.in_mark_freq < 0.1)
+	    data.in_mark_freq = data.in_data_rate;
+	if (data.in_space_freq < 0.1)
+	    data.in_space_freq = data.in_mark_freq / 2;
+    }
+
+    if (data.out_do_freqadj) {
+	if (data.out_mark_freq < 0.1)
+	    data.out_mark_freq = data.out_data_rate * 4;
+	if (data.out_space_freq < 0.1)
+	    data.out_space_freq = data.out_mark_freq - data.out_data_rate / 2;
+	if (data.lpcutoff == 0)
+	    data.lpcutoff = data.in_mark_freq * 2;
+    } else if (data.out_format == FSK_FMT_FLOATC) {
+	if (data.out_mark_freq < 0.1)
+	    data.out_mark_freq = data.out_data_rate / 4;
+	if (data.out_space_freq < 0.1)
+	    data.out_space_freq = - data.out_mark_freq;
+	if (data.lpcutoff == 0)
+	    data.lpcutoff = data.in_mark_freq * 4;
+    } else {
+	if (data.out_mark_freq < 0.1)
+	    data.out_mark_freq = data.out_data_rate;
+	if (data.out_space_freq < 0.1)
+	    data.out_space_freq = data.out_mark_freq / 2;
+	if (data.lpcutoff == 0)
+	    data.lpcutoff = data.in_mark_freq * 2;
+    }
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
