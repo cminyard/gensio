@@ -2616,6 +2616,26 @@ devices.  Defaults to not specified.
 .B inantenna=<n>, outantenna=<n>, antenna=<n>
 Specify the antenna to use for the channel.  May not be supported on
 all devices.  Defaults to not specified.
+.TP
+.B in_auto_dc_off[=<true|false>], out_auto_dc_off=..., auto_dc_off=...
+Enable or disable automatic DC offset.  This may not be supported on
+all devices.  It defaults to not being set.
+.TP
+.B in_dc_off_i=<n>, out_dc_off_i=..., dc_off_i=..., in_dc_off_q=..., out_dc_off_q=..., dc_off_q=...
+Set the DC offset for the I and Q.  This is a value from 0-1.  This
+may not be supported on all devices.  It defaults to not being set.
+.TP
+.B in_auto_iq_bal[=<true|false>], out_auto_iq_bal=..., auto_iq_bal=...
+Enable or disable automatic DC offset.  This may not be supported on
+all devices.  It defaults to not being set.
+.TP
+.B in_iq_bal_i=<n>, out_iq_bal_i=..., iq_bal_i=..., in_iq_bal_q=..., out_iq_bal_q=..., iq_bal_q=...
+Set the DC offset for the I and Q.  This is a value from 0-1.  This
+may not be supported on all devices.  It defaults to not being set.
+.B in_freq_corr=<n>, out_freq_corr=..., freq_corr=...
+Set the frequency correction for the oscillator.  This is specified in
+parts-per-million (PPM).  This may not be supported on all devices.
+It defaults to not being set.
 .SH "fsk"
 connecting =
 .B afskmdm[(options)]

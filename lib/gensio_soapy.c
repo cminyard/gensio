@@ -84,6 +84,18 @@ struct soapy_config {
     double gain;
     char *antenna;
     int channel;
+    double freq_corr;
+    bool freq_corr_set;
+    bool auto_iq_bal;
+    bool auto_iq_bal_set;
+    double iq_bal_i;
+    double iq_bal_q;
+    bool iq_bal_set;
+    bool auto_dc_off;
+    bool auto_dc_off_set;
+    double dc_off_i;
+    double dc_off_q;
+    bool dc_off_set;
 };
 
 struct soapy_bufs {
@@ -744,6 +756,47 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 	SoapySDRDevice_setBandwidth(soapyll->sdr, rxtx, conf->channel,
 				    conf->bandwidth) != 0) {
 	gensio_pparm_log(p, "soapy set %s bandwidth failed: %s\n", rxtxs,
+			 SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+
+    if (conf->auto_dc_off_set
+	&& SoapySDRDevice_setDCOffsetMode(soapyll->sdr, rxtx, conf->channel,
+					  conf->auto_dc_off) != 0) {
+	gensio_pparm_log(p, "soapy set %s auto_dc_off failed: %s\n", rxtxs,
+			 SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+
+    if (conf->dc_off_set
+	&& SoapySDRDevice_setDCOffset(soapyll->sdr, rxtx, conf->channel,
+				      conf->dc_off_i, conf->dc_off_q) != 0) {
+	gensio_pparm_log(p, "soapy set %s dc_off failed: %s\n", rxtxs,
+			 SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+
+    if (conf->auto_iq_bal_set
+	&& SoapySDRDevice_setIQBalanceMode(soapyll->sdr, rxtx, conf->channel,
+					   conf->auto_iq_bal) != 0) {
+	gensio_pparm_log(p, "soapy set %s auto_iq_bal failed: %s\n", rxtxs,
+			 SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+
+    if (conf->iq_bal_set
+	&& SoapySDRDevice_setIQBalance(soapyll->sdr, rxtx, conf->channel,
+				       conf->iq_bal_i, conf->iq_bal_q) != 0) {
+	gensio_pparm_log(p, "soapy set %s iq_bal failed: %s\n", rxtxs,
+			 SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+
+    if (conf->freq_corr_set
+	&& SoapySDRDevice_setFrequencyCorrection(soapyll->sdr,
+						 rxtx, conf->channel,
+						 conf->freq_corr) != 0) {
+	gensio_pparm_log(p, "soapy set %s freq_corr failed: %s\n", rxtxs,
 			 SoapySDRDevice_lastError());
 	return GE_INVAL;
     }
@@ -1657,6 +1710,130 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 	    continue;
 	if (gensio_pparm_value(&p, args[i], "out_antenna", &info.outantenna) > 0)
 	    continue;
+
+	if (gensio_pparm_bool(&p, args[i], "auto_dc_off",
+			      &info.inc.auto_dc_off)) {
+	    info.inc.auto_dc_off_set = true;
+	    info.outc.auto_dc_off_set = true;
+	    info.outc.auto_dc_off = info.inc.auto_dc_off;
+	    continue;
+	}
+	if (gensio_pparm_bool(&p, args[i], "in_auto_dc_off",
+			      &info.inc.auto_dc_off)) {
+	    info.inc.auto_dc_off_set = true;
+	    continue;
+	}
+	if (gensio_pparm_bool(&p, args[i], "out_auto_dc_off",
+			      &info.outc.auto_dc_off)) {
+	    info.outc.auto_dc_off_set = true;
+	    continue;
+	}
+
+	if (gensio_pparm_double(&p, args[i], "dc_off_i",
+				&info.inc.dc_off_i)) {
+	    info.inc.dc_off_set = true;
+	    info.outc.dc_off_set = true;
+	    info.outc.dc_off_i = info.inc.dc_off_i;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "in_dc_off_i",
+				&info.inc.dc_off_i)) {
+	    info.inc.dc_off_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "out_dc_off_i",
+				&info.outc.dc_off_i)) {
+	    info.outc.dc_off_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "dc_off_q",
+				&info.inc.dc_off_q)) {
+	    info.inc.dc_off_set = true;
+	    info.outc.dc_off_set = true;
+	    info.outc.dc_off_q = info.inc.dc_off_q;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "in_dc_off_q",
+				&info.inc.dc_off_q)) {
+	    info.inc.dc_off_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "out_dc_off_q",
+				&info.outc.dc_off_q)) {
+	    info.outc.dc_off_set = true;
+	    continue;
+	}
+
+	if (gensio_pparm_bool(&p, args[i], "auto_iq_bal",
+			      &info.inc.auto_iq_bal)) {
+	    info.inc.auto_iq_bal_set = true;
+	    info.outc.auto_iq_bal_set = true;
+	    info.outc.auto_iq_bal = info.inc.auto_iq_bal;
+	    continue;
+	}
+	if (gensio_pparm_bool(&p, args[i], "in_auto_iq_bal",
+			      &info.inc.auto_iq_bal)) {
+	    info.inc.auto_iq_bal_set = true;
+	    continue;
+	}
+	if (gensio_pparm_bool(&p, args[i], "out_auto_iq_bal",
+			      &info.outc.auto_iq_bal)) {
+	    info.outc.auto_iq_bal_set = true;
+	    continue;
+	}
+
+	if (gensio_pparm_double(&p, args[i], "iq_bal_i",
+				&info.inc.iq_bal_i)) {
+	    info.inc.iq_bal_set = true;
+	    info.outc.iq_bal_set = true;
+	    info.outc.iq_bal_i = info.inc.iq_bal_i;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "in_iq_bal_i",
+				&info.inc.iq_bal_i)) {
+	    info.inc.iq_bal_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "out_iq_bal_i",
+				&info.outc.iq_bal_i)) {
+	    info.outc.iq_bal_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "iq_bal_q",
+				&info.inc.iq_bal_q)) {
+	    info.inc.iq_bal_set = true;
+	    info.outc.iq_bal_set = true;
+	    info.outc.iq_bal_q = info.inc.iq_bal_q;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "in_iq_bal_q",
+				&info.inc.iq_bal_q)) {
+	    info.inc.iq_bal_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "out_iq_bal_q",
+				&info.outc.iq_bal_q)) {
+	    info.outc.iq_bal_set = true;
+	    continue;
+	}
+
+	if (gensio_pparm_double(&p, args[i], "freq_corr",
+				&info.inc.freq_corr)) {
+	    info.inc.iq_bal_set = true;
+	    info.outc.iq_bal_set = true;
+	    info.outc.freq_corr = info.inc.freq_corr;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "in_freq_corr",
+				&info.inc.freq_corr)) {
+	    info.inc.iq_bal_set = true;
+	    continue;
+	}
+	if (gensio_pparm_double(&p, args[i], "out_freq_corr",
+				&info.outc.freq_corr)) {
+	    info.outc.iq_bal_set = true;
+	    continue;
+	}
 
 	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
