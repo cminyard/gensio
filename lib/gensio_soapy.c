@@ -2219,19 +2219,19 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 
 	if (gensio_pparm_double(&p, args[i], "freq_corr",
 				&info.inc.freq_corr)) {
-	    info.inc.iq_bal_set = true;
-	    info.outc.iq_bal_set = true;
+	    info.inc.freq_corr_set = true;
+	    info.outc.freq_corr_set = true;
 	    info.outc.freq_corr = info.inc.freq_corr;
 	    continue;
 	}
 	if (gensio_pparm_double(&p, args[i], "in_freq_corr",
 				&info.inc.freq_corr)) {
-	    info.inc.iq_bal_set = true;
+	    info.inc.freq_corr_set = true;
 	    continue;
 	}
 	if (gensio_pparm_double(&p, args[i], "out_freq_corr",
 				&info.outc.freq_corr)) {
-	    info.outc.iq_bal_set = true;
+	    info.outc.freq_corr_set = true;
 	    continue;
 	}
 
