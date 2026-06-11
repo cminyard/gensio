@@ -425,22 +425,18 @@ going to time out and shut the connection down before you reach this.
 For a radio, the receive antenna name.  This is a string name.
 .SS "GENSIO_CONTROL_OUT_ANTENNA"
 For a radio, the transmit antenna name.  This is a string name.
-.SS "GENSIO_CONTROL_IN_AGC"
-For a radio, is AGC (automatic gain control) enabled on receive.  0 or
-1 as a string.
-.SS "GENSIO_CONTROL_OUT_AGC"
-For a radio, is AGC (automatic gain control) enabled on transmit.  0
-or 1 as a string.
 .SS "GENSIO_CONTROL_IN_GAIN"
-For a radio, the receive gain.  A double float as a string.
+For a radio, the receive gain.  A double float as a string.  Passing
+in "auto" enables AGC.
 .SS "GENSIO_CONTROL_OUT_GAIN"
-For a radio, the transmit gain.  A double float as a string.
+For a radio, the transmit gain.  A double float as a string.  Passing
+in "auto" enables AGC.
 .SS "GENSIO_CONTROL_FREQUENCY"
 For a radio, the both frequencies.  For a get this return the in
 frequency.  If you set this on the fsk gensio, it will adjust the
 frequencies in its child gensio to match what it does, see the
 documentation for the fsk gensio for details.  A double float as a
-string.
+string.  Returns the input frequency.
 .SS "GENSIO_CONTROL_IN_FREQUENCY"
 For a radio, the receive frequency.  A double float as a string.
 .SS "GENSIO_CONTROL_OUT_FREQUENCY"
@@ -452,14 +448,31 @@ and still let something else control the radio frequency.  A double
 float as a string.
 .SS "GENSIO_CONTROL_OUT_FREQ_ADJ"
 Like the above, for the output frequency.
+.SS "GENSIO_CONTROL_IN_FREQ_CORR"
+Set the frequency correction for the main oscillator, a double float
+as a string.  This is in parts-per-million.
+.SS "GENSIO_CONTROL_OUT_FREQ_CORR"
+Like the above, for the output frequency.
+.SS "GENSIO_CONTROL_IN_IQ_BALANCE"
+Set the IQ balance, two float values separated by a ',' in a string,
+first is I and second is Q.  This is a value from 0 to 1.  Passing
+in "auto" enables automatic IQ balance.
+.SS "GENSIO_CONTROL_OUT_IQ_BALANCE"
+Like the above, for the output.
+.SS "GENSIO_CONTROL_IN_DC_OFFSET"
+Set the DC offset, two float values separated by a ',' in a string,
+first is I and second is Q.  This is a value from 0 to 1.  Passing
+in "auto" enables automatic DC offset.
+.SS "GENSIO_CONTROL_OUT_DC_OFFSET"
+Like the above, for the output.
 .SS "GENSIO_CONTROL_IN_BANDWIDTH"
 For a radio, the receive bandwidth.  A double float as a string.
 .SS "GENSIO_CONTROL_OUT_BANDWIDTH"
 For a radio, the transmit bandwidth.  A double float as a string.
 .SS "GENSIO_CONTROL_IN_CHANNEL"
-For a radio, the receive channel.  An integer as a string.
+For a radio, the receive channel.  An integer as a string.  Read only.
 .SS "GENSIO_CONTROL_OUT_CHANNEL"
-For a radio, the transmit channel.  An integer as a string.
+For a radio, the transmit channel.  An integer as a string.  Read only.
 .SS "SERIAL PORT CONTROLS"
 The following set various serial port values.
 

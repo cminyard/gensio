@@ -78,24 +78,32 @@ struct soapy_config {
     double samplerate;
     const char *format;
     bool agc;
+    bool agc_set;
+    bool has_agc;
     bool gainset;
     double frequency;
+    double freq_adj;
     double bandwidth;
     double gain;
     char *antenna;
     int channel;
     double freq_corr;
     bool freq_corr_set;
+    bool has_freq_corr;
     bool auto_iq_bal;
     bool auto_iq_bal_set;
+    bool has_auto_iq_bal;
     double iq_bal_i;
     double iq_bal_q;
     bool iq_bal_set;
+    bool has_iq_bal;
     bool auto_dc_off;
     bool auto_dc_off_set;
+    bool has_auto_dc_off;
     double dc_off_i;
     double dc_off_q;
     bool dc_off_set;
+    bool has_dc_off;
 };
 
 struct soapy_bufs {
@@ -168,16 +176,6 @@ struct soapy_ll {
     struct soapy_config realinc;
     struct soapy_config realoutc;
 
-    float in_freq_adj;
-    float out_freq_adj;
-
-    /*
-     * Configured frequencies, or current settings.  Actual values
-     * read back are in realinc and realoutc.
-     */
-    float in_freq;
-    float out_freq;
-
     unsigned int overflows;
     unsigned int underflows;
 };
@@ -212,6 +210,10 @@ gensio_soapy_ll_free(struct soapy_ll *soapyll)
 	o->free(o, soapyll->inc.antenna);
     if (soapyll->outc.antenna)
 	o->free(o, soapyll->outc.antenna);
+    if (soapyll->realinc.antenna)
+	o->free(o, soapyll->realinc.antenna);
+    if (soapyll->realoutc.antenna)
+	o->free(o, soapyll->realoutc.antenna);
     if (soapyll->devname)
 	o->free(o, soapyll->devname);
 
@@ -691,6 +693,31 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
     size_t chans[1] = { conf->channel };
     int err;
 
+    *realconf = *conf;
+    if (conf->antenna) {
+	realconf->antenna = gensio_strdup(soapyll->o, conf->antenna);
+	if (!realconf->antenna)
+	    return GE_NOMEM;
+    }
+
+    realconf->has_agc = SoapySDRDevice_hasGainMode(soapyll->sdr, rxtx,
+						   conf->channel);
+    realconf->has_freq_corr
+	= SoapySDRDevice_hasFrequencyCorrection(soapyll->sdr, rxtx,
+						conf->channel);
+    realconf->has_auto_iq_bal
+	= SoapySDRDevice_hasIQBalanceMode(soapyll->sdr, rxtx,
+					  conf->channel);
+    realconf->has_iq_bal
+	= SoapySDRDevice_hasIQBalance(soapyll->sdr, rxtx,
+				      conf->channel);
+    realconf->has_auto_dc_off
+	= SoapySDRDevice_hasDCOffsetMode(soapyll->sdr, rxtx,
+					 conf->channel);
+    realconf->has_dc_off
+	= SoapySDRDevice_hasDCOffset(soapyll->sdr, rxtx,
+				     conf->channel);
+
     if (conf->antenna &&
 	SoapySDRDevice_setAntenna(soapyll->sdr, rxtx, conf->channel,
 				  conf->antenna) != 0) {
@@ -706,28 +733,31 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 	return GE_INVAL;
     }
 
-    if (SoapySDRDevice_setGainMode(soapyll->sdr, rxtx, conf->channel,
-				   conf->agc) != 0) {
-	gensio_pparm_log(p, "soapy set %s gain mod failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->agc_set) {
+	if (!realconf->has_agc) {
+	    gensio_pparm_log(p, "soapy set %s agc failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setGainMode(soapyll->sdr, rxtx, conf->channel,
+				       conf->agc) != 0) {
+	    gensio_pparm_log(p, "soapy set %s gain mod failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
-    if (conf->gainset &&
-	SoapySDRDevice_setGain(soapyll->sdr, rxtx, conf->channel,
-			       conf->gain) != 0) {
-	gensio_pparm_log(p, "soapy set %s gain failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->gainset) {
+	if (SoapySDRDevice_setGain(soapyll->sdr, rxtx, conf->channel,
+				   conf->gain) != 0) {
+	    gensio_pparm_log(p, "soapy set %s gain failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
     if (conf->frequency > .1) {
-	float adj;
-
-	if (is_tx)
-	    adj = soapyll->out_freq_adj;
-	else
-	    adj = soapyll->in_freq_adj;
+	double adj = conf->freq_adj;
 
 	err = SoapySDRDevice_setFrequency(soapyll->sdr, rxtx, conf->channel,
 					  conf->frequency + adj, NULL);
@@ -737,19 +767,9 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 	    return GE_INVAL;
 	}
 
-	if (is_tx) {
-	    soapyll->out_freq = conf->frequency;
-	    soapyll->realoutc.frequency =
-		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
-					    soapyll->inc.channel)
-		- soapyll->out_freq_adj;
-	} else {
-	    soapyll->in_freq = conf->frequency;
-	    soapyll->realinc.frequency =
-		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
-					    soapyll->inc.channel)
-		- soapyll->in_freq_adj;
-	}
+	realconf->frequency =
+	    SoapySDRDevice_getFrequency(soapyll->sdr, rxtx, conf->channel)
+	    - conf->freq_adj;
     }
 
     if (conf->bandwidth > .1 &&
@@ -760,45 +780,75 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 	return GE_INVAL;
     }
 
-    if (conf->auto_dc_off_set
-	&& SoapySDRDevice_setDCOffsetMode(soapyll->sdr, rxtx, conf->channel,
-					  conf->auto_dc_off) != 0) {
-	gensio_pparm_log(p, "soapy set %s auto_dc_off failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->auto_dc_off_set) {
+	if (!realconf->has_auto_dc_off) {
+	    gensio_pparm_log(p, "soapy set %s auto_dc_off failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setDCOffsetMode(soapyll->sdr, rxtx, conf->channel,
+					   conf->auto_dc_off) != 0) {
+	    gensio_pparm_log(p, "soapy set %s auto_dc_off failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
-    if (conf->dc_off_set
-	&& SoapySDRDevice_setDCOffset(soapyll->sdr, rxtx, conf->channel,
-				      conf->dc_off_i, conf->dc_off_q) != 0) {
-	gensio_pparm_log(p, "soapy set %s dc_off failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->dc_off_set) {
+	if (!realconf->has_dc_off) {
+	    gensio_pparm_log(p, "soapy set %s dc_off failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setDCOffset(soapyll->sdr, rxtx, conf->channel,
+				       conf->dc_off_i, conf->dc_off_q) != 0) {
+	    gensio_pparm_log(p, "soapy set %s dc_off failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
-    if (conf->auto_iq_bal_set
-	&& SoapySDRDevice_setIQBalanceMode(soapyll->sdr, rxtx, conf->channel,
-					   conf->auto_iq_bal) != 0) {
-	gensio_pparm_log(p, "soapy set %s auto_iq_bal failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->auto_iq_bal_set) {
+	if (!realconf->has_auto_iq_bal) {
+	    gensio_pparm_log(p, "soapy set %s auto_iq_bal failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setIQBalanceMode(soapyll->sdr, rxtx, conf->channel,
+					    conf->auto_iq_bal) != 0) {
+	    gensio_pparm_log(p, "soapy set %s auto_iq_bal failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
-    if (conf->iq_bal_set
-	&& SoapySDRDevice_setIQBalance(soapyll->sdr, rxtx, conf->channel,
-				       conf->iq_bal_i, conf->iq_bal_q) != 0) {
-	gensio_pparm_log(p, "soapy set %s iq_bal failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->iq_bal_set) {
+	if (!realconf->has_iq_bal) {
+	    gensio_pparm_log(p, "soapy set %s iq_bal failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setIQBalance(soapyll->sdr, rxtx, conf->channel,
+					conf->iq_bal_i, conf->iq_bal_q) != 0) {
+	    gensio_pparm_log(p, "soapy set %s iq_bal failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
-    if (conf->freq_corr_set
-	&& SoapySDRDevice_setFrequencyCorrection(soapyll->sdr,
-						 rxtx, conf->channel,
-						 conf->freq_corr) != 0) {
-	gensio_pparm_log(p, "soapy set %s freq_corr failed: %s\n", rxtxs,
-			 SoapySDRDevice_lastError());
-	return GE_INVAL;
+    if (conf->freq_corr_set) {
+	if (!realconf->has_freq_corr) {
+	    gensio_pparm_log(p, "soapy set %s freq_corr failed: no support\n",
+			     rxtxs);
+	    return GE_NOTSUP;
+	}
+	if (SoapySDRDevice_setFrequencyCorrection(soapyll->sdr,
+						  rxtx, conf->channel,
+						  conf->freq_corr) != 0) {
+	    gensio_pparm_log(p, "soapy set %s freq_corr failed: %s\n", rxtxs,
+			     SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
     }
 
     *stream = SoapySDRDevice_setupStream(soapyll->sdr, rxtx,
@@ -821,6 +871,21 @@ gensio_soapy_config(struct soapy_ll *soapyll, struct gensio_pparm_info *p,
 						   conf->channel);
     realconf->gain = SoapySDRDevice_getGain(soapyll->sdr, rxtx,
 					    conf->channel);
+    realconf->freq_corr
+	= SoapySDRDevice_getFrequencyCorrection(soapyll->sdr, rxtx,
+						conf->channel);
+    realconf->auto_iq_bal = SoapySDRDevice_getIQBalanceMode(soapyll->sdr,
+							    rxtx,
+							    conf->channel);
+    SoapySDRDevice_getIQBalance(soapyll->sdr, rxtx,
+				conf->channel,
+				&realconf->iq_bal_i, &realconf->iq_bal_q);
+    realconf->auto_dc_off = SoapySDRDevice_getDCOffsetMode(soapyll->sdr,
+							   rxtx,
+							   conf->channel);
+    SoapySDRDevice_getDCOffset(soapyll->sdr, rxtx,
+			       conf->channel,
+			       &realconf->dc_off_i, &realconf->dc_off_q);
 
     return 0;
 }
@@ -925,7 +990,406 @@ gensio_soapy_ll_close(struct soapy_ll *soapyll,
 }
 
 static int
-gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
+soapy_control_antenna(struct soapy_ll *soapyll,
+		      int rxtx, const char *rxtxs,
+		      bool get, char *data, gensiods *datalen,
+		      struct soapy_config *conf,
+		      struct soapy_config *realconf)
+{
+    char *antenna;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	antenna = gensio_strdup(soapyll->o, data);
+	if (!antenna)
+	    return GE_NOMEM;
+
+	if (SoapySDRDevice_setAntenna(soapyll->sdr, rxtx, realconf->channel,
+				      antenna) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s antenna failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    soapyll->o->free(soapyll->o, antenna);
+	    return GE_INVAL;
+	}
+	if (realconf->antenna)
+	    soapyll->o->free(soapyll->o, realconf->antenna);
+	realconf->antenna = antenna;
+    }
+
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s",
+				   realconf->antenna);
+    return 0;
+}
+
+static int
+soapy_control_gain(struct soapy_ll *soapyll,
+		   int rxtx, const char *rxtxs,
+		   bool get, char *data, gensiods *datalen,
+		   struct soapy_config *conf,
+		   struct soapy_config *realconf)
+{
+    double gain;
+    char *end;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	if (strcmp(data, "auto") == 0) {
+	    if (!realconf->has_agc)
+		return GE_NOTSUP;
+	    if (SoapySDRDevice_setGainMode(soapyll->sdr, rxtx,
+					   realconf->channel,
+					   true) != 0) {
+		gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			   "soapy set %s auto gain: %s\n", rxtxs,
+			   SoapySDRDevice_lastError());
+		return GE_INVAL;
+	    }
+	    goto do_get;
+	}
+
+	gain = strtod(data, &end);
+	if (*end)
+	    return GE_INVAL;
+
+	if (SoapySDRDevice_setGain(soapyll->sdr, rxtx, realconf->channel,
+				   gain) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s gain failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->gainset = true;
+	conf->gain = gain;
+    }
+    if (realconf->has_agc)
+	realconf->agc = SoapySDRDevice_getGainMode(soapyll->sdr, rxtx,
+						   realconf->channel);
+    realconf->gain = SoapySDRDevice_getGain(soapyll->sdr, rxtx,
+					    realconf->channel);
+
+ do_get:
+    if (realconf->has_agc && realconf->agc) {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "auto");
+    } else {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+				       realconf->gain);
+    }
+    return 0;
+}
+
+static int
+soapy_control_freq_adj(struct soapy_ll *soapyll,
+		       int rxtx, const char *rxtxs,
+		       bool get, char *data, gensiods *datalen,
+		       struct soapy_config *conf,
+		       struct soapy_config *realconf)
+{
+    double freq;
+    char *end;
+
+    if (conf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	freq = strtod(data, &end);
+	if (*end)
+	    return GE_INVAL;
+    }
+
+    if (SoapySDRDevice_setFrequency(soapyll->sdr, rxtx,
+				    conf->channel,
+				    conf->frequency + freq,
+				    NULL) != 0) {
+	gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		   "soapy set %s frequency adjust failed: %s\n", rxtxs,
+		   SoapySDRDevice_lastError());
+	return GE_INVAL;
+    }
+    conf->freq_adj = freq;
+    realconf->frequency = SoapySDRDevice_getFrequency(soapyll->sdr,
+						      SOAPY_SDR_RX,
+						      soapyll->inc.channel)
+	- conf->freq_adj;
+
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+				   conf->freq_adj);
+    return 0;
+}
+
+static int
+soapy_control_freq_corr(struct soapy_ll *soapyll,
+			int rxtx, const char *rxtxs,
+			bool get, char *data, gensiods *datalen,
+			struct soapy_config *conf,
+			struct soapy_config *realconf)
+{
+    double freq;
+    char *end;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!realconf->has_freq_corr)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	freq = strtod(data, &end);
+	if (*end)
+	    return GE_INVAL;
+
+	if (SoapySDRDevice_setFrequencyCorrection(soapyll->sdr, rxtx,
+						  realconf->channel,
+						  freq) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s freq_corr failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->freq_corr_set = true;
+	conf->freq_corr = freq;
+    }
+
+    realconf->freq_corr
+	= SoapySDRDevice_getFrequencyCorrection(soapyll->sdr, rxtx,
+						realconf->channel);
+
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+				   realconf->freq_corr);
+
+    return 0;
+}
+
+static int
+soapy_control_iq_bal(struct soapy_ll *soapyll,
+		     int rxtx, const char *rxtxs,
+		     bool get, char *data, gensiods *datalen,
+		     struct soapy_config *conf,
+		     struct soapy_config *realconf)
+{
+    double bal_i, bal_q;
+    char *end;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	if (strcmp(data, "auto") == 0) {
+	    if (!realconf->has_auto_iq_bal)
+		return GE_NOTSUP;
+	    if (SoapySDRDevice_setIQBalanceMode(soapyll->sdr, rxtx,
+						realconf->channel,
+						true) != 0) {
+		gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			   "soapy set %s auto iq balance: %s\n", rxtxs,
+			   SoapySDRDevice_lastError());
+		return GE_INVAL;
+	    }
+	    conf->auto_iq_bal = true;
+	    goto do_get;
+	}
+
+	if (!realconf->has_iq_bal)
+	    return GE_NOTSUP;
+	bal_i = strtod(data, &end);
+	if (*end != ',')
+	    return GE_INVAL;
+	bal_q = strtod(end + 1, &end);
+	if (*end)
+	    return GE_INVAL;
+
+	if (realconf->has_auto_iq_bal) {
+	    if (SoapySDRDevice_setIQBalanceMode(soapyll->sdr, rxtx,
+						realconf->channel,
+						false) != 0) {
+		gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			   "soapy set %s auto iq balance: %s\n", rxtxs,
+			   SoapySDRDevice_lastError());
+		return GE_INVAL;
+	    }
+	    conf->auto_iq_bal_set = true;
+	    conf->auto_iq_bal = false;
+	}
+
+	if (SoapySDRDevice_setIQBalance(soapyll->sdr, rxtx, realconf->channel,
+					bal_i, bal_q) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s IQ balance failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->iq_bal_set = true;
+	conf->iq_bal_i = bal_i;
+	conf->iq_bal_q = bal_q;
+    }
+
+ do_get:
+    if (!realconf->has_auto_iq_bal && !realconf->has_iq_bal)
+	return GE_NOTSUP;
+
+    if (realconf->has_auto_iq_bal)
+	realconf->auto_iq_bal
+	    = SoapySDRDevice_getIQBalanceMode(soapyll->sdr, rxtx,
+					      realconf->channel);
+    SoapySDRDevice_getIQBalance(soapyll->sdr, rxtx,
+				realconf->channel,
+				&realconf->iq_bal_i, &realconf->iq_bal_q);
+
+    if (realconf->has_auto_iq_bal && realconf->auto_iq_bal) {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "auto");
+    } else {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f,%f",
+				       realconf->iq_bal_i,
+				       realconf->iq_bal_q);
+    }
+    return 0;
+}
+
+static int
+soapy_control_dc_off(struct soapy_ll *soapyll,
+		     int rxtx, const char *rxtxs,
+		     bool get, char *data, gensiods *datalen,
+		     struct soapy_config *conf,
+		     struct soapy_config *realconf)
+{
+    double off_i, off_q;
+    char *end;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	if (strcmp(data, "auto") == 0) {
+	    if (!realconf->has_auto_dc_off)
+		return GE_NOTSUP;
+	    if (SoapySDRDevice_setDCOffsetMode(soapyll->sdr, rxtx,
+					       realconf->channel,
+					       true) != 0) {
+		gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			   "soapy set %s auto DC offset: %s\n", rxtxs,
+			   SoapySDRDevice_lastError());
+		return GE_INVAL;
+	    }
+	    conf->auto_dc_off_set = true;
+	    conf->auto_dc_off = true;
+	    goto do_get;
+	}
+
+	if (!realconf->has_dc_off)
+	    return GE_NOTSUP;
+
+	off_i = strtod(data, &end);
+	if (*end != ',')
+	    return GE_INVAL;
+	off_q = strtod(end + 1, &end);
+	if (*end)
+	    return GE_INVAL;
+
+	if (realconf->has_auto_dc_off) {
+	    if (SoapySDRDevice_setDCOffsetMode(soapyll->sdr, rxtx,
+					       realconf->channel,
+					       false) != 0) {
+		gensio_log(soapyll->o, GENSIO_LOG_INFO,
+			   "soapy set %s auto DC offset: %s\n", rxtxs,
+			   SoapySDRDevice_lastError());
+		return GE_INVAL;
+	    }
+	    conf->auto_dc_off = false;
+	}
+
+	if (SoapySDRDevice_setDCOffset(soapyll->sdr, rxtx, realconf->channel,
+				       off_i, off_q) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s DC offset failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->dc_off_set = true;
+	conf->dc_off_i = off_i;
+	conf->dc_off_q = off_q;
+    }
+
+ do_get:
+    if (!realconf->has_auto_dc_off && !realconf->has_dc_off)
+	return GE_NOTSUP;
+
+    if (realconf->has_auto_dc_off)
+	realconf->auto_dc_off
+	    = SoapySDRDevice_getDCOffsetMode(soapyll->sdr, rxtx,
+					     realconf->channel);
+    SoapySDRDevice_getDCOffset(soapyll->sdr, rxtx,
+			       realconf->channel,
+			       &realconf->dc_off_i, &realconf->dc_off_q);
+
+    if (realconf->has_auto_dc_off && realconf->auto_dc_off) {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "auto");
+    } else {
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f,%f",
+				       realconf->dc_off_i,
+				       realconf->dc_off_q);
+    }
+    return 0;
+}
+
+static int
+soapy_control_bandwidth(struct soapy_ll *soapyll,
+			int rxtx, const char *rxtxs,
+			bool get, char *data, gensiods *datalen,
+			struct soapy_config *conf,
+			struct soapy_config *realconf)
+{
+    double bw;
+    char *end;
+
+    if (realconf->channel < 0)
+	return GE_NOTSUP;
+
+    if (!get) {
+	if (!data || !*data)
+	    return GE_INVAL;
+	bw = strtod(data, &end);
+	if (*end)
+	    return GE_INVAL;
+
+	if (SoapySDRDevice_setBandwidth(soapyll->sdr, rxtx,
+					realconf->channel,
+					bw) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s bandwidth failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->bandwidth = bw;
+    }
+
+    realconf->bandwidth	= SoapySDRDevice_getBandwidth(soapyll->sdr, rxtx,
+						      realconf->channel);
+
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
+				   realconf->bandwidth);
+
+    return 0;
+}
+
+static int
+gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get,
+			unsigned int option,
 			char *data, gensiods *datalen)
 {
     const char *s;
@@ -1043,58 +1507,28 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
     }
 
     case GENSIO_CONTROL_IN_ANTENNA:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->inc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s",
-				       soapyll->realinc.antenna);
-	return 0;
+	return soapy_control_antenna(soapyll, SOAPY_SDR_RX, "rx",
+				     get, data, datalen,
+				     &soapyll->inc,
+				     &soapyll->realinc);
 
     case GENSIO_CONTROL_OUT_ANTENNA:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->outc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s",
-				       soapyll->realoutc.antenna);
-	return 0;
-
-    case GENSIO_CONTROL_IN_AGC:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->inc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%d",
-				       soapyll->realinc.agc);
-	return 0;
-
-    case GENSIO_CONTROL_OUT_AGC:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->outc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%d",
-				       soapyll->realoutc.agc);
-	return 0;
+	return soapy_control_antenna(soapyll, SOAPY_SDR_TX, "tx",
+				     get, data, datalen,
+				     &soapyll->outc,
+				     &soapyll->realoutc);
 
     case GENSIO_CONTROL_IN_GAIN:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->inc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realinc.gain);
-	return 0;
+	return soapy_control_gain(soapyll, SOAPY_SDR_RX, "rx",
+				  get, data, datalen,
+				  &soapyll->inc,
+				  &soapyll->realinc);
 
     case GENSIO_CONTROL_OUT_GAIN:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->outc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realoutc.gain);
-	return 0;
+	return soapy_control_gain(soapyll, SOAPY_SDR_TX, "tx",
+				  get, data, datalen,
+				  &soapyll->outc,
+				  &soapyll->realoutc);
 
     case GENSIO_CONTROL_FREQUENCY:
     case GENSIO_CONTROL_IN_FREQUENCY:
@@ -1112,39 +1546,39 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	    freq = strtod(data, &end);
 	    if (*end)
 		return GE_INVAL;
-	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->inc.channel < 0)
+	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->inc.channel >= 0)
 			|| option == GENSIO_CONTROL_IN_FREQUENCY) {
 		if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_RX,
 						soapyll->inc.channel,
-						freq + soapyll->in_freq_adj,
+						freq + soapyll->inc.freq_adj,
 						NULL) != 0) {
 		    gensio_log(soapyll->o, GENSIO_LOG_INFO,
 			       "soapy set rx frequency failed: %s\n",
 			       SoapySDRDevice_lastError());
 		    return GE_INVAL;
 		}
-		soapyll->in_freq = freq;
+		soapyll->inc.frequency = freq;
 		soapyll->realinc.frequency =
 		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
 						soapyll->inc.channel)
-		    - soapyll->in_freq_adj;
+		    - soapyll->inc.freq_adj;
 	    }
-	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->outc.channel< 0)
+	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->outc.channel >= 0)
 			|| option == GENSIO_CONTROL_OUT_FREQUENCY) {
 		if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_TX,
 						soapyll->inc.channel,
-						freq + soapyll->out_freq_adj,
+						freq + soapyll->outc.freq_adj,
 						NULL) != 0) {
 		    gensio_log(soapyll->o, GENSIO_LOG_INFO,
 			       "soapy set rx frequency failed: %s\n",
 			       SoapySDRDevice_lastError());
 		    return GE_INVAL;
 		}
-		soapyll->out_freq = freq;
+		soapyll->outc.frequency = freq;
 		soapyll->realoutc.frequency =
 		    SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
 						soapyll->inc.channel)
-		    - soapyll->out_freq_adj;
+		    - soapyll->outc.freq_adj;
 	    }
 	}
 	if (option == GENSIO_CONTROL_FREQUENCY
@@ -1158,89 +1592,55 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get, unsigned int option,
 	return 0;
     }
 
-    case GENSIO_CONTROL_IN_FREQ_ADJ: {
-	double freq;
-	char *end;
+    case GENSIO_CONTROL_IN_FREQ_ADJ:
+	return soapy_control_freq_adj(soapyll, SOAPY_SDR_RX, "rx",
+				      get, data, datalen,
+				      &soapyll->inc, &soapyll->realinc);
 
-	if (soapyll->inc.channel < 0)
-	    return GE_NOTSUP;
-	if (!get) {
-	    if (!data || !*data)
-		return GE_INVAL;
-	    freq = strtod(data, &end);
-	    if (*end)
-		return GE_INVAL;
+    case GENSIO_CONTROL_OUT_FREQ_ADJ:
+	return soapy_control_freq_adj(soapyll, SOAPY_SDR_TX, "tx",
+				      get, data, datalen,
+				      &soapyll->outc, &soapyll->realoutc);
 
-	    if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_RX,
-					    soapyll->inc.channel,
-					    soapyll->in_freq + freq,
-					    NULL) != 0) {
-		gensio_log(soapyll->o, GENSIO_LOG_INFO,
-			   "soapy set rx frequency failed: %s\n",
-			   SoapySDRDevice_lastError());
-		return GE_INVAL;
-	    }
-	    soapyll->in_freq_adj = freq;
-	    soapyll->realinc.frequency =
-		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_RX,
-					    soapyll->inc.channel)
-		- soapyll->in_freq_adj;
-	}
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->in_freq_adj);
-	return 0;
-    }
+    case GENSIO_CONTROL_IN_FREQ_CORR:
+	return soapy_control_freq_corr(soapyll, SOAPY_SDR_RX, "rx",
+				       get, data, datalen,
+				       &soapyll->inc,  &soapyll->realinc);
 
-    case GENSIO_CONTROL_OUT_FREQ_ADJ: {
-	double freq;
-	char *end;
+    case GENSIO_CONTROL_OUT_FREQ_CORR:
+	return soapy_control_freq_corr(soapyll, SOAPY_SDR_TX, "tx",
+				       get, data, datalen,
+				       &soapyll->outc, &soapyll->realoutc);
 
-	if (soapyll->outc.channel < 0)
-	    return GE_NOTSUP;
-	if (!get) {
-	    if (!data || !*data)
-		return GE_INVAL;
-	    freq = strtod(data, &end);
-	    if (*end)
-		return GE_INVAL;
+    case GENSIO_CONTROL_IN_IQ_BALANCE:
+	return soapy_control_iq_bal(soapyll, SOAPY_SDR_RX, "rx",
+				    get, data, datalen,
+				    &soapyll->inc, &soapyll->realinc);
 
-	    if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_TX,
-					    soapyll->outc.channel,
-					    soapyll->out_freq + freq,
-					    NULL) != 0) {
-		gensio_log(soapyll->o, GENSIO_LOG_INFO,
-			   "soapy set tx frequency failed: %s\n",
-			   SoapySDRDevice_lastError());
-		return GE_INVAL;
-	    }
-	    soapyll->out_freq_adj = freq;
-	    soapyll->realoutc.frequency =
-		SoapySDRDevice_getFrequency(soapyll->sdr, SOAPY_SDR_TX,
-					    soapyll->outc.channel)
-		- soapyll->out_freq_adj;
-	}
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->out_freq_adj);
-	return 0;
-    }
+    case GENSIO_CONTROL_OUT_IQ_BALANCE:
+	return soapy_control_iq_bal(soapyll, SOAPY_SDR_TX, "tx",
+				    get, data, datalen,
+				    &soapyll->outc, &soapyll->realoutc);
+
+    case GENSIO_CONTROL_IN_DC_OFFSET:
+	return soapy_control_dc_off(soapyll, SOAPY_SDR_RX, "rx",
+				    get, data, datalen,
+				    &soapyll->inc, &soapyll->realinc);
+
+    case GENSIO_CONTROL_OUT_DC_OFFSET:
+	return soapy_control_iq_bal(soapyll, SOAPY_SDR_TX, "tx",
+				    get, data, datalen,
+				    &soapyll->outc, &soapyll->realoutc);
 
     case GENSIO_CONTROL_IN_BANDWIDTH:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->inc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realinc.bandwidth);
-	return 0;
+	return soapy_control_bandwidth(soapyll, SOAPY_SDR_RX, "rx",
+				       get, data, datalen,
+				       &soapyll->inc, &soapyll->realinc);
 
     case GENSIO_CONTROL_OUT_BANDWIDTH:
-	if (!get)
-	    return GE_NOTSUP;
-	if (soapyll->outc.channel < 0)
-	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
-				       soapyll->realoutc.bandwidth);
-	return 0;
+	return soapy_control_bandwidth(soapyll, SOAPY_SDR_TX, "tx",
+				       get, data, datalen,
+				       &soapyll->outc, &soapyll->realoutc);
 
     case GENSIO_CONTROL_IN_CHANNEL:
 	if (!get)
