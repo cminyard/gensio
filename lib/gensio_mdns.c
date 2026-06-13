@@ -880,12 +880,12 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_base_free;
 
     err = gensio_get_default(o, "mdns", "domain", false,
-			    GENSIO_DEFAULT_STR, &name, NULL);
+			    GENSIO_DEFAULT_STR, &domain, NULL);
     if (err)
 	goto out_base_free;
 
     err = gensio_get_default(o, "mdns", "host", false,
-			    GENSIO_DEFAULT_STR, &type, NULL);
+			    GENSIO_DEFAULT_STR, &host, NULL);
     if (err)
 	goto out_base_free;
 
