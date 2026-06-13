@@ -47,8 +47,7 @@
 #define GENSIO_FSK_DEBUG_RAW_MSG	0x01
 
 /*
- * This filter implements a audio frequency shift keying modem per the
- * GAX25 spec.
+ * This filter implements a frequency shift keying modem.
  *
  * The filter processes data from the child in bitsize frame chunks.
  * This bitsize will be in_framerate/data_rate, so bitsize samples
@@ -1693,6 +1692,7 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 	    spacebin = markbin - 2;
 	} else {
 	    /* In the middle, might be a mark or space. */
+	    /* FIXME - how do we calculate this? */
 	}
 	spacebin = 2;
 	markbin = 4;
@@ -2988,6 +2988,10 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	} else {
 	    sfilter->nr_hz_bins = 7;
 	}
+	/*
+	 * FIXME - Right now we fix this at two until we figure out
+	 * how to best handle this.
+	 */
 	sfilter->nr_hz_bins = 2;
 
 	/*
@@ -3628,6 +3632,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    data.in_mark_freq = data.in_data_rate * 4;
 	if (data.in_space_freq < 0.1)
 	    data.in_space_freq = data.in_mark_freq - data.in_data_rate / 2;
+	if (data.lpcutoff == 0)
+	    data.lpcutoff = data.in_mark_freq * 2;
     } else if (data.in_format == FSK_FMT_FLOATC) {
 	if (data.in_mark_freq < 0.1)
 	    data.in_mark_freq = data.in_data_rate / 4;
