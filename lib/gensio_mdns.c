@@ -900,7 +900,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_base_free;
     gensio_msecs_to_time(&timeout, timeoutms);
 
-    if (mstr) {
+    if (mstr && strlen(mstr)) {
 	if (name)
 	    free(name);
 	name = gensio_strdup(o, mstr);
