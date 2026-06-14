@@ -52,6 +52,7 @@ struct mdnsn_data {
     char *type;
     char *domain;
     char *host;
+    const char **txt;
 
     bool mdns_in_free;
     struct gensio_mdns *mdns;
@@ -103,6 +104,8 @@ mdnsn_finish_free(struct mdnsn_data *ndata)
 	o->free(o, ndata->domain);
     if (ndata->host)
 	o->free(o, ndata->host);
+    if (ndata->txt)
+	gensio_argv_free(o, ndata->txt);
     if (ndata->deferred_op_runner)
 	o->free_runner(ndata->deferred_op_runner);
     if (ndata->lock)
@@ -323,6 +326,61 @@ addarg(char **args, gensiods *len, struct gensio_os_funcs *o,
 }
 
 static int
+mdns_txt_add_filter(struct gensio_os_funcs *o, const char ***txt,
+		    gensiods *txtargs, gensiods *txtargc,
+		    const char *str)
+{
+    const char *sep;
+    char *txtstr;
+    int err;
+
+    sep = strchr(str, ':');
+    if (!sep || sep == str || sep[1] == '\0')
+	return GE_INVAL;
+
+    txtstr = gensio_alloc_sprintf(o, "%.*s=%s", (int) (sep - str), str,
+				  sep + 1);
+    if (!txtstr)
+	return GE_NOMEM;
+
+    err = gensio_argv_append(o, txt, txtstr, txtargs, txtargc, true);
+    o->free(o, txtstr);
+    return err;
+}
+
+static bool
+mdns_txt_match_one(const char * const *txt, const char *match)
+{
+    unsigned int i;
+
+    if (!txt)
+	return false;
+
+    for (i = 0; txt[i]; i++) {
+	if (strcmp(txt[i], match) == 0)
+	    return true;
+    }
+
+    return false;
+}
+
+static bool
+mdns_txt_matches(const char * const *txt, const char * const *matches)
+{
+    unsigned int i;
+
+    if (!matches)
+	return true;
+
+    for (i = 0; matches[i]; i++) {
+	if (!mdns_txt_match_one(txt, matches[i]))
+	    return false;
+    }
+
+    return true;
+}
+
+static int
 get_mdns_gensiostack(struct mdnsn_data *ndata, const char * const *txt,
 		     const struct gensio_addr *addr, char **rstack)
 {
@@ -522,6 +580,9 @@ mdns_cb(struct gensio_mdns_watch *w,
 	    if (strncmp(buf, "ipv6,fe80:", 10) == 0)
 		goto out_unlock;
 	}
+
+	if (!mdns_txt_matches(txt, ndata->txt))
+	    goto out_unlock;
 
 	if (!ndata->nostack) {
 	    ndata->open_err = get_mdns_gensiostack(ndata, txt, addr, &stack);
@@ -842,6 +903,8 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     char *laddr = NULL, *name = NULL, *type = NULL;
     char *domain = NULL, *host = NULL, *nettype_str = NULL;
+    const char **txt = NULL;
+    gensiods txtargs = 0, txtargc = 0;
     bool nodelay = false, readbuf_set = false, nodelay_set = false;
     bool ignore_v6_link_local = false;
     const char *str;
@@ -978,6 +1041,16 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
+	if (gensio_pparm_value(&p, args[i], "txt", &str) > 0) {
+	    err = mdns_txt_add_filter(o, &txt, &txtargs, &txtargc, str);
+	    if (err == GE_INVAL)
+		gensio_pparm_log(&p,
+		                 "Invalid txt filter '%s', expected key:value\n",
+		                 str);
+	    if (err)
+		goto out_base_free;
+	    continue;
+	}
 	if (gensio_pparm_value(&p, args[i], "nettype", &str) > 0) {
 	    if (nettype_str)
 		free(nettype_str);
@@ -1009,6 +1082,12 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     o->free(o, nettype_str);
     nettype_str = NULL;
 
+    if (txt) {
+	err = gensio_argv_append(o, &txt, NULL, &txtargs, &txtargc, false);
+	if (err)
+	    goto out_base_free;
+    }
+
     err = mdns_ndata_setup(o, max_read_size, nodelay, interface, nettype,
 			   nostack, &ndata);
     if (err)
@@ -1022,6 +1101,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     ndata->type = type;
     ndata->domain = domain;
     ndata->host = host;
+    ndata->txt = txt;
     ndata->timeout = timeout;
 
     ndata->io = gensio_data_alloc(ndata->o, cb, user_data,
@@ -1049,6 +1129,8 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	o->free(o, domain);
     if (host)
 	o->free(o, host);
+    if (txt)
+	gensio_argv_free(o, txt);
     if (nettype_str)
 	o->free(o, nettype_str);
     return err;
