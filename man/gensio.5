@@ -2012,6 +2012,12 @@ Set the mdns domain to search for.  You generally don't use this.
 .B host=<mdnsstr>
 Set the mdns host to search for.  You generally don't use this.
 .TP
+.B txt=<key>:<value>
+Require the service to have a TXT record matching the given key and
+value.  This is an exact match against the standard mDNS TXT
+\fIkey=value\fR entry.  You may specify this option multiple times; all
+specified TXT entries must be present on the same service.
+.TP
 .B interface=<num>
 Set the network interface number to search on.  The default is -1,
 which means all interfaces.
