@@ -195,6 +195,10 @@ struct xmit_entry {
     struct xmit_entry *next;
 };
 
+/* IIR and FIR filter code. */
+#include "filters.h"
+
+/* Code for handling the transmitter keying. */
 #include "xmitkey.h"
 
 enum fsk_format { FSK_FMT_NONE, FSK_FMT_FLOAT, FSK_FMT_FLOATC };
@@ -293,26 +297,14 @@ struct fsk_filter {
     gensiods deliver_data_len;
 
     /* Low pass filter components, IIR and FIR. */
-    unsigned int lpfilt_coefs_n;
-    float lpfilt_gain;
-    float *lpfilt_coefs;
-    float *lpfilt_hold;
+    struct filterinfo lpfilt;
     /* Filtered data. */
     float *lpfilteredbuf;
 
     /* High pass filter components, IIR only. */
-    unsigned int hpfilt_coefs_n;
-    float hpfilt_gain;
-    float *hpfilt_coefs;
-    float *hpfilt_hold;
+    struct filterinfo hpfilt;
     /* Filtered data. */
     float *hpfilteredbuf;
-
-    /* IIR or FIR filter function. */
-    void (*do_filter)(float *inbuf, float *outbuf, unsigned int nsamples,
-		      unsigned int nchans, unsigned int chan,
-		      unsigned int n, float *coefs, float *hold,
-		      float gain);
 
     /* Copy data in from the external data to the working buffer. */
     void (*do_frame_in_copy)(float *dest, gensiods destpos,
@@ -1783,245 +1775,6 @@ fsk_check_for_data(struct fsk_filter *sfilter, float *buf, bool *in_sync)
 }
 
 /*
- * Implement a basic 2nd-order IIR filter.
- */
-static void
-float_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-		 unsigned int nchans, unsigned int chan,
-		 unsigned int n, float *coefs, float *hold, float gain)
-{
-    unsigned int i;
-    float *coefa = coefs;
-    float *coefb = coefs + 2;
-    float tmp;
-
-    /* hold[0] = z^-1, hold[1] = z^-2 */
-    for (i = chan; i < nsamples * nchans; i += nchans) {
-	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
-	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
-	outbuf[i] *= gain;
-	hold[1] = hold[0];
-	hold[0] = tmp;
-    }
-}
-
-/* Complex version of the above. */
-static void
-floatc_iir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
-		  unsigned int nchans, unsigned int chan,
-		  unsigned int n, float *coefs, float *in_hold, float gain)
-{
-    float complex *inbuf = (float complex *) in_inbuf;
-    float complex *outbuf = (float complex *) in_outbuf;
-    float complex *hold = (float complex *) in_hold;
-    float *coefa = coefs;
-    float *coefb = coefs + 2;
-    unsigned int i;
-    float complex tmp;
-
-    /* hold[0] = z^-1, hold[1] = z^-2 */
-    for (i = chan; i < nsamples * nchans; i += nchans) {
-	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
-	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
-	outbuf[i] *= gain;
-	hold[1] = hold[0];
-	hold[0] = tmp;
-    }
-}
-
-/*
- * Calculate 2nd order IIR filter coefficients for a low-pass
- * or high pass Butterworth filter.  The lpf parameter tells which
- * filter to calculate.
- *
- * See https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter5.pdf
- * for more explanation.
- *
- * Also see IIR_Filter.txt in this directory for the equations worked
- * out.
- */
-static void
-fsk_calc_iir_coefs(bool lpf, float samplerate, float cutoff,
-		   float coefa[], float coefb[])
-{
-    float w1 = 2 * M_PI * cutoff / samplerate;
-    float w = tan(w1 / 2); /* omega */
-    float w2 = w * w; /* omega ^ 2 */
-    float denom = w2 + M_SQRT2 * w + 1;
-
-    coefa[0] = (2 - 2 * w2) / denom;
-    coefa[1] = - (1 - M_SQRT2 * w + w2) / denom;
-    coefb[0] = 1 / denom;
-    if (lpf)
-	coefb[0] *= w2;
-    coefb[1] = 2 * coefb[0];
-    if (!lpf)
-	coefb[0] *= -1.0;
-    coefb[2] = coefb[0];
-}
-
-static float
-get_fir_val(unsigned int i, unsigned int holdsize, float *inbuf, float *hold,
-	    unsigned int nchans, unsigned int chan)
-{
-    if (i < holdsize)
-	return hold[i];
-    i -= holdsize;
-    i = (i * nchans) + chan;
-    return inbuf[i];
-}
-
-/*
- * Process a buffer with a fir filter.  h and n come from
- * fsk_calc_fir_coefs(), hold must be of size n * 2.
- */
-static void
-float_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
-		 unsigned int nchans, unsigned int chan,
-		 unsigned int n, float *h, float *hold, float gain)
-{
-    unsigned int i, j, k;
-    unsigned int holdsize = n * 2;
-    float tmp;
-
-    for (i = 0; i < nsamples; i++) {
-	/* Get the middle value, it's always multiplied by 1. */
-	tmp = get_fir_val(n + i, holdsize, inbuf, hold, nchans, chan);
-
-	/*
-	 * The h array is half of a symmetric waveform.  That waveform
-	 * is always an odd number of values, but we don't include the
-	 * middle value (it's always one, handled above) and h only
-	 * holds the left half of the waveform.
-	 */
-	for (j = 0, k = holdsize; j < n; j++, k--) {
-	    tmp += h[j] * (get_fir_val(i + j, holdsize, inbuf, hold,
-				       nchans, chan) +
-			   get_fir_val(i + k, holdsize, inbuf, hold,
-				       nchans, chan));
-	}
-
-	outbuf[i * nchans + chan] = tmp * gain;
-    }
-    for (i = 0; i < holdsize; i++) {
-	unsigned int pos = nsamples - holdsize + i;
-	hold[i] = inbuf[pos * nchans + chan];
-    }
-}
-
-/*
- * Complex version of the above.
- */
-static float complex
-getc_fir_val(unsigned int i, unsigned int holdsize,
-	     float complex *inbuf, float complex *hold,
-	     unsigned int nchans, unsigned int chan)
-{
-    if (i < holdsize)
-	return hold[i];
-    i -= holdsize;
-    i = (i * nchans) + chan;
-    return inbuf[i];
-}
-
-static void
-floatc_fir_filter(float *in_inbuf, float *in_outbuf, unsigned int nsamples,
-		  unsigned int nchans, unsigned int chan,
-		  unsigned int n, float *h, float *in_hold, float gain)
-{
-    float complex *inbuf = (float complex *) in_inbuf;
-    float complex *outbuf = (float complex *) in_outbuf;
-    float complex *hold = (float complex *) in_hold;
-    unsigned int i, j, k;
-    unsigned int holdsize = n * 2;
-    float complex tmp;
-
-    for (i = 0; i < nsamples; i++) {
-	/* Get the middle value, it's always multiplied by 1. */
-	tmp = getc_fir_val(n + i, holdsize, inbuf, hold, nchans, chan);
-
-	/*
-	 * The h array is half of a symmetric waveform.  That waveform
-	 * is always an odd number of values, but we don't include the
-	 * middle value (it's always one, handled above) and h only
-	 * holds the left half of the waveform.
-	 */
-	for (j = 0, k = holdsize; j < n; j++, k--) {
-	    tmp += h[j] * (getc_fir_val(i + j, holdsize, inbuf, hold,
-					nchans, chan) +
-			   getc_fir_val(i + k, holdsize, inbuf, hold,
-					nchans, chan));
-	}
-
-	outbuf[i * nchans + chan] = tmp * gain;
-    }
-    for (i = 0; i < holdsize; i++) {
-	unsigned int pos = nsamples - holdsize + i;
-	hold[i] = inbuf[pos * nchans + chan];
-    }
-}
-
-/*
- * Calculate FIR filter coefficients for a lowpass filter with the
- * given transition band size, sample rate and cutoff frequency.
- * The total number of coefficients is:
- *
- *   N = (n * 2) + 1
- *
- * but the middle value is always 1 and the coefficients are symmetric
- * about the middle value.  Thus we only really need n values because
- * h[n] would be 1 and h[i] == h[N - i - 1].
- *
- * A hamming filter is applied to the coefficients.
- *
- * Adapted from http://www.labbookpages.co.uk/audio/firWindowing.html
- * and https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter4.pdf
- */
-static float *
-fsk_calc_fir_coefs(struct gensio_os_funcs *o,
-		   double samplerate, double cutoff, double transband,
-		   unsigned int *rn)
-{
-    double tba = transband / samplerate;
-    double coa = cutoff / samplerate;
-    double w = 2 * M_PI * (coa + .5 * tba);
-    unsigned int i;
-    /* For a hamming filter, transition band ~ (3.3 / N). */
-    double N = ceil(3.3 / tba);
-    unsigned int n;
-    double x = 1.0;
-    float *h;
-
-    n = (int) (N + .1); /* N should be at a whole number, add .1 to be sure. */
-    if (n % 2 == 0)
-       N += 1.0;       /* N must be odd. */
-    n /= 2;
-    /* Here, N = n * 2 + 1 */
-
-    h = o->zalloc(o, n * sizeof(float));
-    if (!h)
-	return NULL;
-
-    for (i = n - 1; ; i--) {
-	double tmp;
-
-	/* h(x) = 2 * f * sinc() */
-	tmp = sin(x * w) / (x * M_PI);
-
-	/* Hamming window */
-	tmp *= .54 - .46 * cos(2 * M_PI * (i + 1) / N);
-
-	h[i] = tmp;
-
-	if (i == 0)
-	    break;
-	x += 1.0;
-    }
-    *rn = n;
-    return h;
-}
-
-/*
  * Copy the particular channel we are interested in into the
  * destination buffer.  Incoming data may be channelized (nchans > 1)
  * and we only want one of the channels.
@@ -2091,19 +1844,17 @@ fsk_ll_write(struct gensio_filter *filter,
     }
 
     if (sfilter->hpfilteredbuf) {
-	sfilter->do_filter(buf, sfilter->hpfilteredbuf,
-			   sfilter->in_bufsize,
-			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->hpfilt_coefs_n, sfilter->hpfilt_coefs,
-			   sfilter->hpfilt_hold, sfilter->hpfilt_gain);
+	sfilter->hpfilt.do_filter(buf, sfilter->hpfilteredbuf,
+				  sfilter->in_bufsize,
+				  sfilter->in_nchans, sfilter->in_chan,
+				  &sfilter->hpfilt);
 	buf = sfilter->hpfilteredbuf;
     }
     if (sfilter->lpfilteredbuf) {
-	sfilter->do_filter(buf, sfilter->lpfilteredbuf,
-			   sfilter->in_bufsize,
-			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->lpfilt_coefs_n, sfilter->lpfilt_coefs,
-			   sfilter->lpfilt_hold, sfilter->lpfilt_gain);
+	sfilter->lpfilt.do_filter(buf, sfilter->lpfilteredbuf,
+				  sfilter->in_bufsize,
+				  sfilter->in_nchans, sfilter->in_chan,
+				  &sfilter->lpfilt);
 	buf = sfilter->lpfilteredbuf;
     }
     if (sfilter->debug & GENSIO_FSK_DEBUG_OUTPUT_FILTERED) {
@@ -2340,16 +2091,10 @@ fsk_sfilter_free(struct fsk_filter *sfilter)
     }
     if (sfilter->lpfilteredbuf)
 	o->free(o, sfilter->lpfilteredbuf);
-    if (sfilter->lpfilt_coefs)
-	o->free(o, sfilter->lpfilt_coefs);
-    if (sfilter->lpfilt_hold)
-	o->free(o, sfilter->lpfilt_hold);
     if (sfilter->hpfilteredbuf)
 	o->free(o, sfilter->hpfilteredbuf);
-    if (sfilter->hpfilt_coefs)
-	o->free(o, sfilter->hpfilt_coefs);
-    if (sfilter->hpfilt_hold)
-	o->free(o, sfilter->hpfilt_hold);
+    filter_cleanup(o, &sfilter->lpfilt);
+    filter_cleanup(o, &sfilter->hpfilt);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     o->free(o, sfilter);
@@ -2803,75 +2548,6 @@ float_gen_hz(float *buf, unsigned int bufsize,
     }
 }
 
-static bool
-fsk_setup_iir_filter(struct fsk_filter *sfilter,
-		     struct gensio_fsk_data *data)
-{
-    struct gensio_os_funcs *o = sfilter->o;
-
-    if (sfilter->in_format == FSK_FMT_FLOATC)
-	sfilter->do_filter = floatc_iir_filter;
-    else
-	sfilter->do_filter = float_iir_filter;
-
-    if (data->lpcutoff != 0) {
-	sfilter->lpfilt_gain = data->lpgain;
-	sfilter->lpfilt_coefs_n = 5;
-	sfilter->lpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
-	if (!sfilter->lpfilt_coefs)
-	    return true;
-	sfilter->lpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
-	if (!sfilter->lpfilt_hold)
-	    return true;
-	fsk_calc_iir_coefs(true, data->in_framerate, data->lpcutoff,
-			   sfilter->lpfilt_coefs,
-			   sfilter->lpfilt_coefs + 2);
-    }
-
-    if (data->hpcutoff != 0) {
-	sfilter->hpfilt_gain = data->hpgain;
-	sfilter->hpfilt_coefs_n = 5;
-	sfilter->hpfilt_coefs = o->zalloc(o, 5 * sizeof(float));
-	if (!sfilter->hpfilt_coefs)
-	    return true;
-	sfilter->hpfilt_hold = o->zalloc(o, 2 * sfilter->in_samplesize);
-	if (!sfilter->hpfilt_hold)
-	    return true;
-	fsk_calc_iir_coefs(false, data->in_framerate, data->hpcutoff,
-			   sfilter->hpfilt_coefs,
-			   sfilter->hpfilt_coefs + 2);
-    }
-
-    return false;
-}
-
-static bool
-fsk_setup_fir_filter(struct fsk_filter *sfilter,
-		     struct gensio_fsk_data *data)
-{
-    struct gensio_os_funcs *o = sfilter->o;
-
-    if (data->lpcutoff == 0)
-	return false;
-
-    if (sfilter->in_format == FSK_FMT_FLOATC)
-	sfilter->do_filter = floatc_fir_filter;
-    else
-	sfilter->do_filter = float_fir_filter;
-    /* Calculate the FIR h parameters. */
-    sfilter->lpfilt_coefs =
-	fsk_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
-			   data->transition_freq,
-			   &sfilter->lpfilt_coefs_n);
-    if (!sfilter->lpfilt_coefs)
-	return true;
-    sfilter->lpfilt_hold = o->zalloc(o, (2 * sfilter->lpfilt_coefs_n
-					 * sfilter->in_samplesize));
-    if (!sfilter->lpfilt_hold)
-	return true;
-    return false;
-}
-
 static struct gensio_filter *
 gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 			    struct gensio_os_funcs *o,
@@ -3030,19 +2706,44 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	}
 
 	err = 0;
-	if (data->filt_type == IIR_FILT)
-	    err = fsk_setup_iir_filter(sfilter, data);
-	if (data->filt_type == FIR_FILT)
-	    err = fsk_setup_fir_filter(sfilter, data);
-	if (err)
-	    goto out_nomem;
-	if (sfilter->lpfilt_coefs) {
+	if (data->lpcutoff) {
+	    if (data->filt_type == IIR_FILT)
+		err = setup_iir_filter(o, &sfilter->lpfilt,
+				       sfilter->in_format == FSK_FMT_FLOATC,
+				       true, data->in_framerate,
+				       data->lpcutoff, data->lpgain);
+	    else if (data->filt_type == FIR_FILT) {
+		err = setup_fir_filter(o, &sfilter->lpfilt,
+				       sfilter->in_format == FSK_FMT_FLOATC,
+				       true, data->in_framerate,
+				       data->lpcutoff, data->transition_freq,
+				       data->lpgain);
+		if (!err && sfilter->lpfilt.coefs_n * 2 > sfilter->in_bufsize) {
+		    gensio_pparm_log(p, "fsk: "
+				     "FIR filter hold size (%u) larger than input buffer (%u), sample rate is likely too high for a FIR filter",
+				     sfilter->lpfilt.coefs_n * 2,
+				     sfilter->in_bufsize);
+		    goto out_nomem;
+		}
+	    }
+	    if (err)
+		goto out_nomem;
+	}
+	if (data->hpcutoff) {
+	    err = setup_iir_filter(o, &sfilter->lpfilt,
+				   sfilter->in_format == FSK_FMT_FLOATC,
+				   false, data->in_framerate,
+				   data->hpcutoff, data->hpgain);
+	    if (err)
+		goto out_nomem;
+	}
+	if (data->lpcutoff) {
 	    sfilter->lpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
 						   * sfilter->in_bufsize));
 	    if (!sfilter->lpfilteredbuf)
 		goto out_nomem;
 	}
-	if (sfilter->hpfilt_coefs) {
+	if (data->hpcutoff) {
 	    sfilter->hpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
 						   * sfilter->in_bufsize));
 	    if (!sfilter->hpfilteredbuf)
