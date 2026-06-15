@@ -811,12 +811,13 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
 
-    err = str_to_gensio(g->ios1, o, parmlog_eventh, ioinfo1, &gtconn1->io);
+    err = str_to_gensio(g->ios1, o, parmlog_eventh, &g, &gtconn1->io);
     if (err) {
 	report_err(g, "Could not allocate %s: %s",
 		g->ios1, gensio_err_to_str(err));
 	goto out_err;
     }
+    gensio_set_callback(gtconn1->io, parmlog_eventh, ioinfo1);
 
     gtconn1->ios = g->ios1;
     gtconn2->ios = g->ios2;
