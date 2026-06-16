@@ -1105,22 +1105,22 @@ soapy_control_freq_adj(struct soapy_ll *soapyll,
 	freq = strtod(data, &end);
 	if (*end)
 	    return GE_INVAL;
-    }
 
-    if (SoapySDRDevice_setFrequency(soapyll->sdr, rxtx,
-				    conf->channel,
-				    conf->frequency + freq,
-				    NULL) != 0) {
-	gensio_log(soapyll->o, GENSIO_LOG_INFO,
-		   "soapy set %s frequency adjust failed: %s\n", rxtxs,
-		   SoapySDRDevice_lastError());
-	return GE_INVAL;
+	if (SoapySDRDevice_setFrequency(soapyll->sdr, rxtx,
+					conf->channel,
+					conf->frequency + freq,
+					NULL) != 0) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy set %s frequency adjust failed: %s\n", rxtxs,
+		       SoapySDRDevice_lastError());
+	    return GE_INVAL;
+	}
+	conf->freq_adj = freq;
+	realconf->frequency = SoapySDRDevice_getFrequency(soapyll->sdr,
+							  SOAPY_SDR_RX,
+							  soapyll->inc.channel)
+	    - conf->freq_adj;
     }
-    conf->freq_adj = freq;
-    realconf->frequency = SoapySDRDevice_getFrequency(soapyll->sdr,
-						      SOAPY_SDR_RX,
-						      soapyll->inc.channel)
-	- conf->freq_adj;
 
     *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%f",
 				   conf->freq_adj);
