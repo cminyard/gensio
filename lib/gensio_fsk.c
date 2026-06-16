@@ -1939,7 +1939,7 @@ fsk_ll_write(struct gensio_filter *filter,
 	j = sfilter->worksize - sfilter->work_pos;
 	memmove(sfilter->workbuf,
 		((char *) sfilter->workbuf) + j * sfilter->in_samplesize,
-		sfilter->work_pos * sfilter->in_samplesize);
+		(size_t) sfilter->work_pos * sfilter->in_samplesize);
     }
 
     /*
