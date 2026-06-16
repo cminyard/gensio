@@ -515,8 +515,9 @@ mdns_timeout(struct gensio_timer *timer, void *cb_data)
     switch (ndata->state) {
     case MDNSN_IN_OPEN_QUERY:
 	ndata->open_err = GE_NOTFOUND;
+	mdnsn_deref(ndata);
 	mdns_handle_err(ndata);
-	break;
+	return;
 
     case MDNSN_IN_CLOSE:
 	/* Maybe we should finish the close. */
