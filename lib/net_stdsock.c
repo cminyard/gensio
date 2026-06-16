@@ -1632,7 +1632,7 @@ gensio_stdsock_mcast_add(struct gensio_iod *iod,
 #endif
 
 	default:
-	    rv = GE_INVAL;
+	    err = GE_INVAL;
 	    goto out_err;
 	}
 
@@ -1714,7 +1714,7 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 #endif
 
 	default:
-	    rv = GE_INVAL;
+	    err = GE_INVAL;
 	    goto out_err;
 	}
 
