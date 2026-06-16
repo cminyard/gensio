@@ -97,6 +97,19 @@ class mdns_handler:
     def wait(self):
         return self.waiter.wait_timeout(1, 10000)
 
+def test_mdns_connect_fail(iostr, expect_err):
+    io = gensio.gensio(utils.o, iostr, None)
+    try:
+        io.open_s()
+    except Exception as e:
+        err = str(e)
+        if expect_err not in err:
+            raise Exception("Open error '%s' did not contain '%s'" %
+                            (err, expect_err))
+    else:
+        raise Exception("Expected open failure")
+    del io
+
 print("Testing mdns")
 c = mdns_closer()
 e = mdns_handler()
@@ -155,6 +168,20 @@ w.wait_timeout(1, 1000)
 
 utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,ignore-v6-link-local)," +
                           "gensiotest_service",
+                 "tcp,5096", utils.do_small_test, chunksize = 64, get_port=False)
+
+print("  TXT filter connect")
+utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,txt=Hello:yes)," +
+                          "gensiotest_service",
+                 "tcp,5096", utils.do_small_test, chunksize = 64, get_port=False)
+
+print("  TXT filter mismatch")
+test_mdns_connect_fail("mdns(type=_gensiotest._tcp,txt=Hello:no," +
+                       "mdnstimeout=500),gensiotest_service", "not found")
+
+print("  Multiple TXT filters")
+utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,txt=Hello:yes," +
+                          "txt=Goodbye:no),gensiotest_service",
                  "tcp,5096", utils.do_small_test, chunksize = 64, get_port=False)
 
 del mdns
