@@ -218,7 +218,6 @@ get_min_pos(struct convcode *ce)
     if (ce->trelmap) {
 	/* Minimum value is always at 0 because it's sorted. */
 	cstate = 0;
-	min_val = ce->prev_path_values[0];
     } else {
 	min_val = ce->prev_path_values[0];
 	cstate = 0;
