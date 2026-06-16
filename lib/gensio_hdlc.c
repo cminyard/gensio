@@ -424,7 +424,7 @@ hdlc_ul_write(struct gensio_filter *filter,
 	      const char *const *auxdata)
 {
     struct hdlc_filter *sfilter = filter_to_hdlc(filter);
-    gensiods i, j, len, pos, count = 0;
+    gensiods i, j, pos, count = 0;
     unsigned int cbuf, one_count, outbitpos = 0;
     unsigned char *outbuf;
     uint16_t crc = 0xffff;
@@ -439,10 +439,9 @@ hdlc_ul_write(struct gensio_filter *filter,
 	goto out_process;
 
     for (i = 0, count = 0; i < sglen; i++) {
-	len = sg[i].buflen;
 	if (sfilter->do_crc)
-	    crc16_ccitt(sg[i].buf, len, &crc);
-	count += len;
+	    crc16_ccitt(sg[i].buf, sg[i].buflen, &crc);
+	count += sg[i].buflen;
     }
     if (count == 0)
 	goto out_process;
@@ -451,7 +450,6 @@ hdlc_ul_write(struct gensio_filter *filter,
 	goto out;
     }
 
-    len = 0;
     cbuf = (sfilter->curr_wrbuf + sfilter->nr_wrbufs) % NR_WRITE_BUFS;
     outbuf = sfilter->wrbufs[cbuf].data;
     for (pos = 0; pos < sfilter->tx_preamble_count; pos++)
