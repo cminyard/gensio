@@ -44,6 +44,9 @@ To fully build gensio, you need the following:
 
 * udev dev - for cm108 GPIO soundcard support (on Linux)
 
+* libsoapysdr dev - For the soapy SDR gensio.  You will also need to
+  install the proper driver for your SDR.
+
 The following sets everything except openipmi up on ubuntu 20.04:
 
 .. code-block:: bash
@@ -51,7 +54,7 @@ The following sets everything except openipmi up on ubuntu 20.04:
   sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
     libavahi-client-dev avahi-daemon libtool autoconf automake make	\
     libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
-    libasound2-dev libudev-dev
+    libasound2-dev libudev-dev libsoapysdr-dev
 
 On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
 to be available, so you will have to build that yourself with at least go and
@@ -62,7 +65,7 @@ python support.  Here's the command for Redhat-like systems:
   sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
     pkg-config avahi-devel libtool autoconf automake make \
     lksctp-tools-devel pam-devel glib2-devel tcl-devel \
-    alsa-lib-devel systemd-devel
+    alsa-lib-devel systemd-devel SoapySDR-devel
 
 You might have to do the following to enable access to the development
 packages:
