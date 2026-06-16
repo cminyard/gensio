@@ -410,7 +410,6 @@ struct fsk_filter {
     unsigned int nr_wrbufs;
     unsigned char wrbyte;
     unsigned char wrbyte_bit;
-    unsigned int send_countdown;
 
     /* Count the message 1's transmitted to know when to bit stuff. */
     unsigned int num_xmit_1;

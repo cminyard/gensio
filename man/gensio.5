@@ -303,6 +303,18 @@ found will be used.  SCTP is the exception, it will do multi-homing on
 all the addresses that come up.  Do you may need to be fairly specific
 with addresses.
 
+You can specify a subnet mask with an address, as:
+.IP
+192.168.33.0/24
+.PP
+This will mostly be ignore except for calls to
+.B gensio_addr_addr_present()
+which will compare the given address using the subnet mask specified.
+In the given case it will accept any address from 192.168.33.0 to
+192.168.33.255, per normal subnet mask usage.  Nothing currently
+in the gensio library uses this, but ser2net uses this with it's remaddr
+option to allow subnets to be allowed as remote addresses.
+
 In general IPv6 addresses are preferred if both are available.
 .SH "gtime"
 Time consists of a set of numbers each followed by a single letter.

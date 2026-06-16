@@ -23,9 +23,21 @@ struct sockaddr;
 #include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
+struct gensio_addrinfo_iter;
+
 /* Get the entire addrinfo list for the address. */
 GENSIOOSH_DLL_PUBLIC
-struct addrinfo *gensio_addr_addrinfo_get(const struct gensio_addr *addr);
+struct gensio_addrinfo_iter *
+gensio_addr_addrinfo_get_iter(const struct gensio_addr *addr);
+
+GENSIOOSH_DLL_PUBLIC
+struct addrinfo *gensio_addrinfo_iter_next(struct gensio_addrinfo_iter *iter);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_addrinfo_iter_rewind(struct gensio_addrinfo_iter *iter);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_addrinfo_iter_free(struct gensio_addrinfo_iter *iter);
 
 /* Get the current addrinfo. */
 GENSIOOSH_DLL_PUBLIC
