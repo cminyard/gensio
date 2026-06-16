@@ -2705,7 +2705,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	}
 
 	err = 0;
-	if (data->lpcutoff) {
+	if (data->lpcutoff && data->filt_type != NO_FILT) {
 	    if (data->filt_type == IIR_FILT)
 		err = setup_iir_filter(o, &sfilter->lpfilt,
 				       sfilter->in_format == FSK_FMT_FLOATC,
@@ -2736,13 +2736,13 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	    if (err)
 		goto out_nomem;
 	}
-	if (data->lpcutoff) {
+	if (data->lpcutoff && data->filt_type != NO_FILT) {
 	    sfilter->lpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
 						   * sfilter->in_bufsize));
 	    if (!sfilter->lpfilteredbuf)
 		goto out_nomem;
 	}
-	if (data->hpcutoff) {
+	if (data->hpcutoff && data->filt_type != NO_FILT) {
 	    sfilter->hpfilteredbuf = o->zalloc(o, (sfilter->in_framesize
 						   * sfilter->in_bufsize));
 	    if (!sfilter->hpfilteredbuf)
