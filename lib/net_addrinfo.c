@@ -816,8 +816,9 @@ gensio_addrinfo_list_one_cleanup(struct gensio_os_funcs *o,
 
 static void
 gensio_addrinfo_list_free(struct gensio_os_funcs *o,
-			  struct gensio_addr_addrinfo_list *list)
+			  struct gensio_addr_addrinfo_list *olist)
 {
+    struct gensio_addr_addrinfo_list *list = olist;
     struct gensio_addr_addrinfo_list *next = list->next;
 
     /* Don't free the first item. */
@@ -828,9 +829,10 @@ gensio_addrinfo_list_free(struct gensio_os_funcs *o,
 	gensio_addrinfo_list_one_cleanup(o, list);
 	o->free(o, list);
     }
-    list->next = NULL;
-    list->a = NULL;
-    list->refcount = NULL;
+    /* Clear the first item values so they don't get used. */
+    olist->next = NULL;
+    olist->a = NULL;
+    olist->refcount = NULL;
 }
 
 /* Returns true on error, false on success. */
@@ -874,8 +876,6 @@ gensio_addrinfo_list_dup(struct gensio_os_funcs *o,
 
  out_err:
     gensio_addrinfo_list_free(o, nlist);
-    nlist->a = NULL;
-    nlist->refcount = NULL;
     return true;
 }
 
