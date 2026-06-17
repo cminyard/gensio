@@ -960,7 +960,8 @@ gensio_addr_dedup(struct gensio_os_funcs *o,
 	}
     }
 
-    *iaddr = addr;
+    gensio_addrinfo_setup_iter(&addr->iter, addr);
+
     return 0;
 }
 
@@ -1304,8 +1305,6 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	goto out_err;
     }
 
-    gensio_addrinfo_setup_iter(&addr->iter, addr);
-
     if (is_port_set)
 	*is_port_set = portset;
 
@@ -1383,8 +1382,6 @@ gensio_addr_addrinfo_cat(const struct gensio_addr *aaddr1,
     rv = gensio_addr_dedup(o, &addr);
     if (rv)
 	goto out_err;
-
-    gensio_addrinfo_setup_iter(&addr->iter, addr);
 
     return &addr->r;
 
