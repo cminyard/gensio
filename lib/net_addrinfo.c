@@ -885,22 +885,31 @@ gensio_addr_dedup(struct gensio_os_funcs *o,
 {
     struct gensio_addr_addrinfo *addr = *iaddr;
     struct addrinfo *ai, *ai2, *tai;
-    struct gensio_addrinfo_iter it1, it2, pit, pit2;
+    struct gensio_addrinfo_iter it1, it2 = {}, cit, pit;
+
+    /*
+     * The logic is a little convoluted here.  it1 and it2 are
+     * iterators over the address list, it1 is the one currently be
+     * check, and it2 goes over the list items after it1 looking for
+     * ones the same as it1.
+     *
+     * cit is the it2 for the item currently being worked on, and pit
+     * is the iterator item before cit.  This way when you need to
+     * delete the current item, you can use pit as the previous to do
+     * it.
+     */
 
  restart:
     gensio_addrinfo_setup_iter(&it1, addr);
-    for (ai = gensio_addrinfo_iter_next(&it1); ai;
-		ai = gensio_addrinfo_iter_next(&it1)) {
+    for (pit = it1, ai = gensio_addrinfo_iter_next(&it1); ai;
+		pit = it1, ai = gensio_addrinfo_iter_next(&it1)) {
 	it2 = it1;
-	pit2 = it1;
-	gensio_addrinfo_iter_next(&it2); /* Skip the current item. */
-	for (pit = it2, ai2 = gensio_addrinfo_iter_next(&it2); ai2;
-		pit2 = pit, pit = it2, ai2 = gensio_addrinfo_iter_next(&it2)) {
+	for (cit = it2, ai2 = gensio_addrinfo_iter_next(&it2); ai2;
+		pit = cit, cit = it2, ai2 = gensio_addrinfo_iter_next(&it2)) {
 	    if (sockaddr_equal(ai->ai_addr, ai->ai_addrlen,
 			       ai2->ai_addr, ai2->ai_addrlen,
 			       true, 0)) {
-		struct gensio_addr_addrinfo_list *prev = pit2.list_curr;
-		struct gensio_addr_addrinfo_list *curr = pit.list_curr;
+		struct gensio_addr_addrinfo_list *curr = cit.list_curr;
 
 		if (curr->is_getaddrinfo) {
 		    int err;
@@ -925,9 +934,9 @@ gensio_addr_dedup(struct gensio_os_funcs *o,
 		    curr->a = ai2->ai_next;
 		    if (!curr->a) {
 			/* No more addrinfos in curr, delete it. */
-			prev->next = curr->next;
+			pit.list_curr->next = curr->next;
 			/*
-			 * You can never delete the first list item here,
+			 * You can never delete the first main list item here,
 			 * so no need to check for that.
 			 */
 			o->free(o, curr);
@@ -936,6 +945,8 @@ gensio_addr_dedup(struct gensio_os_funcs *o,
 		    pit.a_curr->ai_next = ai2->ai_next;
 		}
 		addrinfo_free(o, ai2);
+		/* We may have deleted the one we are on. */
+		goto restart;
 	    }
 	}
     }
