@@ -7,6 +7,9 @@
 
 /* This is filters for RF and audio, not a gensio filter. */
 
+#ifndef GENSIO_RF_FILTER
+#define GENSIO_RF_FILTER
+
 struct filterinfo {
     unsigned int coefs_n;
     float gain;
@@ -326,3 +329,5 @@ setup_fir_filter(struct gensio_os_funcs *o,
 
     return false;
 }
+
+#endif /* GENSIO_RF_FILTER */
