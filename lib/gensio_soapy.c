@@ -1566,7 +1566,7 @@ gensio_soapy_ll_control(struct soapy_ll *soapyll, bool get,
 	    if ((option == GENSIO_CONTROL_FREQUENCY && soapyll->outc.channel >= 0)
 			|| option == GENSIO_CONTROL_OUT_FREQUENCY) {
 		if (SoapySDRDevice_setFrequency(soapyll->sdr, SOAPY_SDR_TX,
-						soapyll->inc.channel,
+						soapyll->outc.channel,
 						freq + soapyll->outc.freq_adj,
 						NULL) != 0) {
 		    gensio_log(soapyll->o, GENSIO_LOG_INFO,
