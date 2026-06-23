@@ -680,8 +680,8 @@ hdlc_process_bit_w(struct hdlc_filter *sfilter, unsigned int msgn,
 		}
 		break;
 	    }
-	    if (sfilter->wmsgs[i].uncertainty > max_uncert) {
-		/* Keep a running track of the largest uncertainty value. */
+	    if (sfilter->wmsgs[i].uncertainty < max_uncert) {
+		/* Keep a running track of the smallest uncertainty value. */
 		max_uncert = sfilter->wmsgs[i].uncertainty;
 		max_uncert_pos = i;
 	    }
