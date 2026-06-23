@@ -309,21 +309,21 @@ gensio_os_free_norun_waiter(struct gensio_norun_waiter *w)
 void
 gensio_os_norun_waiter_wait(struct gensio_norun_waiter *w)
 {
-    pthread_mutex_lock(&w->lock);
+    assert(pthread_mutex_lock(&w->lock) == 0);
     while (w->wake_count == 0) {
 	pthread_cond_wait(&w->cond, &w->lock);
     }
     w->wake_count--;
-    pthread_mutex_unlock(&w->lock);
+    assert(pthread_mutex_unlock(&w->lock) == 0);
 }
 
 void
 gensio_os_norun_waiter_wake(struct gensio_norun_waiter *w)
 {
-    pthread_mutex_lock(&w->lock);
+    assert(pthread_mutex_lock(&w->lock) == 0);
     w->wake_count++;
     pthread_cond_signal(&w->cond);
-    pthread_mutex_unlock(&w->lock);
+    assert(pthread_mutex_unlock(&w->lock) == 0);
 }
 
 #else /* USE_PTHREADS */
