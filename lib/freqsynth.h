@@ -109,8 +109,8 @@ cleanup_freqsynth(struct gensio_os_funcs *o, struct freqsynth *s)
 
 /*
  * Setup an iterator to iterate over the waveform at a specific
- * increment, base_incr will be a number of radians to increment on
- * each iteration.
+ * increment, base_incr will be the nominal number of radians to
+ * increment on each iteration.
  */
 static void
 setup_freqsynth_iter(struct freqsynth *s, struct freqsynth_iter *iter,
@@ -121,38 +121,89 @@ setup_freqsynth_iter(struct freqsynth *s, struct freqsynth_iter *iter,
     iter->incr = base_incr;
 }
 
-/*
- * Return the next value from the iterator.  offset lets us adjust the
- * frequency on each iteration, allowing for FM synthesis.
- */
 static float
-freqsynth_next_f(struct freqsynth_iter *iter, float offset)
+freqsynth_curr_f(struct freqsynth_iter *iter, float offset)
 {
     struct freqsynth *s = iter->s;
-    float rv, a;
+    float rv, pos;
     int ipos;
 
     /*
      * Linearly interpolate between the two positions.  First calculate
      * the position to the left of our current position.
      */
-    ipos = iter->pos * s->wave_len;
+    pos = iter->pos + offset;
+    if (pos > 2 * M_PI)
+	pos -= 2 * M_PI;
+    if (pos < 0)
+	pos += 2 * M_PI;
+    ipos = pos * s->wave_len;
     if (ipos < 0)
 	ipos = 0; /* Just in case */
 
     /*
-     * Calculate a, the ratio of iter->pos between ipos and ipos + 1.
+     * Calculate a, the ratio of pos between ipos and ipos + 1.
      * So, for instance, ipos is at 1.1, ipos+1 is at 1.2, that means
-     * wave_incr is .1.  if iter->pos is at 1.12, then:
+     * wave_incr is .1.  if pos is at 1.12, then:
      *   a = (1.12 - 1.1) / .1 = .2
      * because it is 20% of the distance from ipos to ipos + 1
      */
-    a = (iter->pos - ipos * s->wave_incr) * s-inv_wave_incr;
+    a = (pos - ipos * s->wave_incr) * s->inv_wave_incr;
 
     /* Interpolate the value between the two waveform values. */
-    rv = s->wave[ipos] + (s->wave[ipos + 1] - s->wave[ipos]) * a;
+    return s->wave[ipos] + (s->wave[ipos + 1] - s->wave[ipos]) * a;
+}
 
-    iter->pos += iter->incr + offset;
+/*
+ * Like the above, but the values are complex.
+ */
+static float complex
+freqsynth_curr_c(struct freqsynth_iter *iter, float offset)
+{
+    struct freqsynth *s = iter->s;
+    float complex *w = (float complex *) s->wave;
+    float a, pos;
+    int ipos;
+
+    /*
+     * Linearly interpolate between the two positions.  First calculate
+     * the position to the left of our current position.
+     */
+    pos = iter->pos + offset;
+    if (pos > 2 * M_PI)
+	pos -= 2 * M_PI;
+    if (pos < 0)
+	pos += 2 * M_PI;
+    ipos = pos * s->wave_len;
+    if (ipos < 0)
+	ipos = 0; /* Just in case */
+
+    /*
+     * Calculate a, the ratio of pos between ipos and ipos + 1.
+     * So, for instance, ipos is at 1.1, ipos+1 is at 1.2, that means
+     * wave_incr is .1.  if pos is at 1.12, then:
+     *   a = (1.12 - 1.1) / .1 = .2
+     * because it is 20% of the distance from ipos to ipos + 1
+     */
+    a = (pos - ipos * s->wave_incr) * s-inv_wave_incr;
+
+    /* Interpolate the value between the two waveform values. */
+    return w[ipos] + (w[ipos + 1] - w[ipos]) * a;
+}
+
+/*
+ * Return the next value from the iterator.  offset lets us adjust the
+ * frequency on each iteration, allowing for FM synthesis.
+ */
+static float
+freqsynth_next_f(struct freqsynth_iter *iter, float incr_offset)
+{
+    struct freqsynth *s = iter->s;
+    float rv;
+
+    rv = freqsynth_curr_f(iter, 0);
+
+    iter->pos += iter->incr + incr_offset;
     if (iter->pos >= 2 * M_PI)
 	iter->pos -= 2 * M_PI;
 
@@ -163,35 +214,14 @@ freqsynth_next_f(struct freqsynth_iter *iter, float offset)
  * Like the above, but the values are complex.
  */
 static float complex
-freqsynth_next_c(struct freqsynth_iter *iter, float offset)
+freqsynth_next_c(struct freqsynth_iter *iter, float incr_offset)
 {
     struct freqsynth *s = iter->s;
-    float complex *w = (float complex *) s->wave;
     float complex rv;
-    float a;
-    int ipos;
 
-    /*
-     * Linearly interpolate between the two positions.  First calculate
-     * the position to the left of our current position.
-     */
-    ipos = iter->pos * s->wave_len;
-    if (ipos < 0)
-	ipos = 0; /* Just in case */
+    rv = freqsynth_next_c(iter, 0);
 
-    /*
-     * Calculate a, the ratio of iter->pos between ipos and ipos + 1.
-     * So, for instance, ipos is at 1.1, ipos+1 is at 1.2, that means
-     * wave_incr is .1.  if iter->pos is at 1.12, then:
-     *   a = (1.12 - 1.1) / .1 = .2
-     * because it is 20% of the distance from ipos to ipos + 1
-     */
-    a = (iter->pos - ipos * s->wave_incr) * s-inv_wave_incr;
-
-    /* Interpolate the value between the two waveform values. */
-    rv = w[ipos] + (w[ipos + 1] - w[ipos]) * a;
-
-    iter->pos += iter->incr + offset;
+    iter->pos += iter->incr + incr_offset;
     if (iter->pos >= 2 * M_PI)
 	iter->pos -= 2 * M_PI;
 
