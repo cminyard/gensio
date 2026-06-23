@@ -767,9 +767,9 @@ axfec_ll_write(struct gensio_filter *filter,
 		    sfilter->amble_flags = 1;
 		    sfilter->out_to_dec = bytes[3] >> 2;
 		    sfilter->out_to_dec_pos = 6;
-		    memcpy(sfilter->dec_uncert,
-			   sfilter->build_uncert + 32 - 6,
-			   6);
+		    memmove(sfilter->dec_uncert,
+			    sfilter->build_uncert + 32 - 6,
+			    6);
 
 		    sfilter->out_build_data = 0;
 		    sfilter->out_build_pos = 0;
