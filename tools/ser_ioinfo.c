@@ -541,6 +541,18 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 			GENSIO_ACONTROL_SER_FLOWCONTROL,
 			"none", 4, NULL, NULL, NULL);
 	break;
+    case 'l':
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DTR,
+			"on", 2, NULL, NULL, NULL);
+	break;
+    case 't':
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DTR,
+			"off", 3, NULL, NULL, NULL);
+	break;
     }
 
     return false;
