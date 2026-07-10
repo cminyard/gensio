@@ -65,3 +65,11 @@ INSTALL
 
 # ctags
 tags
+
+# swig generated
+c++/swig/pygensio/pygensio_wrap.*
+c++/swig/pygensio/pygensio.py
+tcl/c++/swig/pygensio/pygensiotcl_wrap.*
+tcl/c++/swig/pygensio/pygensiotcl.py
+tcl/swig/python/gensiotcl_wrap.*
+tcl/swig/python/gensiotcl.py

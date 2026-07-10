@@ -1,10 +1,12 @@
 # binaries
+gagwpe
 gensiot
 gmdns
 greflector
 gsound
 gtlssh
 gtlssh-keygen
+gtlsshd
 
 # generated
 gtlsshd.service
