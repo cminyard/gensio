@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Install dependencies
         run: |
+          sudo apt update
           sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config \
             libavahi-client-dev avahi-daemon libtool autoconf automake make \
             libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev \
