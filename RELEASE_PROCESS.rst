@@ -78,8 +78,9 @@ on Windows, after doing a get pull to get everything:
 
 * rm $HOME/install/Gensio/lib/*.la
 
-* Then run the "Inno Setup Compiler" and select gensio.iss in the
-  main gensio directory.
+* Stop gtlsshd in the task scheduler.  Then run the "Inno Setup
+  Compiler" and select gensio.iss in the main gensio directory.  Then
+  restart gtlsshd after the install completes.
 
 * The output will be named "Gensio.exe" in the home directory.  Rename
   it "Gensio-x.x.x-windows.exe" and copy that to the Linux system
