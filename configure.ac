@@ -2066,7 +2066,7 @@ case $soapy in
          AC_MSG_ERROR("soapy enabled but libSoapySDR not found")
       fi
       BASE_LIBS="$BASE_LIBS $LIBSOAPY_LIBS"
-      BUILTIN_GENSIOS="$BUILTIN_GENSIOS libsoapy"
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS soapy"
       BUILTIN_SOAPY=1
       ;;
    dynamic)
