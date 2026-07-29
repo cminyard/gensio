@@ -67,9 +67,9 @@ OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
 #define OI_PI_StringCheck PyUnicode_Check
 #define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
 #else
-#define OI_PI_BytesCheck PyString_Check
+#define OI_PI_BytesCheck PyBytes_Check
 #define OI_PI_AsBytesAndSize PyString_AsStringAndSize
-#define OI_PI_StringCheck PyString_Check
+#define OI_PI_StringCheck PyBytes_Check
 #define OI_PI_FromStringAndSize PyString_FromStringAndSize
 #endif
 
@@ -365,7 +365,7 @@ gensio_control_cb(struct gensio *io, int err, const char *buf, gensiods len,
     args = PyTuple_New(3);
     gensio_pyref(io);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
-    o = PyInt_FromLong(err);
+    o = PyLong_FromLong(err);
     PyTuple_SET_ITEM(args, 1, o);
     o = PyBytes_FromStringAndSize(buf, len);
     PyTuple_SET_ITEM(args, 2, o);
@@ -393,7 +393,7 @@ sgensio_call(struct gensio *io, long val, const char *func)
     args = PyTuple_New(2);
     ref_gensio_data(data);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
-    o = PyInt_FromLong(val);
+    o = PyLong_FromLong(val);
     PyTuple_SET_ITEM(args, 1, o);
 
     swig_finish_call(data->handler_val, func, args, true);
@@ -578,7 +578,7 @@ gensio_py_handle_auxdata(const char *const *auxdata)
 	    len++;
 	o = PyTuple_New(len);
 	for (i = 0; i < len; i++)
-	    PyTuple_SetItem(o, i, PyString_FromString(auxdata[i]));
+	    PyTuple_SetItem(o, i, PyUnicode_FromString(auxdata[i]));
 	return o;
     }
 }
@@ -706,7 +706,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	args = PyTuple_New(3);
 	ref_gensio_data(data);
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
-	o = PyInt_FromLong(readerr);
+	o = PyLong_FromLong(readerr);
 	PyTuple_SET_ITEM(args, 1, o);
 	if (auxdata && auxdata[0]) {
 	    o = OI_PI_FromString(auxdata[0]);
@@ -753,8 +753,8 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 		    *buflen = len;
 		memcpy(buf, p, *buflen);
 		rv = 0;
-	    } else if (PyInt_Check(o)) {
-		rv = PyInt_AsLong(o);
+	    } else if (PyLong_Check(o)) {
+		rv = PyLong_AsLong(o);
 	    }
 	    Py_DecRef(o);
 	}
@@ -802,8 +802,8 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 			*buflen = len;
 		    }
 		}
-	    } else if (PyInt_Check(o)) {
-		rv = PyInt_AsLong(o);
+	    } else if (PyLong_Check(o)) {
+		rv = PyLong_AsLong(o);
 	    }
 	    Py_DecRef(o);
 	}
@@ -842,9 +842,9 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	args = PyTuple_New(3);
 	ref_gensio_data(data);
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
-	o = PyInt_FromLong(height);
+	o = PyLong_FromLong(height);
 	PyTuple_SET_ITEM(args, 1, o);
-	o = PyInt_FromLong(width);
+	o = PyLong_FromLong(width);
 	PyTuple_SET_ITEM(args, 2, o);
 	swig_finish_call(data->handler_val, "win_size", args, true);
 	break;
@@ -1041,7 +1041,7 @@ gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
     PyTuple_SET_ITEM(args, 0, acc_ref.val);
     PyTuple_SET_ITEM(args, 1, io_ref.val);
     if (opterr >= 0) {
-	o = PyInt_FromLong(opterr);
+	o = PyLong_FromLong(opterr);
 	PyTuple_SET_ITEM(args, 2, o);
 	if (optstr) {
 	    o = OI_PI_FromString(optstr);
@@ -1177,8 +1177,8 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 		    pwvfy->password_len = len;
 		memcpy(pwvfy->password, p, pwvfy->password_len);
 		rv = 0;
-	    } else if (PyInt_Check(o)) {
-		rv = PyInt_AsLong(o);
+	    } else if (PyLong_Check(o)) {
+		rv = PyLong_AsLong(o);
 	    }
 	    Py_DecRef(o);
 	}
@@ -1234,8 +1234,8 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 			pwvfy->password_len = len;
 		    }
 		}
-	    } else if (PyInt_Check(o)) {
-		rv = PyInt_AsLong(o);
+	    } else if (PyLong_Check(o)) {
+		rv = PyLong_AsLong(o);
 	    }
 	    Py_DecRef(o);
 	}
@@ -1374,8 +1374,8 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 
     args = PyTuple_New(9);
     PyTuple_SET_ITEM(args, 0, PyBool_FromLong(state == GENSIO_MDNS_WATCH_NEW_DATA));
-    PyTuple_SET_ITEM(args, 1, PyInt_FromLong(ipinterface));
-    PyTuple_SET_ITEM(args, 2, PyInt_FromLong(ipdomain));
+    PyTuple_SET_ITEM(args, 1, PyLong_FromLong(ipinterface));
+    PyTuple_SET_ITEM(args, 2, PyLong_FromLong(ipdomain));
     PyTuple_SET_ITEM(args, 3, OI_PI_FromStringN(name));
     PyTuple_SET_ITEM(args, 4, OI_PI_FromStringN(type));
     PyTuple_SET_ITEM(args, 5, OI_PI_FromStringN(domain));

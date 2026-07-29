@@ -60,7 +60,7 @@
 }
 
 %typemap(argout) (long *r_int) {
-    PyObject *r = PyInt_FromLong(*$1);
+    PyObject *r = PyLong_FromLong(*$1);
 
     $result = add_python_result($result, r);
 }

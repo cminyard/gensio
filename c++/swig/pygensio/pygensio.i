@@ -132,7 +132,7 @@ PI_StringArrayToTuple(const char *const *val)
 	    ;
 	o = PyTuple_New(len);
 	for (i = 0; i < len; i++)
-	    PyTuple_SetItem(o, i, PyString_FromString(val[i]));
+	    PyTuple_SetItem(o, i, PyUnicode_FromString(val[i]));
 	return o;
     }
 }
@@ -380,7 +380,7 @@ static bool check_for_err(int err)
     $1 = &temp;
 }
 %typemap(argout) unsigned int *outval {
-    $result = PI_add_result($result, PyInt_FromLong(*$1));
+    $result = PI_add_result($result, PyLong_FromLong(*$1));
 }
 
 // Handling of nested waiters and python callback.

@@ -52,8 +52,8 @@ swig_cb_val *gensio_python_deref_swig_cb_val(swig_cb_val *cb);
 #define OI_PI_FromString PyUnicode_FromString
 #define OI_PI_AsString PyUnicode_AsUTF8
 #else
-#define OI_PI_FromString PyString_FromString
-#define OI_PI_AsString PyString_AsString
+#define OI_PI_FromString PyUnicode_FromString
+#define OI_PI_AsString PyBytes_AsString
 #endif
 
 GENSIO_DLL_PUBLIC
