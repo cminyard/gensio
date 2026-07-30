@@ -17,7 +17,7 @@ using SSL, then authenticates itself with the server.
 .BR gsh
 is a synonym for
 .BR gtlssh
-and at some point may replace it.
+that runs in ssh compatibility by default.
 
 .BR gtlsshd
 will attempt an SCTP connection first, and fall back to TCP if that
@@ -49,6 +49,25 @@ hexadeximal number or ^x to set a control character.  By default it is
 ^\\ if io1 is the default and stdin is a tty, or disabled otherwise.
 See ESCAPES below for more details on the escape character.  Only handled
 on io1.
+.TP
+.I \-\-ssh-compat
+Enable ssh-compatible command handling.  Default for gsh, off by
+default for gtlssh.
+
+gtlssh normally handles commands by passing individual arguments over
+as separate arguments then passing them to the remote command as such.
+In ssh compatible mode, it will work like ssh, combining all remaining
+arguments with a space between them and passing them as a single
+command.
+
+gtlssh command handling is a little more sane, if you run "gsh server
+ls '/a b'" it will do what you expect.  ssh will not.  But some
+programs expect it to work as ssh does.
+
+Added in gensio-3.0.4.
+.TP
+.I \-\-nossh-compat
+Disable ssh-compatible command handling.
 .TP
 .I \-r|\-\-telnet
 Do telnet processing with RFC2217 handling.

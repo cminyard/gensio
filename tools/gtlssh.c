@@ -382,6 +382,10 @@ help(int err)
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
+    printf("  --ssh-compat - Enable ssh compatible string handling.\n"
+	   "    (default for gsh)\n");
+    printf("  --nossh-compat - Disable ssh compatible string handling.\n"
+	   "    (default for no gsh)\n");
     printf("  --nosctp - Disable SCTP support (default).\n");
     printf("  --sctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
@@ -1795,7 +1799,7 @@ main(int argc, char *argv[])
     gensiods service_len, len;
     const char *transport = "sctp(readbuf=20000)";
     bool user_transport = false, mdns_transport = false;
-    bool notcp = false, nosctp = true;
+    bool notcp = false, nosctp = true, ssh_compat = false;
     /*
      * The buffer sizes are carefully chosen here to mesh with ssl and
      * mux.  ssl can encrypt up to 16384 bytes at a time, and the
@@ -1811,6 +1815,15 @@ main(int argc, char *argv[])
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = "_iostream._tcp";
     const char *val_2fa = "", *pfx_2fa = "";
+
+    s = strrchr(argv[0], '/');
+    if (s)
+	s++;
+    else
+	s = argv[0];
+    if (strcmp(s, "gsh") == 0)
+	ssh_compat = true;
+    s = NULL;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -1910,6 +1923,12 @@ main(int argc, char *argv[])
 	} else if ((err = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 				     &escape_char))) {
 	    ;
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--ssh-compat",
+				 NULL))) {
+	    ssh_compat = true;
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nossh-compat",
+				 NULL))) {
+	    ssh_compat = false;
 	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nomux", NULL))) {
 	    muxstr = "";
 	    use_mux = false;
@@ -2025,36 +2044,60 @@ main(int argc, char *argv[])
 	unsigned int svclen = 0;
 
 	/* User gave us a remote program. */
-	for (i = arg; i < argc; i++) {
-	    svclen += strlen(argv[i]) + 1; /* Extra space for nil at end */
-	    if (argv[i][0] == '\0' || argv[i][0] == '\xff')
-		/* See note below on why we do this. */
-		svclen += 1;
+	if (ssh_compat) {
+	    for (i = arg; i < argc; i++) {
+		if (i != arg)
+		    svclen++; /* Leading space. */
+		svclen += strlen(argv[i]);
+	    }
+	    svclen += 10; /* Space for "program2:" and final nil. */
+	} else {
+	    for (i = arg; i < argc; i++) {
+		svclen += strlen(argv[i]) + 1; /* Extra space for nil at end */
+		if (argv[i][0] == '\0' || argv[i][0] == '\xff')
+		    /* See note below on why we do this. */
+		    svclen += 1;
+	    }
+	    svclen += 9; /* Space for "program:" and final nil. */
+	    /* Note that ending '\0' is handled by final space. */
 	}
-	svclen += 9; /* Space for "program:" and final nil. */
-	/* Note that ending '\0' is handled by final space. */
 
 	service = malloc(svclen);
 	if (!service) {
 	    fprintf(stderr, "Unable to allocate remote program request\n");
 	    return 1;
 	}
-	strcpy(service, "program:");
-	svclen = 8;
-	for (i = arg; i < argc; i++) {
-	    if (argv[i][0] == '\0' || argv[i][0] == '\xff')
-		/*
-		 * Send a "\xff" as the first character for an empty
-		 * string.  Otherwize and empty string will look like
-		 * the \0\0 used to mark the end.  Also add a '\xff"
-		 * for a parameter starting with 0xff.  We will drop
-		 * it on the other side.
-		 */
-		service[svclen++] = '\xff';
-	    svclen += sprintf(service + svclen, "%s", argv[i]);
+
+	if (ssh_compat) {
+	    strcpy(service, "program2:");
+	    svclen = 9;
+	    for (i = arg; i < argc; i++) {
+		unsigned int len = strlen(argv[i]);
+
+		if (i != arg)
+		    service[svclen++] = ' '; /* Leading space. */
+		memcpy(service + svclen, argv[i], len);
+		svclen += len;
+	    }
+	    service[svclen++] = '\0';
+	} else {
+	    strcpy(service, "program:");
+	    svclen = 8;
+	    for (i = arg; i < argc; i++) {
+		if (argv[i][0] == '\0' || argv[i][0] == '\xff')
+		    /*
+		     * Send a "\xff" as the first character for an empty
+		     * string.  Otherwize and empty string will look like
+		     * the \0\0 used to mark the end.  Also add a '\xff"
+		     * for a parameter starting with 0xff.  We will drop
+		     * it on the other side.
+		     */
+		    service[svclen++] = '\xff';
+		svclen += sprintf(service + svclen, "%s", argv[i]);
+		service[svclen++] = '\0';
+	    }
 	    service[svclen++] = '\0';
 	}
-	service[svclen++] = '\0';
 
 	userdata1.ios = io1_default_notty;
 	userdata1.interactive = false;

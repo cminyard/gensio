@@ -2258,9 +2258,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     unsigned int env_len = 0;
     const char **penv2 = NULL;
     bool rv = false;
-#ifndef _WIN32
     char *cmdbuf = NULL;
-#endif
 
     len = 0;
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
@@ -2285,7 +2283,32 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 		  gensio_err_to_str(err));
 	goto out_free;
     }
-    if (strstartswith(service, "program:")) {
+    if (strstartswith(service, "program2:")) {
+	char *str = strchr(service, ':');
+
+	str++;
+	progv = o->zalloc(o, 4 * sizeof(*progv));
+	if (!progv) {
+	    log_event(LOG_ERR, "Could not allocate progv memory");
+	    goto out_free;
+	}
+
+	cmdbuf = gensio_strdup(o, str);
+	if (!cmdbuf) {
+	    log_event(LOG_ERR, "Could not allocate command memory");
+	    goto out_free;
+	}
+
+	progv[0] = auth->ushell;
+	progv[1] = "-c";
+	progv[2] = cmdbuf;
+	progv[3] = NULL;
+
+	/* Dummy out the program, we will set it later with a control. */
+	s = gensio_alloc_sprintf(o,
+				 "stdio(stderr-to-stdout,readbuf=16384),dummy");
+	do_chdir = true;
+    } else if (strstartswith(service, "program:")) {
 	char *str = strchr(service, ':'), **svals;
 #ifdef _WIN32
 	unsigned int nsvals;
