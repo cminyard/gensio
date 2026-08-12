@@ -218,6 +218,7 @@ case $target_os in
    darwin*)
       pkgconfig_update_info openssl
       pkgconfig_update_info portaudio-2.0
+      pkgconfig_update_info soapysdr
       ;;
    *) ;;
 esac
