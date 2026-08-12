@@ -318,6 +318,8 @@ setup_fir_filter(struct gensio_os_funcs *o,
     else
 	filt->do_filter = float_fir_filter;
 
+    filt->gain = gain;
+
     /* Calculate the FIR h parameters. */
     filt->coefs = calc_fir_coefs(o, framerate, cutoff, transition_freq,
 				 &filt->coefs_n);
