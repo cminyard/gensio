@@ -1214,11 +1214,7 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
    fi
    if test "$HAVE_WINMDNS" = "1"; then
       mdns=$default_all
-      MDNS_LIBS="-ldnsapi"
-      if test "$MSYS_CYGWIN" = "1"; then
-	  # We are using Windows MDNS on MSYS2
-	  MDNS_LIBS="-liphlpapi $MDNS_LIBS"
-      fi
+      MDNS_LIBS="-ldnsapi -liphlpapi -lWs2_32"
       HAVE_MDNS=1
    fi
 fi
