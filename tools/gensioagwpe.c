@@ -20,7 +20,8 @@
 #define AGWPE_TOO_SMALL		1
 
 #define AGWPE_HEADER_SIZE	36
-#define AGWPE_MAX_MSG_SIZE	(2048 + AGWPE_HEADER_SIZE)
+#define AGWPE_MAX_DATA_SIZE	2048
+#define AGWPE_MAX_MSG_SIZE	(AGWPE_MAX_DATA_SIZE + AGWPE_HEADER_SIZE)
 
 struct agwpe_packet {
     uint8_t port;
@@ -1058,7 +1059,7 @@ io_net_event(struct gensio *io, void *user_data, int event, int err,
 		agwpe_decode_packet(inst->inbuf, inst->inpos, &inst->inpacket);
 		if (inst->inpacket.len == 0)
 		    goto process_packet;
-		if (inst->inpacket.len > AGWPE_MAX_MSG_SIZE)
+		if (inst->inpacket.len > AGWPE_MAX_DATA_SIZE)
 		    goto protocol_err;
 		inst->inpacketpos = 0;
 	    } else {
@@ -1066,8 +1067,8 @@ io_net_event(struct gensio *io, void *user_data, int event, int err,
 	    }
 	}
 	len = left;
-	if (len > inst->inpacket.len)
-	    len = inst->inpacket.len;
+	if (len > inst->inpacket.len - inst->inpacketpos)
+	    len = inst->inpacket.len - inst->inpacketpos;
 	memcpy(inst->inpacket.data + inst->inpacketpos, buf + used, len);
 	used += len;
 	left -= len;
