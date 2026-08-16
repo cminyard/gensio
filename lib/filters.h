@@ -278,7 +278,7 @@ calc_fir_coefs(struct gensio_os_funcs *o,
 static bool
 setup_iir_filter(struct gensio_os_funcs *o,
 		 struct filterinfo *filt, bool is_complex, bool lpf,
-		 unsigned int framerate,
+		 float samplerate,
 		 unsigned int cutoff, float gain)
 {
     unsigned int samplesize = is_complex ? sizeof(float complex) : sizeof(float);
@@ -296,7 +296,7 @@ setup_iir_filter(struct gensio_os_funcs *o,
     filt->hold = o->zalloc(o, 2 * samplesize);
     if (!filt->hold)
 	return true;
-    calc_iir_coefs(lpf, framerate, cutoff, filt->coefs, filt->coefs + 2);
+    calc_iir_coefs(lpf, samplerate, cutoff, filt->coefs, filt->coefs + 2);
 
     return false;
 }
@@ -304,7 +304,7 @@ setup_iir_filter(struct gensio_os_funcs *o,
 static bool
 setup_fir_filter(struct gensio_os_funcs *o,
 		 struct filterinfo *filt, bool is_complex, bool lpf,
-		 unsigned int framerate,
+		 float samplerate,
 		 unsigned int cutoff, unsigned int transition_freq, float gain)
 {
     unsigned int samplesize = is_complex ? sizeof(float complex) : sizeof(float);
@@ -321,7 +321,7 @@ setup_fir_filter(struct gensio_os_funcs *o,
     filt->gain = gain;
 
     /* Calculate the FIR h parameters. */
-    filt->coefs = calc_fir_coefs(o, framerate, cutoff, transition_freq,
+    filt->coefs = calc_fir_coefs(o, samplerate, cutoff, transition_freq,
 				 &filt->coefs_n);
     if (!filt->coefs)
 	return true;
