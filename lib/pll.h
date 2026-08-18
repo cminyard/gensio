@@ -38,7 +38,7 @@ struct pll {
 
     float peak; /* Running average of the peak input value. */
     float peak_inv; /* Above inverted for faster processing. */
-    float damping; /* Damping factor for pll feedback. */
+    float fb_adj; /* Adjust factor for pll feedback. */
     float peak_damping; /* Damping factor for peak measurement. */
 };
 
@@ -55,20 +55,19 @@ struct pll {
  *
  * framerate - The number of samples per second for the incoming data.
  *
- * lp_cutoff - The pll has two filters, one for filtering the feedback
- * loop and one for filtering the pll output.  The necessity of the
- * output filter is questionable, but it smooths things a bit.  This
- * parameter set the cutoff value for those filters.  An IIR filter is
- * used for both.  This should be around twice the maximum frequency
- * deviation.  If it is too low it will cause instability issues.  If
- * it is too high it will let in unwanted frequencies.
+ * fb_cutoff - The pll has two filters, one for filtering the feedback
+ * loop and one for filtering the pll output.  An IIR filter is used
+ * for both.  This parameters is for the feedback loop.  It should be
+ * around the 2 * max_deviation and a bit more, 10% or so.
+
+ * lp_cutoff - The cutoff frequency of the output filter.
  *
  * center_freq - The center frequency for the PLL.
  *
- * damping - This limits the rate of change of the PLL.  It should be
- * less than 1 or the pll will be unstable.  Too low a number and the
- * PLL won't be able to change fast enough, too high and you can get
- * unwanted oscillations.  .7 is a good value, generally.
+ * fb_adj - Multiply the pll feedback value by this to feed into the
+ * synthesizer adjustment.  This should generally be
+ * 2 * max_deviation / center_freq if you want the output to be
+ * -1 and 1 at the maximum deviation points (where 
  *
  * peak_damping - The input value is normalized to try to keep the
  * input values between -1 and 1.  If you don't do this the pll will
@@ -80,8 +79,8 @@ struct pll {
 static int
 setup_pll(struct gensio_os_funcs *o, struct pll *pll,
 	  bool is_complex, unsigned int wave_len,
-	  float framerate, float lp_cutoff,
-	  float center_freq, float damping, float peak_damping)
+	  float framerate, float center_freq, float fb_cutoff, float fb_adj,
+	  float lp_cutoff, float peak_damping)
 {
     int err;
 
@@ -92,13 +91,13 @@ setup_pll(struct gensio_os_funcs *o, struct pll *pll,
     setup_freqsynth_iter(&pll->synth, &pll->iter, framerate, center_freq);
 
     if (setup_iir_filter(o, &pll->lpfilt1, false, true, framerate,
-			 lp_cutoff, 1)) {
+			 fb_cutoff, 1)) {
 	cleanup_freqsynth(o, &pll->synth);
 	return GE_NOMEM;
     }
     
     if (setup_iir_filter(o, &pll->lpfilt2, false, true, framerate,
-			 lp_cutoff, 1)) {
+			 fb_cutoff, 1)) {
 	filter_cleanup(o, &pll->lpfilt1);
 	cleanup_freqsynth(o, &pll->synth);
 	return GE_NOMEM;
@@ -119,9 +118,28 @@ setup_pll(struct gensio_os_funcs *o, struct pll *pll,
     pll->peak_inv = 1;
     pll->curr_peak1 = 0;
     pll->curr_peak2 = 0;
-    pll->damping = damping;
+    pll->fb_adj = fb_adj;
     pll->peak_damping = peak_damping;
     return 0;
+}
+
+/*
+ * Set up a PLL based on max deviation.  Most of the parameters are
+ * the same as the above function, except that the deviation is used
+ * to calculate some values and peak damping is set to .1.
+ */
+static int
+setup_pll_dev(struct gensio_os_funcs *o, struct pll *pll,
+	      bool is_complex, unsigned int wave_len,
+	      float framerate, float center_freq, float max_deviation,
+	      float lp_cutoff)
+{
+    return setup_pll(o, pll, is_complex, wave_len, framerate,
+		     center_freq,
+		     2 * max_deviation + (2 * max_deviation * .1),
+		     2 * max_deviation / center_freq,
+		     lp_cutoff,
+		     .1);
 }
 
 /*
@@ -194,7 +212,7 @@ pll_next_input_f(struct pll *pll, float in)
      * Mix the synthesizer output and the input, scaling the input to
      * try to keep it between -1 and 1.
      */
-    n = freqsynth_next_f(&pll->iter, pll->val * pll->damping);
+    n = freqsynth_next_f(&pll->iter, pll->val * pll->fb_adj);
     s = n * (in * pll->peak_inv);
 
     /*
@@ -226,7 +244,12 @@ pll_next_input_f(struct pll *pll, float in)
 
     pll->last_in1 = in;
 
-    o = -o;
+    /*
+     * o will be the wrong sign (we want higher frequencies to be
+     * higher values) and varies from -.5 to .5 at maximum deviation.
+     * Fix the sign and adjust to -1 to 1.
+     */
+    o = -o * 2;
     pll->lpfilt_out.do_filter(&o, &rv, 1, 1, 0, &pll->lpfilt_out);
     return rv;
 }
@@ -256,7 +279,7 @@ pll_next_input_c(struct pll *pll, complex float in)
      * Mix the synthesizer output and the input, scaling the input to
      * try to keep it between -1 and 1.
      */
-    n = freqsynth_next_c(&pll->iter, pll->val * pll->damping);
+    n = freqsynth_next_c(&pll->iter, pll->val * pll->fb_adj);
     s1 = creal(n) * (creal(in) * pll->peak_inv);
     s2 = cimag(n) * (cimag(in) * pll->peak_inv);
 
@@ -302,7 +325,12 @@ pll_next_input_c(struct pll *pll, complex float in)
     pll->last_in1 = creal(in);
     pll->last_in2 = cimag(in);
 
-    o = -o;
+    /*
+     * o will be the wrong sign (we want higher frequencies to be
+     * higher values) and varies from -.5 to .5 at maximum deviation.
+     * Fix the sign and adjust to -1 to 1.
+     */
+    o = -o * 2;
     pll->lpfilt_out.do_filter(&o, &rv, 1, 1, 0, &pll->lpfilt_out);
     return rv;
 }

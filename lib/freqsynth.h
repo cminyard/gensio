@@ -105,7 +105,12 @@ setup_freqsynth_iter(struct freqsynth *synth, struct freqsynth_iter *iter,
 /*
  * Return the next value for the frequency synthesizer.  It returns
  * the current position then increments the position by the increment
- * amount plus the adjust amount.  adj must be < iter->incr.
+ * amount plus the adjust amount.  |adj| must be < iter->incr.
+ *
+ * If synthesizing FM, you generally want the maximum values of adj to
+ * be so that at the maximum value you will hit the maximum deviation.
+ * To do this, if the input values range from -1 to 1, multiply the
+ * input values by (max_deviation / framerate).
  */
 static float
 freqsynth_next_f(struct freqsynth_iter *iter, float adj)
