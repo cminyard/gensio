@@ -22,4 +22,5 @@ mdns_SOURCES = mdns.cc
 mdns_LDADD = $(top_builddir)/c++/lib/libgensiooshcpp.la \
 	$(top_builddir)/c++/lib/libgensiomdnscpp.la \
 	$(top_builddir)/lib/libgensio.la \
+	$(top_builddir)/lib/libgensiomdns.la \
 	$(top_builddir)/lib/libgensioosh.la
