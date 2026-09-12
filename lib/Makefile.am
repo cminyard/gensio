@@ -360,6 +360,16 @@ libgensio_chardelay_la_SOURCES = gensio_chardelay.c
 libgensio_chardelay_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_chardelay_la_LIBADD = $(DYNAMIC_LIBS)
 
+if BUILTIN_IOSPLIT
+libgensio_la_SOURCES += gensio_iosplit.c
+else
+EXTRA_LTLIBRARIES += libgensio_iosplit.la
+endif
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_IOSPLIT)
+libgensio_iosplit_la_SOURCES = gensio_iosplit.c
+libgensio_iosplit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_iosplit_la_LIBADD = $(DYNAMIC_LIBS)
+
 if BUILTIN_FSK
 libgensio_la_SOURCES += gensio_fsk.c
 libgensio_la_LIBADD += -lm

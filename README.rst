@@ -250,6 +250,10 @@ sound
     A gensio that provides access to sound devices and files.  It's a
     little complicated, read the docs in gensio.5
 
+iosplit
+    Allows output data to go to one gensio stack and input data to come
+    from another gensio stack.
+
 fsk
     A filter gensio that sits on top of the sound or soapy gensio and
     does a Frequency Shift Keying modem, like is used on AX.25 amateur

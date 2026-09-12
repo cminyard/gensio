@@ -3454,7 +3454,7 @@ i_fsk_gensio_alloc(struct gensio *child, const char *const args[],
     if (err)
 	goto out_err;
 
-    ll = gensio_2gensio_ll_alloc(o, child, out_child);
+    ll = gensio_2gensio_ll_alloc(o, child, out_child, true);
     if (!ll) {
 	gensio_filter_free(filter);
 	goto out_nomem;

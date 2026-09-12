@@ -5539,7 +5539,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     if (rv)
 	goto out_err;
 
-    base->ll = gensio_2gensio_ll_alloc(o, child, base->out_child);
+    base->ll = gensio_2gensio_ll_alloc(o, child, base->out_child, true);
     if (!base->ll) {
 	if (base->out_child)
 	    gensio_free(base->out_child);

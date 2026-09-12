@@ -2655,6 +2655,26 @@ may not be supported on all devices.  It defaults to not being set.
 Set the frequency correction for the oscillator.  This is specified in
 parts-per-million (PPM).  This may not be supported on all devices.
 It defaults to not being set.
+.SH "iosplit"
+connecting =
+.B iosplit[(options)]
+Allows the gensio to be split where output data goes to one gensio
+stack and input data comes from another.  The gensio normally
+specified as the child is the input gensio and is considered the
+"main" one.  All control operations go to this one.  So you cannot
+control the output gensio stack if you use this.  Otherwise this
+gensio is transparent to I/O.
+.SS Options
+.TP
+.B outgen=<str>
+Allow a different output gensio stack to be specified for the output.
+It will write output to this gensio and use the other child for input
+only.
+.TP
+.B discard[=<true|false>]
+By default incoming data is blocked on the output gensio.  So if data
+comes in, it will flow control.  This option causes the data to be
+discarded instead of being blocked.
 .SH "fsk"
 connecting =
 .B afskmdm[(options)]

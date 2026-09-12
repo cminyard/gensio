@@ -39,6 +39,8 @@ struct ll_2gensio_child {
 
     enum ll_2gensio_state state;
 
+    bool discard;
+
     struct gensio_lock *lock;
 
     struct gensio *in_child;
@@ -205,6 +207,9 @@ child_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     }
     rv = GE_INPROGRESS;
 
+    if (cdata->discard)
+	gensio_set_read_callback_enable(cdata->out_child, true);
+
  out_unlock:
     ll_2gensio_unlock(cdata);
 
@@ -352,7 +357,8 @@ out_child_event(struct gensio *io, void *user_data, int event, int err,
 
     switch (event) {
     case GENSIO_EVENT_READ:
-	gensio_set_read_callback_enable(cdata->out_child, false);
+	if (!cdata->discard)
+	    gensio_set_read_callback_enable(cdata->out_child, false);
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
@@ -366,7 +372,8 @@ out_child_event(struct gensio *io, void *user_data, int event, int err,
 
 struct gensio_ll *
 gensio_2gensio_ll_alloc(struct gensio_os_funcs *o,
-			struct gensio *in_child, struct gensio *out_child)
+			struct gensio *in_child, struct gensio *out_child,
+			bool discard)
 {
     struct ll_2gensio_child *cdata;
 
@@ -378,6 +385,7 @@ gensio_2gensio_ll_alloc(struct gensio_os_funcs *o,
 	return NULL;
 
     cdata->o = o;
+    cdata->discard = discard;
     cdata->lock = o->alloc_lock(o);
     if (!cdata->lock) {
 	o->free(o, cdata);

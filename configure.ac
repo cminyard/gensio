@@ -1914,6 +1914,34 @@ esac
 AM_CONDITIONAL([BUILTIN_CHARDELAY], [test ${BUILTIN_CHARDELAY} = 1])
 AC_SUBST(DYNAMIC_CHARDELAY)
 
+iosplit=$default_all
+AC_ARG_WITH(iosplit,
+ [AS_HELP_STRING([--with-iosplit=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      iosplit=yes
+    elif test "x$withval" = "xdynamic"; then
+      iosplit=dynamic
+    elif test "x$withval" = "xno"; then
+      iosplit=no
+    fi,
+)
+BUILTIN_IOSPLIT=0
+DYNAMIC_IOSPLIT=
+case $iosplit in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS iosplit"
+      BUILTIN_IOSPLIT=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS iosplit"
+      DYNAMIC_IOSPLIT=libgensio_iosplit.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_IOSPLIT], [test ${BUILTIN_IOSPLIT} = 1])
+AC_SUBST(DYNAMIC_IOSPLIT)
+
 fsk=$default_all
 AC_ARG_WITH(fsk,
  [AS_HELP_STRING([--with-fsk=yes|dynamic|no], [Enable tcp/unix gensio])],
@@ -2647,6 +2675,7 @@ echo   "  keepopen:	" $keepopen
 echo   "  script:	" $script
 echo   "  ratelimit:	" $ratelimit
 echo   "  chardelay:	" $chardelay
+echo   "  iosplit:	" $iosplit
 echo   "  fsk:		" $fsk
 echo   "  hdlc:		" $hdlc
 echo   "  convcode:	" $convcode
