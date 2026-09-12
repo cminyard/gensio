@@ -2031,7 +2031,7 @@ soapy_gensio_alloc(const void *gdata, const char * const args[],
 
 	if (gensio_pparm_double(&p, args[i], "rate",
 				&info.inc.samplerate) > 0) {
-	    info.outc.samplerate = uival;
+	    info.outc.samplerate = info.inc.samplerate;
 	    continue;
 	}
 	if (gensio_pparm_double(&p, args[i], "in_rate",
