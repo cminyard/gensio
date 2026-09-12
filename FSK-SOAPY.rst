@@ -21,7 +21,7 @@ If you want to dump data from an SDR to a file, do something like:
 
 ```
 gensiot -d -d -i 'file(outfile=dump1.raw,create)' \
-  'soapy(frequency=435.6975M,inchannel=0,rate=2.5M,bandwidth=200K),driver=miri'
+  'soapy(freq=435.6975M,in_channel=0,rate=2.5M,bandwidth=200K),driver=miri'
 ```
 
 You can use ^C to stop it.
@@ -134,7 +134,7 @@ To put FSK on top of soapy, do something like:
 ```
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
    'fsk(debug=0x00,bps=50000,tx=off,freqadj),
-    soapy(frequency=435.67M,inchannel=0,rate=2.5M,bandwidth=200K),
+    soapy(freq=435.67M,in_channel=0,rate=2.5M,bandwidth=200K),
       driver=miri'
 ```
 
@@ -156,8 +156,8 @@ To use the axfec gensio on top of this, you would do:
 ```
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
    'axfec(debug=0x1f),
-    fsk(debug=0x00,bps=50000,tx=off,uncert,certmult=50),
-    soapy(frequency=435.67M,inchannel=0,rate=2.5M,bandwidth=200K),
+    fsk(debug=0x00,bps=50000,tx=off,uncert,certmult=100,freqadj),
+    soapy(freq=435.67M,in_channel=0,rate=2.5M,bandwidth=200K),
       driver=miri'
 ```
 
@@ -188,7 +188,7 @@ that to fsk using the sound gensio in file mode with something like:
 gensiot -d -d -i 'file(outfile=dump1.data,create)' \
     'axfec(debug=0x1f),
      fsk(debug=0x00,format=floatc,bufsize=512,bps=50000,readbuf=1,
-         uncert,certmult=50),
+         uncert,certmult=100),
      sound(2500000-1-float,type=file,outdev=/dev/null),dump1.raw'
 ```
 
@@ -211,3 +211,38 @@ over and over trying different things.
 NOTE: The uncert does not work well on 19200bps.  It seems to work
 fine with the other speeds.  The reason for this is unknown at the
 moment.
+
+Using FSK with KISS
+===================
+
+To provide a KISS connection to the channel, you must set up the KISS
+gensio as an accepter and the FSK gensio as a connector like:
+
+```
+gensiot -d -d -a -i 'axfec(debug=0x1f),
+    fsk(debug=0x00,bps=9600,freqadj,uncert),
+    soapy(rate=2.5M,bandwidth=200K,in_freq=435.7609M,in_channel=0,
+          out_freq=145.7802M,out_channel=0,out_gain=100),
+    driver=uhd' \
+  'kiss,tcp,localhost,8100'
+```
+
+If you terminate the connection, this will terminate.  If you do not
+want that you can use the `--server` option to gensiot.
+
+If you want to use a completely different radio for transmit and
+receive, you can use the iosplit gensio to do this.  For instance, if
+you want output to go to a normal radio using FSK without FEC through
+a sound card but input to come from an SDR using FEC, you could do:
+
+```
+gensiot -d -d -a -i '
+    iosplit(discard,outgen="afskmdm(tx-predelay=500,keytype=rts,
+            key=\"sdev,/dev/serial/by-path/pci-0000:04:00.3-usb-0:1.1.4.4.1.2:1.0-port0\"),
+	    sound(48000-1-float),plughw:CARD=Device,DEV=0"),
+    axfec(debug=0x1f),
+    fsk(debug=0x00,bps=9600,freqadj,uncert),
+    soapy(rate=2.5M,bandwidth=200K,freq=435.7609M,in_channel=0)
+    driver=uhd' \
+  'kiss,tcp,localhost,8100'
+```
