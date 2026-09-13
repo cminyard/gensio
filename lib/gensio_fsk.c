@@ -2745,7 +2745,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 		goto out_nomem;
 	}
 	if (data->hpcutoff) {
-	    err = setup_iir_filter(o, &sfilter->lpfilt,
+	    err = setup_iir_filter(o, &sfilter->hpfilt,
 				   sfilter->in_format == FSK_FMT_FLOATC,
 				   false, data->in_framerate,
 				   data->hpcutoff, data->hpgain);
