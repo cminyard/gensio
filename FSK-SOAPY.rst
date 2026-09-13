@@ -222,8 +222,7 @@ gensio as an accepter and the FSK gensio as a connector like:
 gensiot -d -d -a -i 'axfec(debug=0x1f),
     fsk(debug=0x00,bps=9600,freqadj,uncert),
     soapy(rate=2.5M,bandwidth=200K,in_freq=435.7609M,in_channel=0,
-          out_freq=145.7802M,out_channel=0,out_gain=100),
-    driver=uhd' \
+          out_freq=145.7802M,out_channel=0,out_gain=100),driver=uhd' \
   'kiss,tcp,localhost,8100'
 ```
 
@@ -238,11 +237,29 @@ a sound card but input to come from an SDR using FEC, you could do:
 ```
 gensiot -d -d -a -i '
     iosplit(discard,outgen="afskmdm(tx-predelay=500,keytype=rts,
-            key=\"sdev,/dev/serial/by-path/pci-0000:04:00.3-usb-0:1.1.4.4.1.2:1.0-port0\"),
-	    sound(48000-1-float),plughw:CARD=Device,DEV=0"),
+                                    key=\"sdev,/dev/serial/by-path/pci-0000:04:00.3-usb-0:1.1.4.4.1.2:1.0-port0\"),
+	                    sound(48000-1-float),plughw:CARD=Device,DEV=0"),
     axfec(debug=0x1f),
-    fsk(debug=0x00,bps=9600,freqadj,uncert),
-    soapy(rate=2.5M,bandwidth=200K,freq=435.7609M,in_channel=0)
-    driver=uhd' \
+    fsk(debug=0x00,bps=9600,tx=off,freqadj,uncert),
+    soapy(rate=2.5M,bandwidth=200K,freq=435.7609M,in_channel=0),driver=uhd' \
   'kiss,tcp,localhost,8100'
 ```
+
+As usual with these sorts of things, you have to be careful with the
+quoting.  And the above is kind of a pain.  A program can be written
+to make this easier.
+
+Troubleshooting
+===============
+
+When running low-rate MSK (minimum shift FSK, the default for FSK)
+connections, the frequencies can be very close together and thus the
+frequency setting must be very close.  At 2400bps, for instance, the
+two frequencies used are 1200Hz apart.  If the error on the crystal is
+2ppm, that's 900Hz off, which is not going to work well.  It will be
+ok at higher data rates, but not lower data rates.  If it's not
+working, try moving the frequencies around a bit.
+
+FM receivers can be sensitive to received volume.  The AX5043 radio,
+for instance, receives very poorly with low volume.  So if doing AFSK,
+make sure to set the volumes correctly.
