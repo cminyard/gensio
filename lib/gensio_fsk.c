@@ -261,7 +261,6 @@ struct fsk_filter {
      */
     unsigned int out_bitsize;
     int out_bit_adj;
-    unsigned int max_out_bitsize; /* Largest entry we will send. */
     unsigned int out_bit_counter; /* Counter for out_bit_period */
     unsigned int out_bit_period; /* How often to do an alternate frame size. */
     uint64_t out_bit_time; /* Time in nsec for a bitsize to be sent. */
@@ -424,8 +423,10 @@ struct fsk_filter {
     unsigned int mark_xmit_len;
     unsigned int space_xmit_len;
 
-    /* The entry we just sent. */
+    /* The entry we just sent or are sending. */
     struct xmit_entry *curr_xmit_ent;
+    /* If in the middle of sending an xmit entry, the current position. */
+    unsigned int curr_xmit_pos;
 
     /* All the entries, for cleanup. */
     struct xmit_entry *xmit_ent_list;
@@ -816,12 +817,11 @@ fsk_send_buffer(struct fsk_filter *sfilter,
 }
 
 static void
-fsk_add_wrbit(struct fsk_filter *sfilter)
+fsk_process_next_wrbit(struct fsk_filter *sfilter)
 {
     unsigned char bit = sfilter->wrbyte & 1;
     unsigned char level = sfilter->prev_xmit_level;
-    struct xmit_entry *curr = sfilter->curr_xmit_ent;
-    unsigned int send_alt = 0, i, j;
+    unsigned int send_alt = 0;
 
     if (sfilter->out_bit_adj) {
 	sfilter->out_bit_counter++;
@@ -861,36 +861,53 @@ fsk_add_wrbit(struct fsk_filter *sfilter)
     }
     sfilter->prev_xmit_level = level;
 
-    curr = curr->next_send[level + send_alt];
-    sfilter->curr_xmit_ent = curr;
+    sfilter->curr_xmit_ent = sfilter->curr_xmit_ent->next_send[level + send_alt];
+}
 
+static void
+fsk_more_outdata(struct fsk_filter *sfilter)
+{
+    struct xmit_entry *curr;
+    unsigned int ipos, opos, oidx, cchan;
+
+    if (sfilter->curr_xmit_pos == 0)
+	fsk_process_next_wrbit(sfilter);
+
+    curr = sfilter->curr_xmit_ent;
+    ipos = sfilter->curr_xmit_pos;
+    oidx = sfilter->xmit_buf_len;
+    opos = oidx * sfilter->out_nchans;
     if (sfilter->out_format == FSK_FMT_FLOATC) {
 	float complex *s = (float complex *) sfilter->xmit_buf;
 	float complex *data = (float complex *) curr->data;
 
-	s += sfilter->xmit_buf_len * sfilter->out_nchans;
-	for (i = 0; i < curr->size; i++) {
-	    for (j = 0; j < sfilter->out_nchans; j++) {
-		if ((1 << j) & sfilter->out_chans)
-		    *s++ = data[i];
+	for (; ipos < curr->size && oidx < sfilter->max_xmit_buf; ipos++) {
+	    for (cchan = 0; cchan < sfilter->out_nchans; cchan++) {
+		if ((1 << cchan) & sfilter->out_chans)
+		    s[opos++] = data[ipos];
 		else
-		    *s++ = 0.;
+		    s[opos++] = 0.;
 	    }
+	    oidx++;
 	}
     } else {
 	float *s = (float *) sfilter->xmit_buf;
 
-	s += sfilter->xmit_buf_len * sfilter->out_nchans;
-	for (i = 0; i < curr->size; i++) {
-	    for (j = 0; j < sfilter->out_nchans; j++) {
-		if ((1 << j) & sfilter->out_chans)
-		    *s++ = curr->data[i];
+	for (; ipos < curr->size && oidx < sfilter->max_xmit_buf; ipos++) {
+	    for (cchan = 0; cchan < sfilter->out_nchans; cchan++) {
+		if ((1 << cchan) & sfilter->out_chans)
+		    s[opos++] = curr->data[ipos];
 		else
-		    *s++ = 0.;
+		    s[opos++] = 0.;
 	    }
+	    oidx++;
 	}
     }
-    sfilter->xmit_buf_len += curr->size;
+    if (ipos == curr->size)
+	sfilter->curr_xmit_pos = 0;
+    else
+	sfilter->curr_xmit_pos = ipos;
+    sfilter->xmit_buf_len = oidx;
 }
 
 static void
@@ -907,9 +924,8 @@ fsk_handle_send(struct fsk_filter *sfilter,
     }
     while (sfilter->transmit_state > WAITING_TRANSMIT) {
 	if (sfilter->bitstuff || sfilter->wrbyte_bit < 8) {
-	    fsk_add_wrbit(sfilter);
-	    if (sfilter->xmit_buf_len >=
-			sfilter->max_xmit_buf - sfilter->max_out_bitsize) {
+	    fsk_more_outdata(sfilter);
+	    if (sfilter->xmit_buf_len >= sfilter->max_xmit_buf) {
 		fsk_send_buffer(sfilter, handler, cb_data);
 		if (sfilter->err)
 		    goto out;
@@ -2841,7 +2857,6 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 	sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
 				 data->out_framerate);
 	fout_bitsize = (float) data->out_framerate / data->out_data_rate;
-	sfilter->max_out_bitsize = sfilter->out_bitsize;
 	if (data->out_framerate % data->out_data_rate != 0) {
 	    /*
 	     * Calculate how often to adjust for the frame rate not being
@@ -2864,7 +2879,6 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 		sfilter->out_bit_adj = -1;
 	    } else {
 		sfilter->out_bit_adj = 1;
-		sfilter->max_out_bitsize++;
 	    }
 	    sfilter->out_bit_period = (unsigned int) ((1. / err) + 0.5);
 	}
@@ -3332,31 +3346,25 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    data.in_mark_freq = data.in_data_rate * 4;
 	if (data.in_space_freq < 0.1)
 	    data.in_space_freq = data.in_mark_freq - data.in_data_rate / 2;
-	if (data.lpcutoff == 0)
-	    data.lpcutoff = data.in_mark_freq * 2;
     } else if (data.in_format == FSK_FMT_FLOATC) {
 	if (data.in_mark_freq < 0.1)
 	    data.in_mark_freq = data.in_data_rate / 4;
 	if (data.in_space_freq < 0.1)
 	    data.in_space_freq = -data.in_mark_freq;
-	if (data.lpcutoff == 0)
-	    data.lpcutoff = data.in_mark_freq * 4;
     } else {
 	if (data.in_mark_freq < 0.1)
 	    data.in_mark_freq = data.in_data_rate;
 	if (data.in_space_freq < 0.1)
 	    data.in_space_freq = data.in_mark_freq / 2;
-	if (data.lpcutoff == 0)
-	    data.lpcutoff = data.in_mark_freq * 2;
     }
+    if (data.lpcutoff == 0)
+	data.lpcutoff = data.in_mark_freq * 2;
 
     if (data.out_do_freqadj) {
 	if (data.out_mark_freq < 0.1)
 	    data.out_mark_freq = data.out_data_rate * 4;
 	if (data.out_space_freq < 0.1)
 	    data.out_space_freq = data.out_mark_freq - data.out_data_rate / 2;
-	if (data.lpcutoff == 0)
-	    data.lpcutoff = data.in_mark_freq * 2;
     } else if (data.out_format == FSK_FMT_FLOATC) {
 	if (data.out_mark_freq < 0.1)
 	    data.out_mark_freq = data.out_data_rate / 4;
