@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_base.h>
@@ -52,6 +53,13 @@ enum telnet_write_state {
     TELNET_IN_USER_WRITE
 };
 
+/* Fixed storage for the four line settings, flow control, DTR and RTS. */
+struct telnet_serial_startup {
+    unsigned int baud;
+    unsigned char bits, parity, stopbits;
+    unsigned char flow, dtr, rts;
+};
+
 struct telnet_filter {
     struct gensio_filter *filter;
 
@@ -74,6 +82,11 @@ struct telnet_filter {
     bool rfc1073_set;
     bool rfc1073_enabled;
     gensio_time init_end_wait;
+    unsigned char startup_cmd[7];
+    unsigned int startup_val[7];
+    unsigned int startup_count, startup_pos;
+    bool startup_waiting;
+    int startup_err;
 
     const struct gensio_telnet_filter_callbacks *telnet_cbs;
     void *handler_data;
@@ -178,9 +191,14 @@ static bool
 telnet_ll_read_needed(struct gensio_filter *filter)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
+    bool rv;
 
-    return ((tfilter->allow_rfc2217 && !tfilter->rfc2217_set) ||
-	    (tfilter->allow_rfc1073 && !tfilter->rfc1073_set));
+    telnet_lock(tfilter);
+    rv = ((tfilter->allow_rfc2217 && !tfilter->rfc2217_set) ||
+	  (tfilter->allow_rfc1073 && !tfilter->rfc1073_set) ||
+	  tfilter->startup_pos < tfilter->startup_count);
+    telnet_unlock(tfilter);
+    return rv;
 }
 
 static int
@@ -194,20 +212,76 @@ telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     gensio_time now;
+    int rv = GE_RETRY;
 
-    if (tfilter->rfc2217_set && tfilter->rfc1073_set)
-	return 0;
-
+    telnet_lock(tfilter);
+    if (tfilter->startup_err) {
+	rv = tfilter->startup_err;
+	goto out;
+    }
     tfilter->o->get_monotonic_time(tfilter->o, &now);
+    if (tfilter->startup_count) {
+	if (tfilter->startup_pos == tfilter->startup_count) {
+	    /* Window-size negotiation remains optional. */
+	    if (gensio_time_cmp(&now, &tfilter->init_end_wait) >= 0)
+		tfilter->rfc1073_set = true;
+	    if (tfilter->rfc1073_set) {
+		rv = 0;
+		goto out;
+	    }
+	    goto retry;
+	}
+	if (gensio_time_cmp(&now, &tfilter->init_end_wait) >= 0) {
+	    rv = GE_TIMEDOUT;
+	    goto out;
+	}
+	if (tfilter->rfc2217_set && !tfilter->startup_waiting &&
+	    tfilter->startup_pos < tfilter->startup_count) {
+	    unsigned int pos = tfilter->startup_pos;
+	    unsigned int val = tfilter->startup_val[pos];
+	    unsigned char buf[6] = { TN_OPT_COM_PORT,
+				    tfilter->startup_cmd[pos] };
+	    unsigned int len = 3;
+
+	    if (buf[1] == TN_OPT_COM_PORT_BAUDRATE) {
+		buf[2] = val >> 24;
+		buf[3] = val >> 16;
+		buf[4] = val >> 8;
+		buf[5] = val;
+		len = 6;
+	    } else {
+		buf[2] = val;
+	    }
+	    tfilter->startup_waiting = true;
+	    tfilter->init_end_wait = now;
+	    tfilter->init_end_wait.secs += 5;
+	    telnet_send_option(&tfilter->tn_data, buf, len);
+	    if (tfilter->tn_data.error) {
+		rv = GE_TOOBIG;
+		goto out;
+	    }
+	}
+	goto retry;
+    }
+    if (tfilter->rfc2217_set && tfilter->rfc1073_set)
+	rv = 0;
+    if (!rv)
+	goto out;
+
     if (gensio_time_cmp(&now, &tfilter->init_end_wait) > 0) {
+	/* Negotiation took too much time, just give up. */
 	tfilter->rfc2217_set = true;
 	tfilter->rfc1073_set = true;
-	return 0;
+	rv = 0;
+	goto out;
     }
 
+ retry:
     timeout->secs = 0;
     timeout->nsecs = 500000000;
-    return GE_RETRY;
+ out:
+    telnet_unlock(tfilter);
+    return rv;
 }
 
 static int
@@ -383,7 +457,9 @@ telnet_ll_write(struct gensio_filter *filter,
 				tfilter->max_read_size - tfilter->read_data_len,
 				&buf, &inlen, &tfilter->tn_data);
 	telnet_lock(tfilter);
-	tfilter->read_data_len += proclen;
+	if (tfilter->startup_pos == tfilter->startup_count)
+	    /* Only accept data after we complete negotiations. */
+	    tfilter->read_data_len += proclen;
 	if (rcount)
 	    *rcount = buflen - inlen;
     }
@@ -428,6 +504,37 @@ static void
 com_port_handler(void *cb_data, unsigned char *option, int len)
 {
     struct telnet_filter *tfilter = cb_data;
+    unsigned int exp_option;
+
+    telnet_lock(tfilter);
+    exp_option = (TN_OPT_COM_PORT_RSP_OFFSET
+		  + tfilter->startup_cmd[tfilter->startup_pos]);
+    if (tfilter->startup_waiting && len >= 2 && option[1] == exp_option) {
+	unsigned int val = 0;
+	unsigned int expected_len;
+	unsigned int i;
+
+	if (option[1] == TN_OPT_COM_PORT_RSP_OFFSET + TN_OPT_COM_PORT_BAUDRATE)
+	    expected_len = 6;
+	else
+	    expected_len = 3;
+
+	if (len != expected_len) {
+	    tfilter->startup_err = GE_PROTOERR;
+	} else {
+	    for (i = 2; i < len; i++)
+		val = (val << 8) | option[i];
+	    if (val != tfilter->startup_val[tfilter->startup_pos]) {
+		tfilter->startup_err = GE_NOTSUP;
+	    } else {
+		tfilter->startup_pos++;
+		tfilter->startup_waiting = false;
+	    }
+	}
+	telnet_unlock(tfilter);
+	return;
+    }
+    telnet_unlock(tfilter);
 
     if (tfilter->telnet_cbs)
 	tfilter->telnet_cbs->com_port_cmd(tfilter->handler_data,
@@ -507,6 +614,10 @@ telnet_setup(struct gensio_filter *filter)
     struct telnet_filter *tfilter = filter_to_telnet(filter);
 
     telnet_cmds_init(tfilter->telnet_cmds, tfilter->working_telnet_cmds);
+
+    tfilter->startup_pos = 0;
+    tfilter->startup_waiting = false;
+    tfilter->startup_err = 0;
 
     telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
 		telnet_cmd_handler, tfilter->working_telnet_cmds,
@@ -850,6 +961,45 @@ static const unsigned char telnet_client_rfc1073_seq[] = {
 };
 
 static int
+telnet_parse_speed(struct telnet_serial_startup *serial, const char *str)
+{
+    char *end;
+    unsigned long baud;
+    unsigned char parity = GENSIO_SER_PARITY_NONE, bits = 8, stopbits = 1;
+
+    baud = strtoul(str, &end, 10);
+    if (end == str)
+	return GE_INVAL;
+    if (*end) {
+	switch (*end++) {
+	case 'n': case 'N': parity = GENSIO_SER_PARITY_NONE; break;
+	case 'o': case 'O': parity = GENSIO_SER_PARITY_ODD; break;
+	case 'e': case 'E': parity = GENSIO_SER_PARITY_EVEN; break;
+	case 'm': case 'M': parity = GENSIO_SER_PARITY_MARK; break;
+	case 's': case 'S': parity = GENSIO_SER_PARITY_SPACE; break;
+	default: return GE_INVAL;
+	}
+    }
+    if (*end) {
+	if (*end < '5' || *end > '8')
+	    return GE_INVAL;
+	bits = *end++ - '0';
+    }
+    if (*end) {
+	if (*end != '1' && *end != '2')
+	    return GE_INVAL;
+	stopbits = *end++ - '0';
+    }
+    if (*end)
+	return GE_INVAL;
+    serial->baud = baud;
+    serial->bits = bits;
+    serial->parity = parity;
+    serial->stopbits = stopbits;
+    return 0;
+}
+
+static int
 stel_get_defaults(struct gensio_os_funcs *o,
 		  bool *allow_rfc2217, bool *allow_rfc1073, bool *is_client)
 {
@@ -902,12 +1052,17 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 			   struct gensio_filter **rfilter)
 {
     struct gensio_filter *filter;
+    struct telnet_filter *tfilter;
     unsigned int i;
     gensiods max_read_size = 4096; /* FIXME - magic number. */
     gensiods max_write_size = 4096; /* FIXME - magic number. */
     struct telnet_cmd *telnet_cmds = NULL;
     unsigned char *init_seq = NULL;
     unsigned int init_seq_len, pos;
+    const char *speed;
+    bool bval;
+    struct telnet_serial_startup serial = { 0 };
+    int rv;
 
     /* rfc2216, winsize, and mode have already been fetched, so ignore those. */
     for (i = 0; args && args[i]; i++) {
@@ -921,9 +1076,60 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_ignore(p, args[i], "mode") > 0)
 	    continue;
+	if (gensio_pparm_value(p, args[i], "speed", &speed) > 0)
+	    goto parse_telnet;
+	if (gensio_pparm_bool(p, args[i], "noflow", &bval) > 0) {
+	    if (bval)
+		serial.flow = TN_OPT_COM_PORT_CONTROL_NO_FLOW;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "xonxoff", &bval) > 0) {
+	    if (bval)
+		serial.flow = TN_OPT_COM_PORT_CONTROL_XONXOFF;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "rtscts", &bval) > 0) {
+	    if (bval)
+		serial.flow = TN_OPT_COM_PORT_CONTROL_HARDWARE;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "dtr", &bval) > 0) {
+	    if (bval)
+		serial.dtr = TN_OPT_COM_PORT_CONTROL_DTR_ON;
+	    else
+		serial.dtr = TN_OPT_COM_PORT_CONTROL_DTR_OFF;
+	    continue;
+	}
+	if (gensio_pparm_bool(p, args[i], "rts", &bval) > 0) {
+	    if (bval)
+		serial.rts = TN_OPT_COM_PORT_CONTROL_RTS_ON;
+	    else
+		serial.rts = TN_OPT_COM_PORT_CONTROL_RTS_OFF;
+	    continue;
+	}
 	if (parms && gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
+	if (isdigit((unsigned char) args[i][0]) > 0) {
+	    /* If it starts with a digit, parse it as a speed parameter. */
+	    speed = args[i];
+	parse_telnet:
+	    rv = telnet_parse_speed(&serial, speed);
+	    if (rv) {
+		gensio_pparm_log(p, "Invalid telnet serial speed: %s", speed);
+		return rv;
+	    }
+	    continue;
+	}
 	gensio_pparm_unknown_parm(p, args[i]);
+	return GE_INVAL;
+    }
+
+    if (p->err || !max_read_size || !max_write_size)
+	return GE_INVAL;
+    if ((serial.baud || serial.flow || serial.dtr || serial.rts) &&
+		(!allow_rfc2217 || !is_client)) {
+	gensio_pparm_slog(p,
+			  "Serial startup settings require RFC2217 client mode");
 	return GE_INVAL;
     }
 
@@ -1006,6 +1212,33 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 
     if (!filter)
 	goto out_nomem;
+
+    tfilter = filter_to_telnet(filter);
+    i = 0;
+
+    if (serial.baud) {
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_BAUDRATE;
+	tfilter->startup_val[i++] = serial.baud;
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_DATASIZE;
+	tfilter->startup_val[i++] = serial.bits;
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_PARITY;
+	tfilter->startup_val[i++] = serial.parity;
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_STOPSIZE;
+	tfilter->startup_val[i++] = serial.stopbits;
+    }
+    if (serial.flow) {
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_CONTROL;
+	tfilter->startup_val[i++] = serial.flow;
+    }
+    if (serial.dtr) {
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_CONTROL;
+	tfilter->startup_val[i++] = serial.dtr;
+    }
+    if (serial.rts) {
+	tfilter->startup_cmd[i] = TN_OPT_COM_PORT_CONTROL;
+	tfilter->startup_val[i++] = serial.rts;
+    }
+    tfilter->startup_count = i;
 
     *rfilter = filter;
     return 0;
@@ -1688,16 +1921,22 @@ static int
 stelc_com_port_will_do(void *handler_data, unsigned char cmd)
 {
     struct stel_data *sdata = handler_data;
+    struct telnet_filter *tfilter = filter_to_telnet(sdata->filter);
 
     if (cmd != TN_DO && cmd != TN_DONT)
 	/* We only handle these. */
 	return 0;
 
-    if (cmd == TN_DONT)
+    if (cmd == TN_DONT) {
 	/* The remote end turned off RFC2217 handling. */
-	sdata->do_rfc2217 = false;
-    else
+	if (tfilter->startup_count)
+	    /* Had rfc2217 parameters to set, that's not supported. */
+	    tfilter->startup_err = GE_NOTSUP;
+	else
+	    sdata->do_rfc2217 = false;
+    } else {
 	sdata->do_rfc2217 = sdata->allow_rfc2217;
+    }
 
     return sdata->do_rfc2217;
 }
