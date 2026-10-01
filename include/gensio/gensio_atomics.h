@@ -36,15 +36,15 @@
 
 #if defined(__cplusplus) && __cplusplus >= 202302L
 /* c++ doesn't define __STDC_VERSION__ */
-#define gensio_typeof(a) typeof((a)->val)
+#define gensio_typeof(a) typeof(a)
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
 /* For C only. */
-#define gensio_typeof(a) typeof((a)->val)
+#define gensio_typeof(a) typeof(a)
 
 #elif defined(__GNUC__) || defined(_MSC_VER)
 /* Use the built-in GCC one that always works with gcc and MSC. */
-#define gensio_typeof(a) __typeof__((a)->val)
+#define gensio_typeof(a) __typeof__(a)
 
 #else
 /* Just use the largest possible value. */
