@@ -1217,6 +1217,30 @@ handling on it.
 enable or disable RFC1073, window size change notification.  Default
 is false.
 .TP
+.B speed=<speed>[n|e|o|m|s[5|6|7|8[1|2]]]
+Configure the remote serial port when opening an RFC2217 client.  The
+speed specification uses the serialdev syntax and may also be given
+without the "speed=" prefix, for example "telnet(rfc2217,38400n81)".
+The baud rate must be a positive integer no greater than 2147483647.
+Omitted parity, data size and stop bits default to none, 8 and 1.
+The open callback reports success only after all requested settings have
+been acknowledged with the requested values.  Refused RFC2217 negotiation,
+invalid responses, or a missing response fail the open operation.  Each
+negotiation step has a five second timeout.
+Data received while opening is preserved in readbuf; exhausting that buffer
+before setup completes fails the connection rather than losing data.
+Without startup settings, the existing optional RFC2217 negotiation is
+unchanged.
+.TP
+.B xonxoff[=true|false], rtscts[=true|false]
+Set RFC2217 output flow control during startup.  If either option is
+specified, enable the selected method or disable flow control when both
+are false.  Both methods cannot be enabled together.
+.TP
+.B dtr[=true|false], rts[=true|false]
+Set the corresponding remote modem control line during startup.
+All serial startup options require rfc2217 and mode=client.
+.TP
 .B mode=client|server
 Set the telnet mode to client or server.  This lets you run a telnet
 server on a connecting gensio, or a telnet client on an accepter

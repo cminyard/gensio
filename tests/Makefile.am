@@ -29,7 +29,8 @@ PYTESTS = test_syncio.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \
 	test_ipmisol.py test_perf.py test_trace.py test_file.py test_dummy.py \
 	test_ax25_small.py test_ax25_basics.py test_script.py test_ratelimit.py \
-	test_parmlog.py test_serial_break.py test_chardelay.py
+	test_parmlog.py test_serial_break.py test_chardelay.py \
+	test_telnet_startup.py
 
 test_accept_ssl_tcp.py: ca/CA.key
 
@@ -62,7 +63,11 @@ oomtest_LDADD = $(top_builddir)/lib/libgensioosh.la \
 
 echotest_SOURCES = echotest.c
 
-check_PROGRAMS = oomtest echotest
+telnet_startup_probe_SOURCES = telnet_startup_probe.c
+telnet_startup_probe_LDADD = $(top_builddir)/lib/libgensio.la \
+	$(top_builddir)/lib/libgensioosh.la
+
+check_PROGRAMS = oomtest echotest telnet_startup_probe
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
 	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) \
