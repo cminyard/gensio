@@ -1175,12 +1175,12 @@ stel_baud(struct stel_data *sdata, int baud, const char *sbaud,
 			 timeout);
 	if (err)
 	    return err;
-	buf[1] = 1;
+	buf[1] = TN_OPT_COM_PORT_BAUDRATE;
     } else {
-	buf[1] = 101;
+	buf[1] = TN_OPT_COM_PORT_BAUDRATE + TN_OPT_COM_PORT_RSP_OFFSET;
     }
 
-    buf[0] = 44;
+    buf[0] = TN_OPT_COM_PORT;
     if (sdata->cisco_baud) {
 	buf[2] = baud_to_cisco_baud(baud);
 	sdata->rops->send_option(sdata->filter, buf, 3);
@@ -1232,10 +1232,10 @@ stel_queue_and_send(struct stel_data *sdata, int option, int val,
 	if (err)
 	    return err;
     } else {
-	option += 100;
+	option += TN_OPT_COM_PORT_RSP_OFFSET;
     }
 
-    buf[0] = 44;
+    buf[0] = TN_OPT_COM_PORT;
     buf[1] = option;
     buf[2] = val + xmitbase;
     sdata->rops->send_option(sdata->filter, buf, 3);
@@ -1249,7 +1249,8 @@ stel_datasize(struct stel_data *sdata, int datasize, const char *sdatasize,
 	      void *cb_data,
 	      gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 2, datasize, sdatasize, 0, 0, 8,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_DATASIZE,
+			       datasize, sdatasize, 0, 0, 8,
 			       cdone, NULL, cb_data, timeout);
 }
 
@@ -1270,7 +1271,8 @@ stel_parity(struct stel_data *sdata, int parity, const char *sparity,
 	    void *cb_data,
 	    gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 3, parity, sparity, 0, 0, 5,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_PARITY,
+			       parity, sparity, 0, 0, 5,
 			       cdone, stel_parity_xlatstr, cb_data,
 			       timeout);
 }
@@ -1281,7 +1283,8 @@ stel_stopbits(struct stel_data *sdata, int stopbits, const char *sstopbits,
 	      void *cb_data,
 	      gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 4, stopbits, sstopbits, 0, 0, 3,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_STOPSIZE,
+			       stopbits, sstopbits, 0, 0, 3,
 			       cdone, NULL, cb_data, timeout);
 }
 
@@ -1301,7 +1304,9 @@ stel_flowcontrol(struct stel_data *sdata, int flowcontrol,
 		 void *cb_data,
 		 gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 5, flowcontrol, sflowcontrol, 0, 0, 3,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_CONTROL,
+			       flowcontrol, sflowcontrol,
+			       TN_OPT_COM_PORT_CONTROL_FLOW_REQUEST, 0, 3,
 			       cdone, stel_flow_xlatstr, cb_data,
 			       timeout);
 }
@@ -1323,7 +1328,9 @@ stel_iflowcontrol(struct stel_data *sdata, int iflowcontrol,
 		  void *cb_data,
 		  gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 5, iflowcontrol, siflowcontrol,13, 0, 6,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_CONTROL,
+			       iflowcontrol, siflowcontrol,
+			       TN_OPT_COM_PORT_CONTROL_IB_FLOW_REQUEST, 0, 6,
 			       cdone, stel_iflow_xlatstr, cb_data,
 			       timeout);
 }
@@ -1342,7 +1349,9 @@ stel_sbreak(struct stel_data *sdata, int breakv, const char *sbreakv,
 	    void *cb_data,
 	    gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 5, breakv, sbreakv, 4, 0, 2,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_CONTROL,
+			       breakv, sbreakv,
+			       TN_OPT_COM_PORT_CONTROL_BREAK_REQUEST, 0, 2,
 			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
@@ -1353,7 +1362,9 @@ stel_dtr(struct stel_data *sdata, int dtr, const char *sdtr,
 	 void *cb_data,
 	 gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 5, dtr, sdtr, 7, 0, 2,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_CONTROL,
+			       dtr, sdtr,
+			       TN_OPT_COM_PORT_CONTROL_DTR_REQUEST, 0, 2,
 			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
@@ -1364,7 +1375,9 @@ stel_rts(struct stel_data *sdata, int rts, const char *srts,
 	 void *cb_data,
 	 gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 5, rts, srts, 10, 0, 2,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_CONTROL,
+			       rts, srts,
+			       TN_OPT_COM_PORT_CONTROL_RTS_REQUEST, 0, 2,
 			       cdone, stel_on_off_xlatstr, cb_data,
 			       timeout);
 }
@@ -1386,12 +1399,12 @@ stel_signature(struct stel_data *sdata, const char *sig, unsigned int sig_len,
 	if (err)
 	    return err;
 
-	outopt[0] = 44;
-	outopt[1] = 0;
+	outopt[0] = TN_OPT_COM_PORT;
+	outopt[1] = TN_OPT_COM_PORT_SIGNATURE;
 	sdata->rops->send_option(sdata->filter, outopt, 2);
     } else {
-	outopt[0] = 44;
-	outopt[1] = 100;
+	outopt[0] = TN_OPT_COM_PORT;
+	outopt[1] = TN_OPT_COM_PORT_SIGNATURE + TN_OPT_COM_PORT_RSP_OFFSET;
 	strncpy((char *) outopt + 2, sig, sig_len);
 
 	sdata->rops->send_option(sdata->filter, outopt, sig_len + 2);
@@ -1405,12 +1418,12 @@ stel_send(struct stel_data *sdata, unsigned int opt, unsigned int val)
 {
     unsigned char buf[3];
 
-    buf[0] = 44;
+    buf[0] = TN_OPT_COM_PORT;
     buf[1] = opt;
     buf[2] = val;
 
     if (!gensio_is_client(sdata->io))
-	buf[1] += 100;
+	buf[1] += TN_OPT_COM_PORT_RSP_OFFSET;
 
     sdata->rops->send_option(sdata->filter, buf, 3);
 
@@ -1426,9 +1439,9 @@ stel_modemstate(struct stel_data *sdata, unsigned int val, const char *sval)
 	val = strtol(sval, NULL, 0);
 
     if (gensio_is_client(sdata->io))
-	opt = 11;
+	opt = TN_OPT_COM_PORT_MODEMSTATE_MASK;
     else
-	opt = 7;
+	opt = TN_OPT_COM_PORT_MODEMSTATE;
     return stel_send(sdata, opt, val);
 }
 
@@ -1441,9 +1454,9 @@ stel_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
 	val = strtol(sval, NULL, 0);
 
     if (gensio_is_client(sdata->io))
-	opt = 10;
+	opt = TN_OPT_COM_PORT_LINESTATE_MASK;
     else
-	opt = 6;
+	opt = TN_OPT_COM_PORT_LINESTATE;
     return stel_send(sdata, opt, val);
 }
 
@@ -1454,7 +1467,7 @@ stel_send_modemstate(struct stel_data *sdata, unsigned int val,
     if (sval)
 	val = strtol(sval, NULL, 0);
 
-    return stel_send(sdata, 7, val);
+    return stel_send(sdata, TN_OPT_COM_PORT_MODEMSTATE, val);
 }
 
 static int
@@ -1466,7 +1479,8 @@ stel_set_modemstate_mask(struct stel_data *sdata, unsigned int val,
     if (sval)
 	val = strtol(sval, NULL, 0);
 
-    return stel_queue_and_send(sdata, 11, val, NULL, 0, 0, 255, cdone,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_MODEMSTATE_MASK,
+			       val, NULL, 0, 0, 255, cdone,
 			       NULL, cb_data, timeout);
 }
 
@@ -1475,7 +1489,7 @@ stel_send_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
 {
     if (sval)
 	val = strtol(sval, NULL, 0);
-    return stel_send(sdata, 6, val);
+    return stel_send(sdata, TN_OPT_COM_PORT_LINESTATE, val);
 }
 
 static int
@@ -1487,7 +1501,8 @@ stel_set_linestate_mask(struct stel_data *sdata, unsigned int val,
     if (sval)
 	val = strtol(sval, NULL, 0);
 
-    return stel_queue_and_send(sdata, 10, val, NULL, 0, 0, 255, cdone,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_LINESTATE_MASK,
+			       val, NULL, 0, 0, 255, cdone,
 			       NULL, cb_data, timeout);
 }
 
@@ -1505,14 +1520,14 @@ stel_flowcontrol_state(struct stel_data *sdata, bool val, const char *sval)
 	    val = strtol(sval, NULL, 0);
     }
 
-    buf[0] = 44;
+    buf[0] = TN_OPT_COM_PORT;
 
     if (val)
-	buf[1] = 8;
+	buf[1] = TN_OPT_COM_PORT_FC_SUSPEND;
     else
-	buf[1] = 9;
+	buf[1] = TN_OPT_COM_PORT_FC_RESUME;
     if (!gensio_is_client(sdata->io))
-	buf[1] += 100;
+	buf[1] += TN_OPT_COM_PORT_RSP_OFFSET;
 
     sdata->rops->send_option(sdata->filter, buf, 2);
 
@@ -1534,7 +1549,8 @@ stel_flush(struct stel_data *sdata, unsigned int val, const char *sval,
 	   void *cb_data,
 	   gensio_time *timeout)
 {
-    return stel_queue_and_send(sdata, 12, val, sval, 0, 0, 3, cdone,
+    return stel_queue_and_send(sdata, TN_OPT_COM_PORT_PURGE_DATA,
+			       val, sval, 0, 0, 3, cdone,
 			       stel_flush_xlatstr, cb_data, timeout);
 }
 
@@ -1684,9 +1700,9 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 
     if (len < 2)
 	return;
-    if (option[1] < 100)
+    if (option[1] < TN_OPT_COM_PORT_RSP_OFFSET)
 	return;
-    cmd = option[1] - 100;
+    cmd = option[1] - TN_OPT_COM_PORT_RSP_OFFSET;
 
     switch (cmd) {
     case 0:
@@ -1694,7 +1710,7 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 	sig_len = len - 2;
 	break;
 
-    case 1:
+    case TN_OPT_COM_PORT_BAUDRATE:
 	if (len < 3)
 	    return;
 	if (len < 6) {
@@ -1708,7 +1724,7 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 	}
 	break;
 
-    case 6:
+    case TN_OPT_COM_PORT_LINESTATE:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -1716,7 +1732,7 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 
-    case 7:
+    case TN_OPT_COM_PORT_MODEMSTATE:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -1724,13 +1740,13 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 
-    case 8:
+    case TN_OPT_COM_PORT_FC_SUSPEND:
 	val = 1;
 	gensio_cb(io, GENSIO_EVENT_SER_FLOW_STATE, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 
-    case 9:
+    case TN_OPT_COM_PORT_FC_RESUME:
 	val = 0;
 	gensio_cb(io, GENSIO_EVENT_SER_FLOW_STATE, 0,
 		  (unsigned char *) &val, &vlen, NULL);
@@ -1944,17 +1960,17 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 
     if (len < 2)
 	return;
-    if (option[1] >= 100)
+    if (option[1] >= TN_OPT_COM_PORT_RSP_OFFSET)
 	return;
 
     switch (option[1]) {
-    case 0:
+    case TN_OPT_COM_PORT_SIGNATURE:
 	vlen = len - 2;
 	gensio_cb(io, GENSIO_EVENT_SER_SIGNATURE, 0,
 		  (unsigned char *) (option + 2), &vlen, NULL);
 	break;
 
-    case 1:
+    case TN_OPT_COM_PORT_BAUDRATE:
 	if (len < 3)
 	    return;
 	if (len < 6) {
@@ -1970,7 +1986,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 2:
+    case TN_OPT_COM_PORT_DATASIZE:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -1978,7 +1994,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 3:
+    case TN_OPT_COM_PORT_PARITY:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -1986,7 +2002,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 4:
+    case TN_OPT_COM_PORT_STOPSIZE:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -1994,50 +2010,65 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 5:
+    case TN_OPT_COM_PORT_CONTROL:
 	if (len < 3)
 	    return;
 	switch(option[2]) {
-	case 0: case 1: case 2: case 3:
+	case TN_OPT_COM_PORT_CONTROL_FLOW_REQUEST:
+	case TN_OPT_COM_PORT_CONTROL_NO_FLOW:
+	case TN_OPT_COM_PORT_CONTROL_XONXOFF:
+	case TN_OPT_COM_PORT_CONTROL_HARDWARE:
 	    val = option[2];
 	    gensio_cb(io, GENSIO_EVENT_SER_FLOWCONTROL, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	    break;
-	case 4: case 5: case 6:
+	case TN_OPT_COM_PORT_CONTROL_BREAK_REQUEST:
+	case TN_OPT_COM_PORT_CONTROL_BREAK_ON:
+	case TN_OPT_COM_PORT_CONTROL_BREAK_OFF:
 	    val = option[2] - 4;
 	    gensio_cb(io, GENSIO_EVENT_SER_SBREAK, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	    break;
-	case 7: case 8: case 9:
+	case TN_OPT_COM_PORT_CONTROL_DTR_REQUEST:
+	case TN_OPT_COM_PORT_CONTROL_DTR_ON:
+	case TN_OPT_COM_PORT_CONTROL_DTR_OFF:
 	    val = option[2] - 7;
 	    gensio_cb(io, GENSIO_EVENT_SER_DTR, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	    break;
-	case 10: case 11: case 12:
+	case TN_OPT_COM_PORT_CONTROL_RTS_REQUEST:
+	case TN_OPT_COM_PORT_CONTROL_RTS_ON:
+	case TN_OPT_COM_PORT_CONTROL_RTS_OFF:
 	    val = option[2] - 10;
 	    gensio_cb(io, GENSIO_EVENT_SER_RTS, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	    break;
-	case 13: case 14: case 15: case 16: case 17: case 18: case 19:
+	case TN_OPT_COM_PORT_CONTROL_IB_FLOW_REQUEST:
+	case TN_OPT_COM_PORT_CONTROL_IB_NO_FLOW:
+	case TN_OPT_COM_PORT_CONTROL_IB_XONXOFF:
+	case TN_OPT_COM_PORT_CONTROL_IB_HARDWARE:
+	case TN_OPT_COM_PORT_CONTROL_IB_FLOW_DCD:
+	case TN_OPT_COM_PORT_CONTROL_IB_FLOW_DTR:
+	case TN_OPT_COM_PORT_CONTROL_IB_FLOW_DSR:
 	    val = option[2] - 13;
 	    gensio_cb(io, GENSIO_EVENT_SER_IFLOWCONTROL, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	}
 	break;
 
-    case 8:
+    case TN_OPT_COM_PORT_FC_SUSPEND:
 	val = 1;
 	gensio_cb(io, GENSIO_EVENT_SER_FLOWCONTROL, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 9:
+    case TN_OPT_COM_PORT_FC_RESUME:
 	val = 0;
 	gensio_cb(io, GENSIO_EVENT_SER_FLOWCONTROL, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 10:
+    case TN_OPT_COM_PORT_LINESTATE_MASK:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -2045,7 +2076,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 11:
+    case TN_OPT_COM_PORT_MODEMSTATE_MASK:
 	if (len < 3)
 	    return;
 	val = option[2];
@@ -2053,7 +2084,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
-    case 12:
+    case TN_OPT_COM_PORT_PURGE_DATA:
 	if (len < 3)
 	    return;
 	val = option[2];
