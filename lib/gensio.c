@@ -1925,6 +1925,18 @@ gensio_pparm_value(struct gensio_pparm_info *p,
 }
 
 int
+gensio_pparm_ignore(struct gensio_pparm_info *p,
+		    const char *str, const char *key)
+{
+    const char *dummy_value;
+
+    if (strcasecmp(str, key) == 0) /* Handle the bool case. */
+	return 1;
+
+    return gensio_pparm_value(p, str, key, &dummy_value);
+}
+
+int
 gensio_pparm_ds(struct gensio_pparm_info *p,
 		const char *str, const char *key, gensiods *rvalue)
 {

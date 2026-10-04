@@ -381,6 +381,9 @@ GENSIO_DLL_PUBLIC
 int gensio_pparm_value(struct gensio_pparm_info *p,
 		       const char *str, const char *key, const char **value);
 GENSIO_DLL_PUBLIC
+int gensio_pparm_ignore(struct gensio_pparm_info *p,
+			const char *str, const char *key);
+GENSIO_DLL_PUBLIC
 int gensio_pparm_ds(struct gensio_pparm_info *p,
 		    const char *str, const char *key, gensiods *value);
 GENSIO_DLL_PUBLIC
