@@ -898,19 +898,18 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     struct telnet_cmd *telnet_cmds = NULL;
     unsigned char *init_seq = NULL;
     unsigned int init_seq_len, pos;
-    bool dummy_bool;
 
+    /* rfc2216, winsize, and mode have already been fetched, so ignore those. */
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_bool(p, args[i], "rfc2217", &dummy_bool) > 0)
+	if (gensio_pparm_ignore(p, args[i], "rfc2217") > 0)
 	    continue;
-	if (gensio_pparm_bool(p, args[i], "winsize", &dummy_bool) > 0)
+	if (gensio_pparm_ignore(p, args[i], "winsize") > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
-			       &dummy_bool) > 0)
+	if (gensio_pparm_ignore(p, args[i], "mode") > 0)
 	    continue;
 	if (parms && gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
