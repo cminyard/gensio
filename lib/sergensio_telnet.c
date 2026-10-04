@@ -840,25 +840,9 @@ static const unsigned char telnet_client_rfc1073_seq[] = {
 };
 
 static int
-gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
-			   struct gensio_os_funcs *o, const char * const args[],
-			   bool default_is_client,
-			   const struct gensio_telnet_filter_callbacks *cbs,
-			   void *handler_data,
-			   const struct gensio_telnet_filter_rops **rops,
-			   struct gensio_base_parms *parms,
-			   struct gensio_filter **rfilter)
+stel_get_defaults(struct gensio_os_funcs *o,
+		  bool *allow_rfc2217, bool *allow_rfc1073, bool *is_client)
 {
-    struct gensio_filter *filter;
-    unsigned int i;
-    gensiods max_read_size = 4096; /* FIXME - magic number. */
-    gensiods max_write_size = 4096; /* FIXME - magic number. */
-    bool allow_rfc2217 = false;
-    bool allow_rfc1073 = false;
-    bool is_client = default_is_client;
-    struct telnet_cmd *telnet_cmds = NULL;
-    unsigned char *init_seq = NULL;
-    unsigned int init_seq_len, pos;
     int rv, ival;
     char *str;
 
@@ -866,13 +850,13 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (rv)
 	return rv;
-    allow_rfc2217 = ival;
+    *allow_rfc2217 = ival;
 
     rv = gensio_get_default(o, "telnet", "winsize", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (rv)
 	return rv;
-    allow_rfc1073 = ival;
+    *allow_rfc1073 = ival;
 
     rv = gensio_get_default(o, "telnet", "mode", false,
 			    GENSIO_DEFAULT_STR, &str, NULL);
@@ -883,9 +867,9 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     }
     if (str) {
 	if (strcasecmp(str, "client") == 0)
-	    is_client = true;
+	    *is_client = true;
 	else if (strcasecmp(str, "server") == 0)
-	    is_client = false;
+	    *is_client = false;
 	else {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Unknown default telnet mode (%s), ignoring", str);
@@ -893,17 +877,40 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	o->free(o, str);
     }
 
+    return 0;
+}
+
+static int
+gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
+			   struct gensio_os_funcs *o, const char * const args[],
+			   bool allow_rfc2217, bool allow_rfc1073,
+			   bool is_client,
+			   const struct gensio_telnet_filter_callbacks *cbs,
+			   void *handler_data,
+			   const struct gensio_telnet_filter_rops **rops,
+			   struct gensio_base_parms *parms,
+			   struct gensio_filter **rfilter)
+{
+    struct gensio_filter *filter;
+    unsigned int i;
+    gensiods max_read_size = 4096; /* FIXME - magic number. */
+    gensiods max_write_size = 4096; /* FIXME - magic number. */
+    struct telnet_cmd *telnet_cmds = NULL;
+    unsigned char *init_seq = NULL;
+    unsigned int init_seq_len, pos;
+    bool dummy_bool;
+
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_rfc2217) > 0)
+	if (gensio_pparm_bool(p, args[i], "rfc2217", &dummy_bool) > 0)
 	    continue;
-	if (gensio_pparm_bool(p, args[i], "winsize", &allow_rfc1073) > 0)
+	if (gensio_pparm_bool(p, args[i], "winsize", &dummy_bool) > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
-			       &is_client) > 0)
+			       &dummy_bool) > 0)
 	    continue;
 	if (parms && gensio_base_parm(parms, p, args[i]) > 0)
 	    continue;
@@ -2206,20 +2213,11 @@ stel_setup(struct gensio_pparm_info *p,
     bool allow_rfc2217 = false;
     bool allow_rfc1073 = false;
     bool is_client = default_is_client;
-    int err;
-    int rv, ival;
+    int rv;
 
-    rv = gensio_get_default(o, "telnet", "rfc2217", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    rv = stel_get_defaults(o, &allow_rfc2217, &allow_rfc1073, &is_client);
     if (rv)
 	return rv;
-    allow_rfc2217 = ival;
-
-    rv = gensio_get_default(o, "telnet", "winsize", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (rv)
-	return rv;
-    allow_rfc1073 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_rfc2217) > 0)
@@ -2247,13 +2245,14 @@ stel_setup(struct gensio_pparm_info *p,
     if (!sdata->lock)
 	goto out_nomem;
 
-    err = gensio_telnet_filter_alloc(p, o, args, true,
+    rv = gensio_telnet_filter_alloc(p, o, args,
+				     allow_rfc2217, allow_rfc1073, is_client,
 				     (is_client ?
 				      &sergensio_telnet_filter_cbs :
 				      &sergensio_telnet_server_filter_cbs),
 				     sdata, &sdata->rops, parms,
 				     &sdata->filter);
-    if (err)
+    if (rv)
 	goto out_err;
 
     if (is_client) {
@@ -2264,14 +2263,14 @@ stel_setup(struct gensio_pparm_info *p,
     return 0;
 
  out_nomem:
-    err = GE_NOMEM;
+    rv = GE_NOMEM;
  out_err:
     /* Freeing the filter frees sdata. */
     if (sdata->filter)
 	gensio_filter_free(sdata->filter);
     else
 	stel_free(sdata);
-    return err;
+    return rv;
 }
 
 static int
@@ -2549,7 +2548,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     bool allow_rfc1073 = false;
     bool is_client = false;
     struct gensio_accepter *accepter = NULL;
-    int rv, ival;
+    int rv;
     struct gensio_base_parms *parms;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "telnet", user_data);
 
@@ -2557,17 +2556,9 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     if (rv)
 	goto out_err2;
 
-    rv = gensio_get_default(o, "telnet", "rfc2217", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    rv = stel_get_defaults(o, &allow_rfc2217, &allow_rfc1073, &is_client);
     if (rv)
 	goto out_err2;
-    allow_rfc2217 = ival;
-
-    rv = gensio_get_default(o, "telnet", "winsize", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (rv)
-	goto out_err2;
-    allow_rfc1073 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_bool(&p, args[i], "rfc2217", &allow_rfc2217) > 0)
