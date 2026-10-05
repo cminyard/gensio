@@ -459,6 +459,7 @@ xgensio_solibs = $(gensiolibexec_LTLIBRARIES:.la=.so)
 endif
 
 install-exec-hook:
+	@$(MKDIR_P) "$(DESTDIR)$(gensiolibexecdir)"
 	@(cd $(DESTDIR)$(gensiolibexecdir) && $(RM) -f $(gensiolibexec_LTLIBRARIES))
 	@(cd $(DESTDIR)$(gensiolibexecdir) && $(RM) -f $(xgensio_libs))
 
