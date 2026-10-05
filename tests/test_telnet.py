@@ -225,5 +225,175 @@ def do_telnet_test(io1, io2):
 print("Test accept telnet")
 TestAccept(o, "telnet(rfc2217,winsize),tcp,localhost,",
            "telnet(rfc2217=true,winsize),tcp,localhost,0", do_telnet_test)
+
+class SerialparmOpen:
+    def __init__(self, o):
+        self.err = None
+        self.waiter = gensio.waiter(o)
+        return
+
+    def open_done(self, io, err):
+        self.err = err
+        self.waiter.wake()
+        return
+
+    def wait_timeout(self, timeout):
+        return self.waiter.wait_timeout(1, timeout)
+
+    pass
+
+def do_telnet_serialparm_test(o, acc, parms):
+    try:
+        io1 = acc.io1
+        open_done = SerialparmOpen(o)
+        io1.open(open_done)
+
+        # Wait for the open to come in for io2
+        if (acc.wait_timeout(2000) == 0):
+            raise Exception(("%s: %s: " % ("serialparm_test",
+                                           acc.name)) +
+                            ("Timed out waiting for io2 open"))
+        io2 = acc.io2
+
+        # Set what parms we expect to receive.
+        for i in parms:
+            io2.handler.set_expected_server_cb(i[0], i[1], i[2])
+            pass
+
+        # Modemstate must be done to make the protocol happy.
+        io2.handler.set_expected_modemstate_mask(0xff)
+        io1.handler.set_expected_modemstate(0)
+        io1.read_cb_enable(True);
+        io2.read_cb_enable(True);
+
+        io2.control(0, gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_CONTROL_SER_SEND_MODEMSTATE, "0")
+        if (io1.handler.wait_timeout(2000) == 0):
+            raise Exception("%s: %s: Timed out waiting for telnet modemstate 1" %
+                            ("test open", io1.handler.name))
+
+        # Wait for io1 to finish opening
+        if open_done.wait_timeout(2000) == 0:
+            raise Exception(("%s: %s: " % ("serialparm_test",
+                                           io2.handler.name)) +
+                            ("Timed out waiting for io1 open"))
+
+        if open_done.err != None:
+            # The io is not open, so just kill it here so the acc close
+            # doesn't try to close it.
+            io1.handler.io = None
+            io1.handler = None
+            raise Exception(("%s: %s: " % ("serialparm_test",
+                                           acc.name)) +
+                            ("io1 open failed: %s" % open_done.err))
+
+        # Make sure we got all the callbacks
+        if io2.handler.expected_cb:
+            raise Exception(("%s: %s: " % ("serialparm_test",
+                                           acc.name)) +
+                            ("Not all callbacks called: %s"
+                             % str(io2.handler.expected_cb)))
+        print("  Success")
+    finally:
+        acc.close()
+        pass
+    return
+
+#import utils
+#utils.debug = True
+
+print("Test accept telnet serial parms 9600n81")
+acc = TestAccept(o, "telnet(rfc2217,9600n81),tcp,localhost,",
+                 "telnet(rfc2217=true),tcp,localhost,0", None,
+                 return_before_io1_open = True)
+do_telnet_serialparm_test(o, acc,
+                          (("baud", 9600, 9600),
+                           ("datasize", 8, 8),
+                           ("parity", 1, "none"),
+                           ("stopbits", 1, 1)))
+
+print("Test accept telnet serial parms 2400o72")
+acc = TestAccept(o, "telnet(rfc2217,speed=2400o72),tcp,localhost,",
+                 "telnet(rfc2217=true),tcp,localhost,0", None,
+                 return_before_io1_open = True)
+do_telnet_serialparm_test(o, acc,
+                          (("baud", 2400, 2400),
+                           ("datasize", 7, 7),
+                           ("parity", 2, "odd"),
+                           ("stopbits", 2, 2)))
+
+print("Test accept telnet serial parms 1000e52,noflow,dtr=on,rts=off")
+acc = TestAccept(o, "telnet(rfc2217,1000e52,noflow,dtr=on,rts=off),tcp,localhost,",
+                 "telnet(rfc2217=true),tcp,localhost,0", None,
+                 return_before_io1_open = True)
+do_telnet_serialparm_test(o, acc,
+                          (("baud", 1000, 1000),
+                           ("datasize", 5, 5),
+                           ("parity", 3, "even"),
+                           ("stopbits", 2, 2),
+                           ("flowcontrol", 1, "none"),
+                           ("dtr", 1, "on"),
+                           ("rts", 2, "off")))
+
+print("Test accept telnet serial parms ")
+acc = TestAccept(o, "telnet(rfc2217,115200m62,xonxoff,dtr=off,rts=on),tcp,localhost,",
+                 "telnet(rfc2217=true),tcp,localhost,0", None,
+                 return_before_io1_open = True)
+do_telnet_serialparm_test(o, acc,
+                          (("baud", 115200, 115200),
+                           ("datasize", 6, 6),
+                           ("parity", 4, "mark"),
+                           ("stopbits", 2, 2),
+                           ("flowcontrol", 2, "xonxoff"),
+                           ("dtr", 2, "off"),
+                           ("rts", 1, "on")))
+
+print("Test accept telnet serial parms ")
+acc = TestAccept(o, "telnet(rfc2217,200000s61,rtscts),tcp,localhost,",
+                 "telnet(rfc2217=true),tcp,localhost,0", None,
+                 return_before_io1_open = True)
+do_telnet_serialparm_test(o, acc,
+                          (("baud", 200000, 200000),
+                           ("datasize", 6, 6),
+                           ("parity", 5, "space"),
+                           ("stopbits", 1, 1),
+                           ("flowcontrol", 3, "rtscts")))
+
+print("Test accept telnet serial parms baud returns wrong")
+try:
+    acc = TestAccept(o, "telnet(rfc2217,200000s61,rtscts),tcp,localhost,",
+                     "telnet(rfc2217=true),tcp,localhost,0", None,
+                     return_before_io1_open = True)
+    do_telnet_serialparm_test(o, acc,
+                              (("baud", 200000, 115200),
+                               ("datasize", 6, 6),
+                               ("parity", 5, "space"),
+                               ("stopbits", 1, 1),
+                               ("flowcontrol", 3, "rtscts")))
+except Exception as e:
+    if str(e) != "serialparm_test: telnet(rfc2217=true),tcp,localhost,0: io1 open failed: Operation not supported":
+        raise Exception("Unexpected exception: '%s'" % str(e))
+    pass
+print("  Success")
+
+print("Test accept telnet serial parms datasize returns wrong")
+try:
+    acc = TestAccept(o, "telnet(rfc2217,200000s61,rtscts),tcp,localhost,",
+                     "telnet(rfc2217=true),tcp,localhost,0", None,
+                     return_before_io1_open = True)
+    do_telnet_serialparm_test(o, acc,
+                              (("baud", 200000, 200000),
+                               ("datasize", 6, 7),
+                               ("parity", 5, "space"),
+                               ("stopbits", 1, 1),
+                               ("flowcontrol", 3, "rtscts")))
+except Exception as e:
+    if str(e) != "serialparm_test: telnet(rfc2217=true),tcp,localhost,0: io1 open failed: Operation not supported":
+        raise Exception("Unexpected exception: '%s'" % str(e))
+    pass
+print("  Success")
+
+del acc
+
 del o
 test_shutdown()

@@ -645,8 +645,7 @@ class HandleData:
             if io is not None:
                 io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                             gensio.GENSIO_CONTROL_SET,
-                            ret,
-                            str(eretval), None, -1)
+                            ret, str(eretval), None, -1)
                 pass
         except Exception as e:
             self.exception("telnet_cb: Unknown exception " + str(e))
@@ -686,11 +685,6 @@ class HandleData:
 
     def rts(self, sio, err, rts):
         self.check_set_expected_telnet_cb("rts", rts)
-        return
-
-    def set_expected_sig_server_cb(self, value):
-        self.expected_sig_server_cb = True
-        self.expected_sig_server_val = value
         return
 
     def sbaud(self, io, baud):
@@ -741,6 +735,11 @@ class HandleData:
     def flush(self, io, val):
         self.check_set_expected_telnet_cb("flush", val, io = io,
                                     ret = gensio.GENSIO_ACONTROL_SER_FLUSH)
+        return
+
+    def set_expected_sig_server_cb(self, value):
+        self.expected_sig_server_cb = True
+        self.expected_sig_server_val = value
         return
 
     def signature(self, io):
@@ -942,12 +941,17 @@ def io_close(ios, timeout = 1000, evq = None):
         if not io:
             continue
         if not evq:
-            if (io.handler.wait_timeout(timeout) == 0):
+            if io.handler and io.handler.wait_timeout(timeout) == 0:
                 raise Exception("%s: %s: Timed out waiting for close" %
                             ("io_close", io.handler.name))
         # Break all the possible circular references.
-        del io.handler.io
-        del io.handler
+        if io.handler:
+            if io.handler.io:
+                del io.handler.io
+                pass
+            del io.handler
+            pass
+        pass
     return
 
 keydir = os.getenv("keydir")
@@ -1069,7 +1073,8 @@ class TestAccept:
                  expected_raddr = None, expected_acc_laddr = None,
                  chunksize = 10240, get_port = True, except_on_log = False,
                  enable_oob = False, timeout = 0,
-                 close_timeout = 1000, enable_read_io1 = False, evq = None):
+                 close_timeout = 1000, enable_read_io1 = False, evq = None,
+                 return_before_io1_open = False):
         self.o = o
         self.io1 = None
         self.io2 = None
@@ -1112,13 +1117,18 @@ class TestAccept:
             self.io1 = io1
             if expected_acc_laddr:
                 expected_acc_laddr = expected_acc_laddr + port
+                pass
             if expected_raddr:
                 expected_raddr = expected_raddr + port
-
+                pass
             if expected_acc_laddr:
                 check_laddr(self.acc, self.name, expected_acc_laddr)
+                pass
             if debug:
                 print("io1 open " + self.name);
+                pass
+            if return_before_io1_open:
+                return
             try:
                 io1.open_s()
             except:
@@ -1457,8 +1467,11 @@ class TestConCon:
             tester(self.io1, self.io2)
         else:
             tester(self.io1, self.io2, timeout=timeout)
+            pass
         if do_close:
             self.close()
+            pass
+        return
 
     def close(self):
         self.io1.read_cb_enable(False)
