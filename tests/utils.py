@@ -168,9 +168,7 @@ class HandleData:
         self.expecting_linestate = False
         self.expecting_linestate_mask = False
         self.expecting_remclose = expect_remclose
-        self.expected_server_cb = None
-        self.expected_server_value = 0
-        self.expected_server_return = 0
+        self.expected_cb = []
         self.expected_sig_server_cb = False
         self.expected_sig_server_val = None
         self.ignore_input = False
@@ -618,79 +616,76 @@ class HandleData:
         return
 
     def set_expected_server_cb(self, name, value, retval):
-        self.expected_server_cb = name
-        self.expected_server_value = value
-        self.expected_server_return = retval
+        self.expected_cb.append((name, value, retval))
         return
 
     def set_expected_client_cb(self, name, value):
-        self.expected_server_cb = name
-        self.expected_server_value = value
+        self.expected_cb.append((name, value, None))
         return
 
-    def check_set_expected_telnet_cb(self, name, value):
+    def check_set_expected_telnet_cb(self, name, value, io = None, ret = None):
         try:
-            if not self.expected_server_cb:
+            if not self.expected_cb:
                 if (debug or self.debug):
                     print("Got unexpected server cb: %s %d" % (name, value))
                 self.enqueue("unexpected telnet_cb", (name, value))
                 return False
-            if self.expected_server_cb != name:
+            (ename, evalue, eretval) = self.expected_cb[0]
+            del(self.expected_cb[0])
+            if name != ename:
                 raise Exception(
                     "Got wrong server cb, expected %s, got %s (%d)" %
-                    (self.expected_server_cb, name, value))
-            if self.expected_server_value != value:
+                    (ename, name, value))
+            if value != evalue:
                 raise Exception(
                     "Got wrong server cb value for %s, expected %d, got %d" %
-                    (name, self.expected_server_value, value))
+                    (name, evalue, value))
             self.wake("telnet_cb", (name, value))
+
+            if io is not None:
+                io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                            gensio.GENSIO_CONTROL_SET,
+                            ret,
+                            str(eretval), None, -1)
+                pass
         except Exception as e:
             self.exception("telnet_cb: Unknown exception " + str(e))
         return True
 
     def baud(self, sio, err, baud):
-        if not self.check_set_expected_telnet_cb("baud", baud):
-            return
+        self.check_set_expected_telnet_cb("baud", baud)
         return
 
     def datasize(self, sio, err, datasize):
-        if not self.check_set_expected_telnet_cb("datasize", datasize):
-            return
+        self.check_set_expected_telnet_cb("datasize", datasize)
         return
 
     def parity(self, sio, err, parity):
-        if not self.check_set_expected_telnet_cb("parity", parity):
-            return
+        self.check_set_expected_telnet_cb("parity", parity)
         return
 
     def stopbits(self, sio, err, stopbits):
-        if not self.check_set_expected_telnet_cb("stopbits", stopbits):
-            return
+        self.check_set_expected_telnet_cb("stopbits", stopbits)
         return
 
     def flowcontrol(self, sio, err, flowcontrol):
-        if not self.check_set_expected_telnet_cb("flowcontrol", flowcontrol):
-            return
+        self.check_set_expected_telnet_cb("flowcontrol", flowcontrol)
         return
 
     def iflowcontrol(self, sio, err, iflowcontrol):
-        if not self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol):
-            return
+        self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol)
         return
 
     def sbreak(self, sio, err, sbreak):
-        if not self.check_set_expected_telnet_cb("sbreak", sbreak):
-            return
+        self.check_set_expected_telnet_cb("sbreak", sbreak)
         return
 
     def dtr(self, sio, err, dtr):
-        if not self.check_set_expected_telnet_cb("dtr", dtr):
-            return
+        self.check_set_expected_telnet_cb("dtr", dtr)
         return
 
     def rts(self, sio, err, rts):
-        if not self.check_set_expected_telnet_cb("rts", rts):
-            return
+        self.check_set_expected_telnet_cb("rts", rts)
         return
 
     def set_expected_sig_server_cb(self, value):
@@ -699,93 +694,53 @@ class HandleData:
         return
 
     def sbaud(self, io, baud):
-        if not self.check_set_expected_telnet_cb("baud", baud):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_BAUD,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("baud", baud, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_BAUD)
         return
 
     def sdatasize(self, io, datasize):
-        if not self.check_set_expected_telnet_cb("datasize", datasize):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_DATASIZE,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("datasize", datasize, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_DATASIZE)
         return
 
     def sparity(self, io, parity):
-        if not self.check_set_expected_telnet_cb("parity", parity):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_PARITY,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("parity", parity, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_PARITY)
         return
 
     def sstopbits(self, io, stopbits):
-        if not self.check_set_expected_telnet_cb("stopbits", stopbits):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_STOPBITS,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("stopbits", stopbits, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_STOPBITS)
         return
 
     def sflowcontrol(self, io, flowcontrol):
-        if not self.check_set_expected_telnet_cb("flowcontrol", flowcontrol):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("flowcontrol", flowcontrol, io = io,
+                                ret = gensio.GENSIO_ACONTROL_SER_FLOWCONTROL)
         return
 
     def siflowcontrol(self, io, iflowcontrol):
-        if not self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol, io = io,
+                                ret = gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL)
         return
 
     def ssbreak(self, io, sbreak):
-        if not self.check_set_expected_telnet_cb("sbreak", sbreak):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_SBREAK,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("sbreak", sbreak, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_SBREAK)
         return
 
     def sdtr(self, io, dtr):
-        if not self.check_set_expected_telnet_cb("dtr", dtr):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_DTR,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("dtr", dtr, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_DTR)
         return
 
     def srts(self, io, rts):
-        if not self.check_set_expected_telnet_cb("rts", rts):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_RTS,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("rts", rts, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_RTS)
         return
 
     def flush(self, io, val):
-        if not self.check_set_expected_telnet_cb("flush", val):
-            return
-        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                    gensio.GENSIO_CONTROL_SET,
-                    gensio.GENSIO_ACONTROL_SER_FLUSH,
-                    str(self.expected_server_return), None, -1)
+        self.check_set_expected_telnet_cb("flush", val, io = io,
+                                    ret = gensio.GENSIO_ACONTROL_SER_FLUSH)
         return
 
     def signature(self, io):
