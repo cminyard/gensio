@@ -475,6 +475,15 @@ telnet_cmd_handler(void *cb_data, unsigned char cmd)
 	tfilter->telnet_cbs->got_cmd(tfilter->handler_data, cmd);
 }
 
+static void
+telnet_cmds_init(const struct telnet_cmd *in, struct telnet_cmd *out)
+{
+    unsigned int i;
+
+    for (i = 0; in[i].option != TELNET_CMD_END_OPTION; i++)
+	out[i] = in[i];
+}
+
 static struct telnet_cmd *
 telnet_cmds_copy(struct gensio_os_funcs *o, const struct telnet_cmd *in)
 {
@@ -496,16 +505,11 @@ static int
 telnet_setup(struct gensio_filter *filter)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
-    struct telnet_cmd *cmds;
 
-    cmds = telnet_cmds_copy(tfilter->o, tfilter->telnet_cmds);
-    if (!cmds)
-	return GE_NOMEM;
-    if (tfilter->working_telnet_cmds)
-	tfilter->o->free(tfilter->o, tfilter->working_telnet_cmds);
-    tfilter->working_telnet_cmds = cmds;
+    telnet_cmds_init(tfilter->telnet_cmds, tfilter->working_telnet_cmds);
+
     telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
-		telnet_cmd_handler, cmds,
+		telnet_cmd_handler, tfilter->working_telnet_cmds,
 		tfilter->telnet_init_seq, tfilter->telnet_init_seq_len);
     tfilter->rfc2217_set = !tfilter->allow_rfc2217;
     tfilter->rfc1073_set = !tfilter->allow_rfc1073;
@@ -764,6 +768,9 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
     tfilter->telnet_cmds = telnet_cmds;
     tfilter->telnet_init_seq = telnet_init_seq;
     tfilter->telnet_init_seq_len = telnet_init_seq_len;
+    tfilter->working_telnet_cmds = telnet_cmds_copy(o, telnet_cmds);
+    if (!tfilter->working_telnet_cmds)
+	goto out_nomem;
 
     tfilter->lock = o->alloc_lock(o);
     if (!tfilter->lock)
@@ -788,6 +795,9 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
     return tfilter->filter;
 
  out_nomem:
+    /* These two objects still belong to gensio_telnet_filter_alloc. */
+    tfilter->telnet_cmds = NULL;
+    tfilter->telnet_init_seq = NULL;
     tfilter_free(tfilter);
     return NULL;
 }
