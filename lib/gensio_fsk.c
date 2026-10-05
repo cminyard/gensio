@@ -2572,7 +2572,7 @@ gensio_fsk_filter_raw_alloc(struct gensio_pparm_info *p,
 {
     struct fsk_filter *sfilter;
     unsigned int i, j;
-    float fin_bitsize, fout_bitsize, freq, freq_incr;
+    float fin_bitsize, fout_bitsize = 0, freq, freq_incr;
     bool err;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
