@@ -479,7 +479,8 @@ class HandleData:
         return
 
     def modemstate(self, io, modemstate):
-        print("modemstate " + self.name + " " + str(modemstate))
+        if debug:
+            print("modemstate " + self.name + " " + str(modemstate))
         try:
             if (not self.expecting_modemstate):
                 if (debug or self.debug):
@@ -970,6 +971,9 @@ def io_close(ios, timeout = 1000, evq = None):
         if not io:
             continue
         if io.handler is not None:
+            # The evq may not be set, but to catch the close we need it,
+            # so force it here.
+            io.handler.evq = evq
             io.handler.close()
             if evq:
                 evs.append(OpEvent("close_done", io.handler))
@@ -978,7 +982,7 @@ def io_close(ios, timeout = 1000, evq = None):
             (found, ev, timeout) = evq.wait_one_ev(evs, timeout = timeout)
         if len(evs) > 0:
             raise Exception("%s: %s: Timed out waiting for close" %
-                            ("io_close", io.handler.name))
+                            ("io_close", evs[0].obj.name))
     for io in ios:
         if not io:
             continue
@@ -1121,6 +1125,7 @@ class TestAccept:
         if not evq:
             evq = OpEventQueue(o)
         self.evq = evq
+        self.closed = False
 
         try:
             self.except_on_log = except_on_log
@@ -1130,6 +1135,7 @@ class TestAccept:
                 self.name = accstr
             if debug:
                 print("TestAccept " + self.name);
+                pass
             self.waiter = gensio.waiter(o)
             gensios_enabled.check_iostr_gensios(accstr)
             self.acc = gensio.gensio_accepter(o, accstr, self);
@@ -1193,10 +1199,11 @@ class TestAccept:
             else:
                 tester(self.io1, self.io2)
             if do_close:
+                self.closed = True
                 self.close()
         except Exception as e:
             print("err: Unknown exception" + str(e))
-            if do_close:
+            if do_close and not self.closed:
                 self.close()
             self.io1 = None
             self.io2 = None
@@ -1217,7 +1224,8 @@ class TestAccept:
             self.acc_started = False
             self.acc.shutdown_s()
             pass
-        io_close((self.io1, self.io2), timeout = self.close_timeout)
+        io_close((self.io1, self.io2), timeout = self.close_timeout,
+                 evq = self.evq)
 
         # Break all the possible circular references.
         self.io1 = None
@@ -1232,7 +1240,9 @@ class TestAccept:
             io.control(0, gensio.GENSIO_CONTROL_SET,
                        gensio.GENSIO_CONTROL_ENABLE_OOB, "1")
         HandleData(self.o, None, io = io, name = self.name)
-        print("New connection " + self.name);
+        if debug:
+            print("New connection " + self.name);
+            pass
         self.io2 = io
         self.waiter.wake()
 
