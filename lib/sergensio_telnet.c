@@ -971,8 +971,17 @@ telnet_parse_speed(struct telnet_serial_startup *serial, const char *str)
     unsigned long baud;
     unsigned char parity = GENSIO_SER_PARITY_NONE, bits = 8, stopbits = 1;
 
+    /*
+     * On some systems (at least Windows) strtoul parses a negative
+     * number completely and sets an ERANGE errno but otherwise
+     * returns something.  IMHO that's not correct, but compensate.
+     */
+    while (isspace(*str))
+	str++;
+    if (*str == '-')
+	return GE_INVAL;
     baud = strtoul(str, &end, 10);
-    if (end == str || baud <= 0 || baud > INT_MAX)
+    if (end == str || baud == 0 || baud > INT_MAX)
 	return GE_INVAL;
     if (*end) {
 	switch (*end++) {
