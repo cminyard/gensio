@@ -451,7 +451,7 @@ except Exception as e:
         raise Exception("Unexpected exception: '%s'" % str(e))
     pass
 try:
-    acc = TestAccept(o, "telnet(rfc2217,-4294967295n81s61,rtscts),tcp,localhost,",
+    acc = TestAccept(o, "telnet(rfc2217,-4294967295s61,rtscts),tcp,localhost,",
                      "telnet(rfc2217=true),tcp,localhost,0", None,
                      return_before_io1_open = True)
     do_telnet_serialparm_test(o, acc,
