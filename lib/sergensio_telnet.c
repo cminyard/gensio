@@ -507,32 +507,35 @@ com_port_handler(void *cb_data, unsigned char *option, int len)
     unsigned int exp_option;
 
     telnet_lock(tfilter);
-    exp_option = (TN_OPT_COM_PORT_RSP_OFFSET
-		  + tfilter->startup_cmd[tfilter->startup_pos]);
-    if (tfilter->startup_waiting && len >= 2 && option[1] == exp_option) {
-	unsigned int val = 0;
-	unsigned int expected_len;
-	unsigned int i;
+    if (tfilter->startup_pos < tfilter->startup_count) {
+	exp_option = (TN_OPT_COM_PORT_RSP_OFFSET
+		      + tfilter->startup_cmd[tfilter->startup_pos]);
+	if (tfilter->startup_waiting && len >= 2 && option[1] == exp_option) {
+	    unsigned int val = 0;
+	    unsigned int expected_len;
+	    unsigned int i;
 
-	if (option[1] == TN_OPT_COM_PORT_RSP_OFFSET + TN_OPT_COM_PORT_BAUDRATE)
-	    expected_len = 6;
-	else
-	    expected_len = 3;
+	    if (option[1] == (TN_OPT_COM_PORT_RSP_OFFSET
+			      + TN_OPT_COM_PORT_BAUDRATE))
+		expected_len = 6;
+	    else
+		expected_len = 3;
 
-	if (len != expected_len) {
-	    tfilter->startup_err = GE_PROTOERR;
-	} else {
-	    for (i = 2; i < len; i++)
-		val = (val << 8) | option[i];
-	    if (val != tfilter->startup_val[tfilter->startup_pos]) {
-		tfilter->startup_err = GE_NOTSUP;
+	    if (len != expected_len) {
+		tfilter->startup_err = GE_PROTOERR;
 	    } else {
-		tfilter->startup_pos++;
-		tfilter->startup_waiting = false;
+		for (i = 2; i < len; i++)
+		    val = (val << 8) | option[i];
+		if (val != tfilter->startup_val[tfilter->startup_pos]) {
+		    tfilter->startup_err = GE_NOTSUP;
+		} else {
+		    tfilter->startup_pos++;
+		    tfilter->startup_waiting = false;
+		}
 	    }
+	    telnet_unlock(tfilter);
+	    return;
 	}
-	telnet_unlock(tfilter);
-	return;
     }
     telnet_unlock(tfilter);
 
@@ -968,7 +971,7 @@ telnet_parse_speed(struct telnet_serial_startup *serial, const char *str)
     unsigned char parity = GENSIO_SER_PARITY_NONE, bits = 8, stopbits = 1;
 
     baud = strtoul(str, &end, 10);
-    if (end == str)
+    if (end == str || baud <= 0 || baud > INT_MAX)
 	return GE_INVAL;
     if (*end) {
 	switch (*end++) {
