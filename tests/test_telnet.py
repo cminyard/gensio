@@ -450,6 +450,20 @@ except Exception as e:
     if str(e) != "gensio:gensio alloc: Invalid data to parameter":
         raise Exception("Unexpected exception: '%s'" % str(e))
     pass
+try:
+    acc = TestAccept(o, "telnet(rfc2217,-4294967295n81s61,rtscts),tcp,localhost,",
+                     "telnet(rfc2217=true),tcp,localhost,0", None,
+                     return_before_io1_open = True)
+    do_telnet_serialparm_test(o, acc,
+                              (("baud", 200000, 200000),
+                               ("datasize", 6, 6),
+                               ("parity", 5, "space"),
+                               ("stopbits", 1, 1),
+                               ("flowcontrol", 3, "rtscts")))
+except Exception as e:
+    if str(e) != "gensio:gensio alloc: Invalid data to parameter":
+        raise Exception("Unexpected exception: '%s'" % str(e))
+    pass
 acc = TestAccept(o, "telnet(rfc2217,2147483647s61,rtscts),tcp,localhost,",
                  "telnet(rfc2217=true),tcp,localhost,0", None,
                  return_before_io1_open = True)
