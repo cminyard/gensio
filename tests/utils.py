@@ -374,7 +374,7 @@ class HandleData:
 
             if oob:
                 if not self.to_compare_oob:
-                    if (debug):
+                    if debug or self.debug:
                         print(self.name +
                               ": Got oob data, but nothing to compare")
                     self.enqueue("unexpected oob")
@@ -385,7 +385,7 @@ class HandleData:
                 oob = "oob "
             else:
                 if not self.to_compare:
-                    if (debug):
+                    if debug or self.debug:
                         print(self.name + ": Got data, but nothing to compare")
                     io.read_cb_enable(False)
                     return len(buf)
@@ -444,7 +444,7 @@ class HandleData:
                 wrdata = self.to_write[self.wrpos:self.wrpos + self.chunksize]
                 pass
             count = io.write(wrdata, self.write_auxdata)
-            if (debug or self.debug):
+            if debug or self.debug:
                 print(self.name + ": wrote %d bytes" % count)
 
             if (count + self.wrpos >= self.wrlen):
@@ -477,11 +477,11 @@ class HandleData:
         return
 
     def modemstate(self, io, modemstate):
-        if debug:
+        if debug or self.debug:
             print("modemstate " + self.name + " " + str(modemstate))
         try:
             if (not self.expecting_modemstate):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("Got unexpected modemstate for %s: %x" %
                           (self.name, modemstate))
                 self.enqueue("unexpected modemstate", modemstate)
@@ -504,13 +504,13 @@ class HandleData:
     def modemstate_mask(self, io, modemstate_mask):
         try:
             if (not self.expecting_modemstate_mask):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("Got unexpected modemstate mask for %s: %x" %
                           (self.name, modemstate_mask))
                 self.enqueue("unexpected modemstate mask", modemstate_mask)
                 return
             if (modemstate_mask != self.expected_modemstate_mask):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("%s: Expecting modemstate mask 0x%x, got 0x%x" %
                           (self.name, self.expected_modemstate_mask,
                            modemstate_mask))
@@ -534,7 +534,7 @@ class HandleData:
     def win_size(self, io, height, width):
         try:
             if (not self.expecting_winsize):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("Got unexpected window size for %s: %d %d" %
                           (self.name, height, width))
                 self.enqueue("unexpected win_size", (height, width))
@@ -588,13 +588,13 @@ class HandleData:
     def linestate_mask(self, io, linestate_mask):
         try:
             if (not self.expecting_linestate_mask):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("Got unexpected linestate mask for %s: %x" %
                           (self.name, linestate))
                 self.enqueue("unexpected linestate mask", linestate_mask)
                 return
             if (linestate_mask != self.expected_linestate_mask):
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("%s: Expecting linestate mask 0x%x, got 0x%x" %
                           (self.name, self.expected_linestate_mask,
                            linestate_mask))
@@ -626,7 +626,7 @@ class HandleData:
     def check_set_expected_telnet_cb(self, name, value, io = None, ret = None):
         try:
             if not self.expected_cb:
-                if (debug or self.debug):
+                if debug or self.debug:
                     print("Got unexpected server cb: %s %d" % (name, value))
                 self.enqueue("unexpected telnet_cb", (name, value))
                 return False
@@ -756,7 +756,7 @@ class HandleData:
         return
 
     def close_done(self, io):
-        if (debug or self.debug):
+        if debug or self.debug:
             print(self.name + ": Closed")
         self.wake("close_done")
         return
@@ -1093,6 +1093,7 @@ class TestAccept:
                 self.name = name
             else:
                 self.name = accstr
+                pass
             if debug:
                 print("TestAccept " + self.name);
                 pass
@@ -1167,7 +1168,8 @@ class TestAccept:
                 self.closed = True
                 self.close()
         except Exception as e:
-            print("err: Unknown exception" + str(e))
+            if debug:
+                print("err: Unknown exception" + str(e))
             if do_close and not self.closed:
                 self.close()
             self.io1 = None
