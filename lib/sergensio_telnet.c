@@ -85,7 +85,7 @@ struct telnet_filter {
     unsigned char startup_cmd[7];
     unsigned int startup_val[7];
     unsigned int startup_count, startup_pos;
-    bool startup_waiting;
+    bool startup_cmd_in_progress;
     int startup_err;
 
     const struct gensio_telnet_filter_callbacks *telnet_cbs;
@@ -235,7 +235,7 @@ telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    rv = GE_TIMEDOUT;
 	    goto out;
 	}
-	if (tfilter->rfc2217_set && !tfilter->startup_waiting &&
+	if (tfilter->rfc2217_set && !tfilter->startup_cmd_in_progress &&
 	    tfilter->startup_pos < tfilter->startup_count) {
 	    unsigned int pos = tfilter->startup_pos;
 	    unsigned int val = tfilter->startup_val[pos];
@@ -252,7 +252,7 @@ telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    } else {
 		buf[2] = val;
 	    }
-	    tfilter->startup_waiting = true;
+	    tfilter->startup_cmd_in_progress = true;
 	    tfilter->init_end_wait = now;
 	    tfilter->init_end_wait.secs += 5;
 	    telnet_send_option(&tfilter->tn_data, buf, len);
@@ -510,7 +510,8 @@ com_port_handler(void *cb_data, unsigned char *option, int len)
     if (tfilter->startup_pos < tfilter->startup_count) {
 	exp_option = (TN_OPT_COM_PORT_RSP_OFFSET
 		      + tfilter->startup_cmd[tfilter->startup_pos]);
-	if (tfilter->startup_waiting && len >= 2 && option[1] == exp_option) {
+	if (tfilter->startup_cmd_in_progress && len >= 2
+		&& option[1] == exp_option) {
 	    unsigned int val = 0;
 	    unsigned int expected_len;
 	    unsigned int i;
@@ -530,7 +531,7 @@ com_port_handler(void *cb_data, unsigned char *option, int len)
 		    tfilter->startup_err = GE_NOTSUP;
 		} else {
 		    tfilter->startup_pos++;
-		    tfilter->startup_waiting = false;
+		    tfilter->startup_cmd_in_progress = false;
 		}
 	    }
 	    telnet_unlock(tfilter);
@@ -619,7 +620,7 @@ telnet_setup(struct gensio_filter *filter)
     telnet_cmds_init(tfilter->telnet_cmds, tfilter->working_telnet_cmds);
 
     tfilter->startup_pos = 0;
-    tfilter->startup_waiting = false;
+    tfilter->startup_cmd_in_progress = false;
     tfilter->startup_err = 0;
 
     telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
