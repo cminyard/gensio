@@ -2885,19 +2885,26 @@ This forces crc to false.
 
 Defaults to true for fsk, false for afskmdm.
 .TP
+.B modidx=<n>
+Sets the modulation index for calculating mark and space frequencies.
+If the mark and space frequencies are not specified, modidx is
+multiplied by the data rate (bps) to give the spacing between the mark
+and space frequencies.  It's also using in the calculation of the mark
+frequency as described below.
+.TP
 .B mark=<n>, in_mark=<n>, out_mark=<n>
 Sets the mark (higher, 1) frequency for FSK.  Defaults to 1200 for
-AFSK.  For fsk mark defaults to (bps * 4) if freqadj is set, bps if
-freqadj is not set and the data format is float (real valued), and
-(bps / 4) if freqadj is not set and the data format is floatc
-(complex, or I/Q).
+AFSK.  For fsk mark defaults to (bps * 8 * modidx) if freqadj is set,
+(bps * modidx * 2) if freqadj is not set and the data format is float
+(real valued), and (bps * modidx / 2) if freqadj is not set and the
+data format is floatc (complex, or I/Q).
 .TP
 .B space=<n>, in_space=<n>, out_space=<n>
 Sets the space (lower, 0) frequency for FSK.  Defaults to 2200 for
 afskmdm.
 
-For fsk, this defaults to (mark - bps / 2).  This, with the mark default,
-defaults to MSK.
+For fsk, this defaults to (mark - bps * modidx).  This, with the mark
+default, defaults to MSK.
 
 See the discussion on freqadj below for details.
 .TP
