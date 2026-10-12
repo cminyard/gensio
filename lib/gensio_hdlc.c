@@ -851,6 +851,8 @@ hdlc_ll_write(struct gensio_filter *filter,
 		d->deliver_data_len = 0;
 		sfilter->num_delivermsgs--;
 		sfilter->curr_delivermsg++;
+		if (sfilter->curr_delivermsg >= MAX_DELIVER_MSGS)
+		    sfilter->curr_delivermsg = 0;
 	    } else {
 		d->deliver_data_pos += count;
 	    }
