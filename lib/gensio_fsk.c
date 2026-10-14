@@ -3015,7 +3015,8 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
     unsigned int chan;
     unsigned int wmsg_extra = 0;
     struct gensio *out_child = child;
-    float modidx = .5; /* For MSK */
+    float in_modidx = .5; /* For MSK */
+    float out_modidx = .5;
 
     if (is_afsk) {
 	data.in_data_rate = 1200,
@@ -3153,7 +3154,13 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "out_bps", &data.out_data_rate) > 0)
 	    continue;
-	if (gensio_pparm_float(p, args[i], "modidx", &modidx) > 0)
+	if (gensio_pparm_float(p, args[i], "modidx", &in_modidx) > 0) {
+	    out_modidx = in_modidx;
+	    continue;
+	}
+	if (gensio_pparm_float(p, args[i], "in_modidx", &in_modidx) > 0)
+	    continue;
+	if (gensio_pparm_float(p, args[i], "out_modidx", &out_modidx) > 0)
 	    continue;
 	if (gensio_pparm_float(p, args[i], "space", &data.in_space_freq) > 0) {
 	    data.out_space_freq = data.in_space_freq;
@@ -3346,32 +3353,33 @@ gensio_fsk_filter_alloc(struct gensio_pparm_info *p,
 
     if (data.in_do_freqadj) {
 	if (data.in_mark_freq < 0.1)
-	    data.in_mark_freq = data.in_data_rate * 8 * modidx;
+	    data.in_mark_freq = data.in_data_rate * 8 * in_modidx;
     } else if (data.in_format == FSK_FMT_FLOATC) {
 	if (data.in_mark_freq < 0.1)
-	    data.in_mark_freq = data.in_data_rate * modidx / 2;
+	    data.in_mark_freq = data.in_data_rate * in_modidx / 2;
     } else {
 	if (data.in_space_freq < 0.1)
-	    data.in_space_freq = data.in_space_freq * modidx  * 2;
+	    data.in_space_freq = data.in_space_freq * in_modidx  * 2;
     }
     if (data.in_space_freq < 0.1)
-	data.in_space_freq = data.in_mark_freq - data.in_data_rate * modidx;
+	data.in_space_freq = data.in_mark_freq - data.in_data_rate * in_modidx;
 
     if (data.lpcutoff == 0)
 	data.lpcutoff = data.in_mark_freq * 2;
 
     if (data.out_do_freqadj) {
 	if (data.out_mark_freq < 0.1)
-	    data.out_mark_freq = data.out_data_rate * 8 * modidx;
+	    data.out_mark_freq = data.out_data_rate * 8 * out_modidx;
     } else if (data.out_format == FSK_FMT_FLOATC) {
 	if (data.out_mark_freq < 0.1)
-	    data.out_mark_freq = data.out_data_rate * modidx / 2;
+	    data.out_mark_freq = data.out_data_rate * out_modidx / 2;
     } else {
 	if (data.out_space_freq < 0.1)
-	    data.out_space_freq = data.out_space_freq * modidx * 2;
+	    data.out_space_freq = data.out_space_freq * out_modidx * 2;
     }
     if (data.out_space_freq < 0.1)
-	data.out_space_freq = data.out_mark_freq - data.out_data_rate * modidx;
+	data.out_space_freq = (data.out_mark_freq
+			       - data.out_data_rate * out_modidx);
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
