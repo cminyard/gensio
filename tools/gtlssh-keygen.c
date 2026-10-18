@@ -33,6 +33,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <time.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
@@ -503,7 +504,12 @@ hash_file(const char *dir, const char *name, void *cbdata)
 	goto out_err;
 
     notafter = X509_get0_notAfter(cert);
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    /* X509_cmp_current_time() is deprecated in OpenSSL 4.0. */
+    if (ASN1_TIME_cmp_time_t(notafter, time(NULL)) == -1) {
+#else
     if (X509_cmp_current_time(notafter) < 0) {
+#endif
 	printf("Removing expired certificate %s\n", s);
 	delete_file(glogger, NULL, s);
 	free(s);
