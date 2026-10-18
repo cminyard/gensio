@@ -80,12 +80,12 @@ gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
     char *nidstr = NULL, *end;
     int index = -1, len, tlen, nid;
     int datasize;
-    X509_NAME *nm;
-    X509_NAME_ENTRY *e;
-    ASN1_STRING *as;
+    const X509_NAME *nm;
+    const X509_NAME_ENTRY *e;
+    const ASN1_STRING *as;
     unsigned char *strobj;
     int strobjlen;
-    ASN1_OBJECT *obj;
+    const ASN1_OBJECT *obj;
 
     if (!cert)
 	return GE_NOCERT;
