@@ -34,6 +34,8 @@ python.extension_module(
     ],
     link_with: [libgensiocpp, libgensiotcl, libgensio, libgensioosh],
     dependencies: [python_dep, found_deps['tcl']],
+    # See c++/swig/pygensio/meson.build.
+    gnu_symbol_visibility: 'default',
     install: true,
     install_dir: python_install_dir,
 )
