@@ -81,14 +81,11 @@ foreach f : check_decl
     endif
 endforeach
 
-conf.set10(
-    'HAVE_TERMIOS2',
-    cc.has_member(
-        'struct termios2',
-        'c_ispeed',
-        prefix: '#include<asm/termios.h>',
-    ),
-)
+# Checked with #ifdef, so only define it if present.
+if cc.has_member('struct termios2', 'c_ispeed',
+                 prefix: '#include<asm/termios.h>')
+    conf.set('HAVE_TERMIOS2', 1)
+endif
 
 conf.set10(
     'HAVE_GCC_ATOMICS',
@@ -172,12 +169,20 @@ deps = [
     ['HAVE_LIBSOAPY', 'SoapySDR'],
 ]
 
+# Like configure.ac, HAVE_GLIB and HAVE_TCL are only defined if present
+# (the code uses #ifdef), the others are always defined to 0 or 1.
+ifdef_deps = ['HAVE_GLIB', 'HAVE_TCL']
+
 foreach d : deps
     # The optional third element names the feature option controlling it
     required = d.length() > 2 ? get_option(d.get(2)) : false
     dep = dependency(d.get(1), required: required)
-    if dep.found()
-        conf.set(d.get(0), 1)
+    if d.get(0) in ifdef_deps
+        if dep.found()
+            conf.set(d.get(0), 1)
+        endif
+    else
+        conf.set10(d.get(0), dep.found())
     endif
     found_deps += {d.get(1): dep}
 endforeach
