@@ -33,6 +33,10 @@ python.extension_module(
         libgensiomdns,
     ],
     dependencies: [python_dep],
+    # meson defaults extension modules to inlineshidden, which hides the
+    # C++ exception type info, so on macOS the binding can't catch
+    # gensios::gensio_error.
+    gnu_symbol_visibility: 'default',
     install: true,
     install_dir: python_install_dir,
 )

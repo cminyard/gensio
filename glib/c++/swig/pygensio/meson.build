@@ -34,6 +34,8 @@ python.extension_module(
     ],
     link_with: [libgensiocpp, libgensioglib, libgensio, libgensioosh],
     dependencies: [python_dep, found_deps['glib-2.0']],
+    # See c++/swig/pygensio/meson.build.
+    gnu_symbol_visibility: 'default',
     install: true,
     install_dir: python_install_dir,
 )
