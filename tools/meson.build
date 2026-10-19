@@ -48,7 +48,7 @@ endif
 # cross compiling.
 reflector_conf = configuration_data()
 if python.found() and not meson.is_cross_build()
-    reflector_conf.set('PYTHON_EXECUTABLE', python.full_path())
+    reflector_conf.set('PYTHON_EXECUTABLE', python.full_path().replace('\\', '/'))
 else
     reflector_conf.set('PYTHON_EXECUTABLE', '/usr/bin/env python3')
 endif
