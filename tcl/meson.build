@@ -1,6 +1,7 @@
 libgensiotcl = library(
     'gensiotcl',
     sources: ['gensio_tcl.c'],
+    c_args: ['-DBUILDING_GENSIOTCL_DLL'],
     include_directories: [top_inc, inc_inc, tcl_inc],
     link_with: [libgensioosh, libgensio],
     dependencies: [found_deps['tcl'], found_deps['openssl']],

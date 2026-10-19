@@ -7,7 +7,7 @@ libgensio_python_swig = library(
     include_directories: [top_inc, inc_inc, swig_inc],
     c_args: ['-DBUILDING_GENSIO_DLL', '-DPYTHON_HAS_THREADS=1'],
     link_with: [libgensio, libgensioosh, libgensiomdns],
-    dependencies: [python_dep],
+    dependencies: [python_lib_dep],
     # The python symbols are provided by the interpreter that loads this
     override_options: ['b_lundef=false'],
     install: true,

@@ -133,6 +133,12 @@ python_dep = dependency('', required: false)
 if python.found()
     python_dep = python.dependency(embed: false, required: get_option('python'))
 endif
+# libgensio_python_swig is a normal library using the python API, on
+# Windows it has to link with libpython (no undefined symbols in DLLs).
+python_lib_dep = python_dep
+if python.found() and target_machine.system() == 'windows'
+    python_lib_dep = python.dependency(embed: true, required: false)
+endif
 have_python_swig = swig_version.version_compare('>=4.0.0') and python_dep.found()
 if have_python_swig
     python_install_dir = get_option('python-install-dir')
@@ -195,7 +201,49 @@ libm_dep = cc.find_library('m', required: true)
 thread_dep = dependency('threads')
 libwrap_dep = cc.find_library('wrap', required : get_option('tcp-wrappers'))
 
-conf.set10('HAVE_MDNS', found_deps['avahi-client'].found() or target_machine.system() == 'windows')
+# Libraries the OS handler needs, like OSH_LIBS in configure.ac
+is_windows = target_machine.system() == 'windows'
+osh_libs = []
+if is_windows
+    foreach l : ['ws2_32', 'iphlpapi', 'gdi32', 'bcrypt', 'secur32', 'userenv',
+                 'wtsapi32', 'ole32']
+        osh_libs += cc.find_library(l)
+    endforeach
+else
+    osh_libs += cc.find_library('dl', required: false)
+endif
+
+# Windows mDNS, only used if avahi isn't available
+have_winmdns = false
+mdns_libs = []
+if is_windows and not found_deps['avahi-client'].found()
+    have_winmdns = cc.compiles('''#include <windows.h>
+#include <windns.h>
+int main(void) { DnsServiceBrowse(NULL, NULL); return 0; }''',
+                               name: 'Windows mDNS')
+endif
+conf.set10('HAVE_WINMDNS', have_winmdns)
+if have_winmdns
+    foreach l : ['dnsapi', 'iphlpapi', 'ws2_32']
+        mdns_libs += cc.find_library(l)
+    endforeach
+endif
+
+# Windows sound and the cm108gpio gensio need extra libraries
+conf.set10('HAVE_WIN32SOUND', is_windows)
+sound_libs = []
+cm108gpio_libs = []
+if is_windows
+    sound_libs += cc.find_library('winmm')
+    foreach l : ['hid', 'setupapi']
+        cm108gpio_libs += cc.find_library(l)
+    endforeach
+endif
+
+# The file gensio uses stdio on Windows
+conf.set10('USE_FILE_STDIO', is_windows)
+
+conf.set10('HAVE_MDNS', found_deps['avahi-client'].found() or have_winmdns)
 conf.set10(
     'HAVE_SCTP_SENDV',
     cc.has_function('sctp_sendv', dependencies: found_deps['libsctp']),
@@ -243,10 +291,19 @@ conf.set('USE_LOGIN_PROGRAM', 0, description : 'Set to 1 to use login, 0 to dire
 conf.set('USE_PTHREADS', 1)
 
 module_install_dir = get_option('module-install-dir')
-if module_install_dir == ''
-    module_install_dir = get_option('prefix') / get_option('libexecdir') / 'gensio'
+if is_windows
+    # Windows loads the modules from the DLL search path, like configure
+    # they go into bindir.
+    if module_install_dir == ''
+        module_install_dir = get_option('prefix') / get_option('bindir')
+    endif
+    gensio_libexec = module_install_dir
+else
+    if module_install_dir == ''
+        module_install_dir = get_option('prefix') / get_option('libexecdir') / 'gensio'
+    endif
+    gensio_libexec = module_install_dir / meson.project_version()
 endif
-gensio_libexec = module_install_dir / meson.project_version()
 
 gensio_includedir = get_option('includedir')
 

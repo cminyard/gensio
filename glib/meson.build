@@ -1,6 +1,7 @@
 libgensioglib = library(
     'gensioglib',
     sources: ['gensio_glib.c'],
+    c_args: ['-DBUILDING_GENSIOGLIB_DLL'],
     include_directories: [top_inc, glib_inc, inc_inc],
     link_with: [libgensioosh, libgensio],
     dependencies: [found_deps['glib-2.0'], found_deps['openssl']],

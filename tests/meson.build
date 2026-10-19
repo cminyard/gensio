@@ -104,6 +104,14 @@ test_env.set('VERBOSE', '1')
 # The module loader only takes modules from LD_LIBRARY_PATH in libtool's
 # lib/.libs, so point it at the meson build directory explicitly.
 test_env.set('GENSIO_LIBRARY_PATH', meson.project_build_root() / 'lib')
+if is_windows
+    # Windows finds DLLs (and the gensio modules) through PATH.
+    foreach d : ['lib', 'glib', 'tcl', 'swig/python', 'c++/lib',
+                 'c++/swig/pygensio', 'glib/c++/swig/pygensio',
+                 'tcl/c++/swig/pygensio']
+        test_env.prepend('PATH', meson.project_build_root() / d)
+    endforeach
+endif
 
 all_tests = oom_tests
 if have_python_swig
