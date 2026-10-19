@@ -3749,6 +3749,25 @@ i_ax25_base_handle_child_err(struct ax25_base *base, int err)
 	ax25_chan_deref_and_unlock(chan);
     }
     ax25_base_lock(base);
+
+    /*
+     * Write callbacks are disabled now, so the send list will never be
+     * processed again.  Drop the refs the channels hold for being in
+     * it, otherwise a channel that was waiting to send (like one
+     * sending its SABM in open) can never be freed.
+     */
+    while (!gensio_list_empty(&base->send_list)) {
+	struct ax25_chan *chan;
+
+	l = gensio_list_first(&base->send_list);
+	gensio_list_rm(&base->send_list, l);
+	chan = gensio_container_of(l, struct ax25_chan, sendlink);
+	ax25_base_unlock(base);
+	ax25_chan_lock(chan);
+	ax25_chan_deref_and_unlock(chan);
+	ax25_base_lock(base);
+    }
+
     ax25_base_child_close(base);
 }
 
