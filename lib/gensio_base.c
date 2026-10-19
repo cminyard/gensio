@@ -207,6 +207,12 @@ struct basen_data {
     bool deferred_open;
     bool deferred_close;
 
+    /*
+     * The ll open returned GE_INPROGRESS and we haven't got the open
+     * done callback yet.  We can't finish a close until we get it.
+     */
+    bool ll_open_pending;
+
 #ifdef DEBUG_STATE
     struct basen_state_trace state_trace[STATE_TRACE_LEN];
     unsigned int state_trace_pos;
@@ -1083,7 +1089,12 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 
  skip_write:
     if (ndata->deferred_close) {
-	if (!(ndata->in_xmit_ready || ndata->in_read)) {
+	/*
+	 * If the ll open done is still pending, it can still be called,
+	 * so we can't finish the close until it is.
+	 */
+	if (!(ndata->in_xmit_ready || ndata->in_read ||
+	      ndata->ll_open_pending)) {
 	    ndata->deferred_close = false;
 	    i_basen_add_trace(ndata, 101, __LINE__);
 	    basen_finish_close(ndata);
@@ -1177,8 +1188,15 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
     struct basen_data *ndata = cb_data;
 
     basen_lock_and_ref(ndata);
+    ndata->ll_open_pending = false;
     if (ndata->ll_err || ndata->open_err) {
-	/* Nothing to do here, we failed the open, a close should be pending. */
+	/*
+	 * We failed the open, a close should be pending.  If the ll
+	 * close failed because the ll was already closed when we
+	 * closed, the close was deferred until we got here.
+	 */
+	if (ndata->deferred_close)
+	    basen_sched_deferred_op(ndata);
     } else if (err) {
 	basen_set_state(ndata, BASEN_CLOSED);
 	i_basen_add_trace(ndata, 100, __LINE__);
@@ -1231,6 +1249,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->timer_start_pending = false;
 	ndata->close_requested = false;
 	ndata->ll_want_close = false;
+	ndata->ll_open_pending = false;
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
@@ -1248,6 +1267,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 		err = 0;
 	    }
 	} else if (err == GE_INPROGRESS) {
+	    ndata->ll_open_pending = true;
 	    err = 0;
 	}
 	if (err)
@@ -1657,7 +1677,12 @@ static void
 basen_check_open_close_ops(struct basen_data *ndata)
 {
     if (ndata->deferred_close) {
-	if (!(ndata->in_xmit_ready || ndata->in_read)) {
+	/*
+	 * If the ll open done is still pending, it can still be called,
+	 * so we can't finish the close until it is.
+	 */
+	if (!(ndata->in_xmit_ready || ndata->in_read ||
+	      ndata->ll_open_pending)) {
 	    ndata->deferred_close = false;
 	    i_basen_add_trace(ndata, 101, __LINE__);
 	    basen_finish_close(ndata);
