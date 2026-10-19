@@ -2810,7 +2810,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     bool is_client = false;
     struct gensio_accepter *accepter = NULL;
     int rv;
-    struct gensio_base_parms *parms;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "telnet", user_data);
 
     rv = gensio_base_parms_alloc(o, true, "telnet", &parms);
