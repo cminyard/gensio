@@ -491,7 +491,8 @@ fsk_ll_write_pending(struct gensio_filter *filter)
     bool rv;
 
     fsk_lock(sfilter);
-    rv = sfilter->xmit_buf_len > 0 || sfilter->starting_output_ready;
+    rv = (sfilter->xmit_buf_len > 0 || sfilter->starting_output_ready
+	  || sfilter->nr_wrbufs);
     fsk_unlock(sfilter);
     return rv;
 }
@@ -691,9 +692,9 @@ fsk_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	} else {
 	    sfilter->transmit_state = NOT_SENDING;
 	}
-    } else if (sfilter->transmit_state != NOT_SENDING) {
-	return GE_INPROGRESS;
     }
+    if (sfilter->transmit_state != NOT_SENDING)
+	return GE_INPROGRESS;
 
     return key_try_close(&sfilter->keyinfo, timeout);
 }
@@ -1135,7 +1136,7 @@ fsk_ul_write(struct gensio_filter *filter,
      */
     if (!rv && sfilter->xmit_buf_len > 0)
 	fsk_send_buffer(sfilter, handler, cb_data);
-    if (!rv && sfilter->xmit_buf_len == 0)
+    if (!rv && (sfilter->xmit_buf_len == 0 && sfilter->nr_wrbufs == 0))
 	/*
 	 * No more data to send, start the timer now.
 	 */
