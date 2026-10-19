@@ -200,7 +200,21 @@ ifdef_deps = ['HAVE_GLIB', 'HAVE_TCL']
 foreach d : deps
     # The optional third element names the feature option controlling it
     required = d.length() > 2 ? get_option(d.get(2)) : false
-    dep = dependency(d.get(1), required: required)
+    if d.get(0) == 'HAVE_TCL' and target_machine.system() == 'windows'
+        # The tcl OS handler uses POSIX interfaces (configure doesn't
+        # find tcl on MinGW either).
+        if get_option('tcl').enabled()
+            error('The tcl OS handler is not supported on Windows')
+        endif
+        required = false
+        dep = dependency('', required: false)
+    elif d.get(0) == 'HAVE_TCL'
+        # Only use pkg-config, so the deprecated macOS system Tcl
+        # framework isn't used (configure doesn't find it either).
+        dep = dependency(d.get(1), required: required, method: 'pkg-config')
+    else
+        dep = dependency(d.get(1), required: required)
+    endif
     if d.get(0) in ifdef_deps
         if dep.found()
             conf.set(d.get(0), 1)
