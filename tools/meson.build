@@ -3,6 +3,9 @@ libgensiotool = static_library(
     sources: ['ioinfo.c', 'ser_ioinfo.c', 'utils.c', 'localports.c'],
     include_directories: [top_inc, inc_inc],
     link_with: [libgensioosh, libgensio],
+    # The tools use the OS libraries (sockets, user profiles on Windows)
+    # directly, libtool passes libgensioosh's libraries on to them.
+    dependencies: osh_libs,
 )
 # The gtlssh tools are only built if the ssl gensio is, like BUILD_SSL
 # in configure.ac
@@ -93,7 +96,7 @@ if build_ssl
         sources: ['gtlssh-shared.c', 'run_get_output.c', 'file_utils.c'],
         include_directories: [top_inc, inc_inc],
         link_with: [libgensiotool, libgensioosh, libgensio],
-        dependencies: [found_deps['openssl']],
+        dependencies: [found_deps['openssl']] + osh_libs,
     )
 
     executable(
