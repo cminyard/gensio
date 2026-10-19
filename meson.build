@@ -70,15 +70,15 @@ foreach f : check_functions
     endif
 endforeach
 
+# Like AC_CHECK_DECLS, always defined to 0 or 1.  has_header_symbol()
+# doesn't fail if the header is missing (no sys/ioctl.h on Windows).
 check_decl = [
-    ['HAVE_DECL_SIGWINCH', 'SIGWINCH', '#include<signal.h>'],
-    ['HAVE_DECL_TIOCSRS485', 'TIOCSRS485', '#include<sys/ioctl.h>'],
+    ['HAVE_DECL_SIGWINCH', 'SIGWINCH', 'signal.h'],
+    ['HAVE_DECL_TIOCSRS485', 'TIOCSRS485', 'sys/ioctl.h'],
 ]
 
 foreach f : check_decl
-    if cc.get_define(f.get(1), prefix: f.get(2)) != ''
-        conf.set(f.get(0), 1)
-    endif
+    conf.set10(f.get(0), cc.has_header_symbol(f.get(2), f.get(1)))
 endforeach
 
 # Checked with #ifdef, so only define it if present.
