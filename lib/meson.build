@@ -242,6 +242,10 @@ foreach gensio : dynamic_gensios
         'gensio_' + name,
         gensio.get('src', ['gensio_@0@.c'.format(name)]),
         name_prefix: 'lib',
+        # The module loader looks for libgensio_<name>.so (.DLL on
+        # Windows), use .so on macOS too instead of .dylib, like
+        # libtool modules.
+        name_suffix: is_windows ? 'dll' : 'so',
         include_directories: [top_inc, inc_inc],
         dependencies: gensio.get('deps', []),
         link_with: [libgensio, libgensioosh] + gensio.get('link', []),
