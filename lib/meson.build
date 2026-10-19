@@ -28,7 +28,7 @@ libgensioosh = library(
     install: true,
     soversion: soversion,
     version: libversion,
-    dependencies: [found_deps['libsctp'], found_deps['threads'], found_deps['wrap']],
+    dependencies: [found_deps['libsctp'], found_deps['threads'], found_deps['wrap']] + osh_libs,
 )
 
 pkg.generate(
@@ -44,7 +44,7 @@ libgensiomdns = library(
     include_directories: [top_inc, inc_inc],
     c_args: ['-DBUILDING_GENSIOMDNS_DLL'],
     link_with: [libgensioosh],
-    dependencies: [found_deps['avahi-client']],
+    dependencies: [found_deps['avahi-client']] + mdns_libs,
     install: true,
     soversion: soversion,
     version: libversion,
@@ -59,6 +59,7 @@ if found_deps['OpenIPMI'].found()
     libgensio_openipmi_oshandler = library(
         'gensio_openipmi_oshandler',
         sources: ['gensio_openipmi_oshandler.c'],
+        c_args: ['-DBUILDING_GENSIO_OI_OSH_DLL'],
         include_directories: [top_inc, inc_inc],
         link_with: [libgensioosh],
         dependencies: [found_deps['OpenIPMI']],
@@ -109,15 +110,15 @@ gensios = [
     {
         'name': 'mdns',
         'link': [libgensiomdns],
-        'requires': found_deps['avahi-client'].found() or is_windows,
+        'requires': conf.get('HAVE_MDNS') == 1,
     },
     {
         'name': 'sound',
-        'deps': [found_deps['alsa'], found_deps['portaudio-2.0']],
+        'deps': [found_deps['alsa'], found_deps['portaudio-2.0']] + sound_libs,
     },
     {
         'name': 'cm108gpio',
-        'deps': [found_deps['libudev']],
+        'deps': [found_deps['libudev']] + cm108gpio_libs,
         'requires': found_deps['libudev'].found() or is_windows,
     },
     {
