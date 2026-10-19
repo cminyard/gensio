@@ -5,7 +5,9 @@
 tests_conf = configuration_data()
 tests_conf.set('top_srcdir', meson.project_source_root())
 tests_conf.set('top_builddir', meson.project_build_root())
-tests_conf.set('PYTHON_EXECUTABLE', python.found() ? python.full_path() : '')
+# runtest is a shell script, so no backslashes in the path on Windows.
+tests_conf.set('PYTHON_EXECUTABLE',
+               python.found() ? python.full_path().replace('\\', '/') : '')
 tests_conf.set('GLIB_DIR', found_deps['glib-2.0'].found() ? 'glib' : '')
 tests_conf.set('TCL_DIR', found_deps['tcl'].found() ? 'tcl' : '')
 foreach d : ['HAVE_LIBSCTP', 'HAVE_MDNS', 'HAVE_OPENIPMI', 'HAVE_OPENSSL',
