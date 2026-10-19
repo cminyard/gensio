@@ -45,7 +45,7 @@ oomtest = executable(
     'oomtest.c',
     include_directories: [top_inc, inc_inc, glib_inc, tcl_inc],
     link_with: oomtest_link,
-    dependencies: [found_deps['glib-2.0'], found_deps['tcl']],
+    dependencies: [found_deps['glib-2.0'], found_deps['tcl']] + osh_libs,
     build_by_default: false,
 )
 # Used by test_script.py
