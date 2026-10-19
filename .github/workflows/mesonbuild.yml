@@ -1,0 +1,123 @@
+# Build and test with meson on Linux, macOS and Windows (MinGW).  The
+# full test suite, including the oomtests, needs the fixes from
+# https://github.com/cminyard/gensio/pull/104 and
+# https://github.com/cminyard/gensio/pull/105.
+name: MesonBuild
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - v*
+  workflow_dispatch:
+
+env:
+  INSTALLPREFIX: "_local"
+  # Same as the autotools workflows, there is no mDNS on the runners.
+  SKIP_TESTS: "test_mdns test_mdns.py"
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install meson ninja pkgconf swig openssl portaudio
+      - name: Configure
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix openssl)/lib/pkgconfig"
+          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true
+      - name: Build
+        run: |
+          ninja -C build
+          meson install -C build
+      - name: Test
+        run: |
+          meson test -C build --print-errorlogs
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs-macos
+          path: build/meson-logs
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build pkgconf swig python3-dev \
+            libssl-dev libpam0g-dev libglib2.0-dev tcl-dev \
+            libavahi-client-dev libasound2-dev portaudio19-dev libudev-dev \
+            libsctp-dev openssl
+      - name: Configure
+        run: |
+          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true
+      - name: Build
+        run: |
+          ninja -C build
+          meson install -C build
+      - name: Test
+        run: |
+          meson test -C build --print-errorlogs
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs-linux
+          path: build/meson-logs
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: mingw32, env: i686 }
+
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    env:
+      # Same as WinBuild, these fail on the github runners.
+      SKIP_TESTS: "test_unix_accept_connect.py test_mdns.py test_ratelimit.py oomtest9 oomtest11"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            git
+            mingw-w64-${{matrix.env}}-gcc
+            mingw-w64-${{matrix.env}}-meson
+            mingw-w64-${{matrix.env}}-ninja
+            mingw-w64-${{matrix.env}}-pkgconf
+            mingw-w64-${{matrix.env}}-openssl
+            mingw-w64-${{matrix.env}}-python
+            mingw-w64-${{matrix.env}}-pcre2
+            swig
+      - name: Configure
+        run: |
+          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true
+      - name: Build
+        run: |
+          ninja -C build
+          meson install -C build
+      - name: Test
+        run: |
+          meson test -C build --print-errorlogs
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs-windows-${{matrix.env}}
+          path: build/meson-logs
