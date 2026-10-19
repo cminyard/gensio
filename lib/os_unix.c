@@ -2149,7 +2149,13 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 #endif
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
 
-    /* Clear out any pending signals before we restore the mask. */
+    /*
+     * Clear out any pending signals before we restore the mask.
+     * SIGPIPE is blocked to ignore broken pipes, but a write to a
+     * closed socket leaves one pending, and restoring the mask would
+     * kill the program with it.  So clear that out, too.
+     */
+    sigaddset(&data->check_sigs, SIGPIPE);
     while (check_for_sigpending(&data->check_sigs) > 0)
 	;
 
