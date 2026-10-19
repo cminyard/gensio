@@ -3885,6 +3885,17 @@ ax25_child_read(struct ax25_base *base, int ierr,
     if (chan)
 	chan = ax25_chan_check_and_lock(chan, &base->chans, true);
 
+    if (chan && chan->state == AX25_CHAN_CLOSED) {
+	/*
+	 * Another thread closed the channel (on a child I/O error, for
+	 * instance) and unlocked it to report the close, but it is not
+	 * yet moved off the open list.  It can't handle any frames, so
+	 * just drop this one.
+	 */
+	ax25_chan_deref_and_unlock(chan);
+	return 0;
+    }
+
     if (!cmd) {
 	/* Extract data from I and S frames. */
 
