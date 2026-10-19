@@ -858,10 +858,18 @@ gensio_addrinfo_list_dup(struct gensio_os_funcs *o,
     for (l1 = olist, l2 = nlist; l1; l1 = l1->next) {
 	if (pl) {
 	    l2 = o->zalloc(o, sizeof(*l2));
+	    if (!l2)
+		goto out_err;
 	    pl->next = l2;
 	}
 	if (l1->onlycopy) {
 	    *l2 = *l1;
+	    /*
+	     * Don't let the cleanup on error free l1's data or follow
+	     * l1's list.
+	     */
+	    l2->next = NULL;
+	    l2->a = NULL;
 	    if (addrinfo_list_dup(o, l1->a, &l2->a, NULL))
 		goto out_err;
 	} else {
@@ -869,8 +877,11 @@ gensio_addrinfo_list_dup(struct gensio_os_funcs *o,
 		l1->refcount = o->zalloc(o, sizeof(*l1->refcount));
 		if (!l1->refcount)
 		    goto out_err;
-		if (gensio_refcount_init(o, l1->refcount, 1) != 0)
+		if (gensio_refcount_init(o, l1->refcount, 1) != 0) {
+		    o->free(o, l1->refcount);
+		    l1->refcount = NULL;
 		    goto out_err;
+		}
 	    }
 	    *l2 = *l1;
 	    gensio_refcount_inc(l2->refcount);
