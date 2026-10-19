@@ -1,5 +1,3 @@
-add_languages('cpp', native: false)
-
 cpp_inc = include_directories('include')
 
 subdir('lib')

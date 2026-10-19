@@ -17,6 +17,24 @@ soversion = lt_major.to_string()
 libversion = '@0@.@1@.@2@'.format(lt_major, lt[2], lt[1])
 conf = configuration_data()
 cc = meson.get_compiler('c')
+
+# Like EXTRA_CFLAGS in configure.ac: on Windows the OS handler needs the
+# newer APIs (pseudo consoles, TCP_INFO), and static libraries must not
+# use the DLL import/export declarations.
+windows_args = []
+if target_machine.system() == 'windows'
+    windows_args += ['-DNTDDI_VERSION=0x0a000006', '-DWINVER=0x0602']
+    if get_option('default_library') == 'static'
+        windows_args += '-DGENSIO_LINK_STATIC'
+    endif
+endif
+add_project_arguments(windows_args, language: 'c')
+# Project arguments can only be added before the first target, so enable
+# C++ here instead of in c++/meson.build.
+if get_option('cplusplus')
+    add_languages('cpp', native: false)
+    add_project_arguments(windows_args, language: 'cpp')
+endif
 pkg = import('pkgconfig')
 gensio_version = meson.project_version()
 version_array = gensio_version.split('.')
