@@ -742,13 +742,16 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     }
 
  out_restart:
-    if (sdata->modemstate_mask) {
+    sterm_lock(sdata);
+    /*
+     * Don't restart the timer if a close has started, the close
+     * stopped the timer and only waits for this handler to finish.
+     */
+    if (sdata->modemstate_mask && sdata->open) {
 	gensio_time timeout = {1, 0};
 
 	sdata->o->start_timer(sdata->timer, &timeout);
     }
-
-    sterm_lock(sdata);
     sdata->handling_modemstate = false;
     sterm_unlock(sdata);
 }
@@ -1197,10 +1200,11 @@ sterm_free(void *handler_data)
     serconf_clear_q(sdata);
     if (sdata->rs485)
 	sdata->o->free(sdata->o, sdata->rs485);
-    if (sdata->lock)
-	sdata->o->free_lock(sdata->lock);
+    /* Free the timer first, the timeout handler uses the lock. */
     if (sdata->timer)
 	sdata->o->free_timer(sdata->timer);
+    if (sdata->lock)
+	sdata->o->free_lock(sdata->lock);
     if (sdata->devname)
 	sdata->o->free(sdata->o, sdata->devname);
     if (sdata->deferred_op_runner)
