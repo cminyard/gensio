@@ -119,6 +119,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
     struct gensio_wait_block *b;
 
+    (void) hinstDLL;
+    (void) lpvReserved;
     switch (fdwReason)
     {
     case DLL_PROCESS_DETACH:

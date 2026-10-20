@@ -38,6 +38,7 @@ get_echo_dev(Os_Funcs &o, char *echo_dev, gensiods len)
 
     rv = gensio_os_env_get(ECHO_DEV_ENV, echo_dev, &len);
 #ifdef _WIN32
+    (void) o;
     if (rv)
 	return rv;
 #else

@@ -632,6 +632,12 @@ unix_gensio_alloc(const void *gdata, const char * const args[],
     return net_gensio_alloc(iai, args, o, cb, user_data,
 			    GENSIO_NET_PROTOCOL_UNIX, "unix", NULL, new_gensio);
 #else
+    (void) gdata;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) new_gensio;
     return GE_NOTSUP;
 #endif
 }
@@ -649,6 +655,12 @@ unixseq_gensio_alloc(const void *gdata, const char * const args[],
 			    GENSIO_NET_PROTOCOL_UNIX_SEQPACKET, "unixseq",
 			    NULL, new_gensio);
 #else
+    (void) gdata;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) new_gensio;
     return GE_NOTSUP;
 #endif
 }
@@ -673,6 +685,12 @@ str_to_unixseq_gensio(const char *str, const char * const args[],
     return str_to_net_gensio(str, args, GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
 			     "unixseq", o, cb, user_data, new_gensio);
 #else
+    (void) str;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) new_gensio;
     return GE_NOTSUP;
 #endif
 }
@@ -1709,6 +1727,12 @@ unixseq_gensio_accepter_alloc(const void *gdata,
 				     "unixseq",
 				     accepter);
 #else
+    (void) gdata;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) accepter;
     return GE_NOTSUP;
 #endif
 }
@@ -1736,6 +1760,12 @@ str_to_unixseq_gensio_accepter(const char *str, const char * const args[],
 				      GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
 				      "unixseq", o, cb, user_data, acc);
 #else
+    (void) str;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) acc;
     return GE_NOTSUP;
 #endif
 }

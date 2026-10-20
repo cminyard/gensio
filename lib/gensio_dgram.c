@@ -74,6 +74,8 @@ netna_rm_unix_socket(struct gensio_addr *addr)
     /* Remove the socket if it already exists. */
     get_unix_addr_path(addr, path);
     unlink(path);
+#else
+    (void) addr;
 #endif
 }
 /*
@@ -2080,6 +2082,12 @@ unixdgram_gensio_accepter_alloc(const void *gdata,
 				       "unixdgram",
 				       accepter);
 #else
+    (void) gdata;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) accepter;
     return GE_NOTSUP;
 #endif
 }
@@ -2096,6 +2104,12 @@ str_to_unixdgram_gensio_accepter(const char *str, const char * const args[],
 					GENSIO_NET_PROTOCOL_UNIX_DGRAM,
 					"unixdgram", acc);
 #else
+    (void) str;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) acc;
     return GE_NOTSUP;
 #endif
 }
@@ -2392,6 +2406,12 @@ unixdgram_gensio_alloc(const void *gdata, const char * const args[],
 			      GENSIO_NET_PROTOCOL_UNIX_DGRAM, "unixdgram",
 			      new_gensio);
 #else
+    (void) gdata;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) new_gensio;
     return GE_NOTSUP;
 #endif
 }
@@ -2407,6 +2427,12 @@ str_to_unixdgram_gensio(const char *str, const char * const args[],
 			       GENSIO_NET_PROTOCOL_UNIX_DGRAM, "unixdgram",
 			       new_gensio);
 #else
+    (void) str;
+    (void) args;
+    (void) o;
+    (void) cb;
+    (void) user_data;
+    (void) new_gensio;
     return GE_NOTSUP;
 #endif
 }

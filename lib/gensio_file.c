@@ -97,6 +97,7 @@ f_writev(struct gensio_os_funcs *o,
     gensiods i, total = 0;
     size_t rv;
 
+    (void) o;
     for (i = 0; i < sglen; i++) {
 	rv = fwrite(sg[i].buf, 1, sg[i].buflen, f);
 	if (rv == 0) {
@@ -117,6 +118,7 @@ f_read(struct gensio_os_funcs *o,
 {
     size_t rv;
 
+    (void) o;
     rv = fread(buf, 1, len, f);
     if (rv == 0) {
 	rv = GE_REMCLOSE;
@@ -142,6 +144,8 @@ f_open(struct gensio_os_funcs *o,
     bool seekend = false;
     bool trunc = false;
 
+    (void) o;
+    (void) mode;
     if (flags & F_O_RDONLY) {
 	strcpy(fmode, "r");
     } else if (flags & F_O_WRONLY) {

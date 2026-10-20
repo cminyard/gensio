@@ -227,6 +227,8 @@ static int
 glob_str_setup(struct gensio_mdns *m, const char *str1,
 		struct mdns_str_data *sdata)
 {
+    (void) str1;
+    (void) sdata;
     gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: glob not supported");
     return GE_NOTSUP;
 }
@@ -1643,6 +1645,7 @@ result_find(struct gensio_mdns_watch_resolver *r,
     struct gensio_mdns_result *e = NULL;
     struct gensio_link *l;
 
+    (void) port;
     gensio_list_for_each(&r->results, l) {
 	e = gensio_container_of(l, struct gensio_mdns_result, link);
 
@@ -2132,12 +2135,16 @@ static void
 gensio_mdnslib_resolver_free(struct gensio_os_funcs *o,
 			     struct gensio_mdns_watch_resolver *r)
 {
+    (void) o;
+    (void) r;
 }
 
 static void
 gensio_mdnslib_browser_free(struct gensio_os_funcs *o,
 			    struct gensio_mdns_watch_browser *b)
 {
+    (void) o;
+    (void) b;
 }
 
 #endif /* HAVE_AVAHI */
@@ -3019,6 +3026,7 @@ win_browse_query_complete(void *context,
 				   ifidx, GENSIO_NETTYPE_IPV4,
 				   name, w->typestr, domain, host, addr,
 				   port, txt2);
+	    break;
 	}
 #ifdef AF_INET6
 	case DNS_TYPE_AAAA: {
@@ -3476,12 +3484,14 @@ gensio_mdnslib_disable(struct gensio_mdns *m)
 int
 gensio_mdnslib_start(struct gensio_mdns *m)
 {
+    (void) m;
     return 0;
 }
 
 static void
 gensio_mdnslib_disable(struct gensio_mdns *m)
 {
+    (void) m;
 }
 
 #endif
@@ -3670,6 +3680,8 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 int
 gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **m)
 {
+    (void) o;
+    (void) m;
     return GE_NOTSUP;
 }
 
@@ -3677,6 +3689,9 @@ int
 gensio_free_mdns(struct gensio_mdns *m,
 		 gensio_mdns_done done, void *userdata)
 {
+    (void) m;
+    (void) done;
+    (void) userdata;
     return GE_NOTSUP;
 }
 
@@ -3689,6 +3704,16 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 			int port, const char * const *txt,
 			struct gensio_mdns_service **rservice)
 {
+    (void) m;
+    (void) ifinterface;
+    (void) ipdomain;
+    (void) name;
+    (void) type;
+    (void) domain;
+    (void) host;
+    (void) port;
+    (void) txt;
+    (void) rservice;
     return GE_NOTSUP;
 }
 
@@ -3701,12 +3726,23 @@ gensio_mdns_add_service2(struct gensio_mdns *m,
 			 gensio_mdns_service_cb cb, void *cb_data,
 			 struct gensio_mdns_service **rservice)
 {
+    (void) m;
+    (void) ifinterface;
+    (void) ipdomain;
+    (void) name;
+    (void) type;
+    (void) domain;
+    (void) host;
+    (void) port;
+    (void) txt;
+    (void) rservice;
     return GE_NOTSUP;
 }
 
 int
 gensio_mdns_remove_service(struct gensio_mdns_service *s)
 {
+    (void) s;
     return GE_NOTSUP;
 }
 
@@ -3718,6 +3754,16 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 		      gensio_mdns_watch_cb callback, void *userdata,
 		      struct gensio_mdns_watch **rwatch)
 {
+    (void) m;
+    (void) ifinterface;
+    (void) ipdomain;
+    (void) name;
+    (void) type;
+    (void) domain;
+    (void) host;
+    (void) callback;
+    (void) userdata;
+    (void) rwatch;
     return GE_NOTSUP;
 }
 
@@ -3725,6 +3771,9 @@ int
 gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 			 gensio_mdns_watch_done done, void *userdata)
 {
+    (void) w;
+    (void) done;
+    (void) userdata;
     return GE_NOTSUP;
 }
 

@@ -399,6 +399,8 @@ vreport_err(struct gtinfo *g, const char *fmt, va_list ap)
 	vsyslog(LOG_ERR, fmt, ap);
 	return;
     }
+#else
+    (void) g;
 #endif
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");

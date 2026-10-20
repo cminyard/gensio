@@ -1509,7 +1509,7 @@ gensio_addr_addrinfo_getaddr(const struct gensio_addr *aaddr,
     }
 
     len = *rlen;
-    if (len > ai->ai_addrlen)
+    if (len > (gensiods) ai->ai_addrlen)
 	len = ai->ai_addrlen;
     memcpy(oaddr, ai->ai_addr, len);
     *rlen = ai->ai_addrlen;

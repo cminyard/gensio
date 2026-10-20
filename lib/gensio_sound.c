@@ -796,11 +796,11 @@ extend_sound_devs(char ***names, char ***specs, gensiods *size)
     gensiods nsize = *size + 10;
     char **nnames, **nspecs;
 
-    nnames = calloc(sizeof(*nnames), nsize);
+    nnames = calloc(nsize, sizeof(*nnames));
     if (!nnames)
 	return GE_NOMEM;
 
-    nspecs = calloc(sizeof(*nspecs), nsize);
+    nspecs = calloc(nsize, sizeof(*nspecs));
     if (!nspecs) {
 	free(nnames);
 	return GE_NOMEM;

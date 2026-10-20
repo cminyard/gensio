@@ -1057,7 +1057,8 @@ gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 			      struct gensio_os_proc_data *proc_data)
 {
 #ifdef _WIN32
-    return gensio_glib_wait(w, count, timeout);
+    (void) proc_data;
+    return i_gensio_glib_wait(w, count, timeout);
 #else
     int rv;
     sigset_t origmask;

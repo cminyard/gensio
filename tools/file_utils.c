@@ -219,6 +219,8 @@ int
 delete_file(gtlssh_logger logger, void *cbdata,
 	    const char *filename)
 {
+    (void) logger;
+    (void) cbdata;
     return !DeleteFileA(filename);
 }
 
@@ -239,6 +241,7 @@ make_link(gtlssh_logger logger, void *cbdata,
     DWORD err = 0;
     char errbuf[128];
 
+    (void) name;
     if (CreateHardLinkA(link, file, NULL) == 0) {
 	err = GetLastError();
 	if (err == ERROR_FILE_EXISTS || err == ERROR_ALREADY_EXISTS)
@@ -256,6 +259,7 @@ void
 make_dir(gtlssh_logger logger, void *cbdata,
 	 const char *dir, bool make_private)
 {
+    (void) make_private;
     if (CreateDirectoryA(dir, NULL) == 0) {
 	DWORD err = GetLastError();
 	char errbuf[128];
@@ -275,6 +279,7 @@ make_file(gtlssh_logger logger, void *cbdata,
 {
     HANDLE file;
 
+    (void) make_private;
     file = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
 		       FILE_ATTRIBUTE_NORMAL, NULL);
     if (!file) {

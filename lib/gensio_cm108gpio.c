@@ -283,7 +283,7 @@ find_usb_composite_parent(HDEVINFO devinfo, const SP_DEVINFO_DATA *cdev_data,
 {
     SP_DEVINFO_DATA dev_data = *cdev_data;
     unsigned int up_count = 3;
-    int j;
+    unsigned int j;
 
     while (up_count > 0) {
 	DEVPROPTYPE proptype = DEVPROP_TYPE_STRING;
@@ -493,6 +493,7 @@ static int
 hid_write(struct gensio_os_funcs *o, struct win_hid_fd *fd,
 	  unsigned char *io, unsigned int len)
 {
+    (void) o;
     if (len < fd->min_write) {
 	memset(fd->write_buffer, 0, fd->min_write);
 	memcpy(fd->write_buffer, io, len);

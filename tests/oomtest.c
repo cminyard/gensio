@@ -87,9 +87,6 @@ static const char *os_func_str = "";
 
 struct gensio_os_proc_data *proc_data;
 
-static int echo_comm_fd = -1;
-static char echo_comm_port[100];
-
 #ifdef _WIN32
 #include <windows.h>
 
@@ -102,6 +99,7 @@ typedef int ssize_t;
 bool
 file_is_accessible_dev(const char *filename)
 {
+    (void) filename;
     return true; /* FIXME - what to do here? */
 }
 
@@ -112,7 +110,7 @@ file_is_accessible_dev(const char *filename)
 #define WIFSIGNALED(n) ((n) >= 128)
 #define WTERMSIG(n) (n)
 const char *
-strsignal(int n)
+strsignal(unsigned long n)
 {
     if (n == STATUS_ACCESS_VIOLATION)
 	return "access violation";
@@ -141,6 +139,9 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 }
 
 #else /* _WIN32 */
+
+static int echo_comm_fd = -1;
+static char echo_comm_port[100];
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -968,6 +969,8 @@ handle_timeout_err(struct oom_test_data *od)
 	    kill(pid, SIGSEGV);
 	}
     }
+#else
+    (void) od;
 #endif
     while (sleep_on_timeout_err)
 	sleep(100);

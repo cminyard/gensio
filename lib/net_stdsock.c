@@ -2042,6 +2042,8 @@ static int
 gensio_stdsock_set_extrainfo(struct gensio_iod *iod, unsigned int val)
 {
 #ifndef HAVE_RECVMSG
+    (void) iod;
+    (void) val;
     return GE_NOTSUP;
 #else
     struct gensio_os_funcs *o = iod->f;
@@ -2095,6 +2097,8 @@ static int
 gensio_stdsock_get_extrainfo(struct gensio_iod *iod, unsigned int *val)
 {
 #ifndef HAVE_RECVMSG
+    (void) iod;
+    (void) val;
     return GE_NOTSUP;
 #else
     struct gensio_os_funcs *o = iod->f;
@@ -2400,7 +2404,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o,
 	     * Make sure the path is nil terminated.  See discussions
 	     * in the unix(7) man page on Linux for details.
 	     */
-	    assert(addrlen <= sizeof(*unaddr));
+	    assert((unsigned long) addrlen <= sizeof(*unaddr));
 	    memcpy(unpath, unaddr->sun_path, addrlen-SIZEOF_SOCKADDR_UN_HEADER);
 	    unpath[addrlen - SIZEOF_SOCKADDR_UN_HEADER] = '\0';
 

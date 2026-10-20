@@ -168,6 +168,9 @@ gensio_setup_pty(struct pty_data *tdata, struct gensio_iod *iod)
     err = errno;
  out_err:
     err = gensio_os_err_to_err(tdata->o, err);
+#else
+    (void) tdata;
+    (void) iod;
 #endif
     return err;
 }
@@ -180,6 +183,8 @@ gensio_cleanup_pty(struct pty_data *tdata)
 	unlink(tdata->link);
 	tdata->link_created = false;
     }
+#else
+    (void) tdata;
 #endif
 }
 

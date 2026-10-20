@@ -61,6 +61,7 @@ i_gensio_mres_err_to_err(struct sound_info *si, MMRESULT mres,
     int err;
     char errbuf[128];
 
+    (void) file;
     switch (mres) {
     case MMSYSERR_ALLOCATED:	err = GE_INUSE; break;
     case MMSYSERR_BADDEVICEID:
@@ -295,6 +296,8 @@ gensio_sound_win_api_set_read(struct sound_info *si, bool enable)
 static void
 gensio_sound_win_api_set_write(struct sound_info *si, bool enable)
 {
+    (void) si;
+    (void) enable;
     /* Nothing to do here. */
 }
 
@@ -470,6 +473,9 @@ gensio_sound_win_in_handler(HWAVEIN   hwi,
     struct win_bufhdr *hdr;
     struct win_sound_info *w;
 
+    (void) hwi;
+    (void) dwInstance;
+    (void) dwParam2;
     if (uMsg != WIM_DATA)
 	return;
 
@@ -512,6 +518,9 @@ gensio_sound_win_out_handler(HWAVEOUT  hwo,
     struct win_bufhdr *hdr;
     struct win_sound_info *w;
 
+    (void) hwo;
+    (void) dwInstance;
+    (void) dwParam2;
     if (uMsg != WOM_DONE)
 	return;
 
@@ -704,6 +713,7 @@ gensio_sound_win_api_setup(struct gensio_pparm_info *p,
 {
     struct gensio_os_funcs *o = si->soundll->o;
 
+    (void) p;
     si->cardname = gensio_strdup(o, io->devname);
     if (!si->cardname)
 	return GE_NOMEM;
@@ -740,6 +750,7 @@ gensio_sound_win_api_devices(struct gensio_os_funcs *o,
     WAVEOUTCAPS ocaps;
     char **names = NULL, **specs = NULL;
 
+    (void) o;
     ndevs = waveInGetNumDevs();
     for (i = 0; i < ndevs; i++) {
 	char *name = NULL, *spec = NULL, tspec[100];

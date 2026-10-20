@@ -867,6 +867,7 @@ DWORD
 gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
 			       struct gensio_win_commport **c)
 {
+    (void) o;
     if (!(*c)->break_set)
 	if (!EscapeCommFunction(h, CLRBREAK))
 	    return GetLastError();

@@ -170,6 +170,7 @@ log_event(int level, const char *format, ...)
 static void
 start_log(bool debug)
 {
+    (void) debug;
     evlog = OpenEventLogA(NULL, progname);
     if (!evlog) {
 	char errbuf[128];
@@ -553,6 +554,9 @@ write_utmp(struct auth_data *auth, bool is_login)
 #ifdef WTMPX_FILE
     updwtmpx(WTMPX_FILE, &u);
 #endif
+#else
+    (void) auth;
+    (void) is_login;
 #endif
 }
 
@@ -1998,6 +2002,7 @@ switch_from_user(struct auth_data *auth)
 static int
 setup_auth(struct auth_data *auth)
 {
+    (void) auth;
     return 0;
 }
 
@@ -3227,6 +3232,7 @@ setup_new_connection(struct gdata *ginfo, struct gensio *io)
 static void
 do_daemonize(struct gensio_os_funcs *o)
 {
+    (void) o;
 }
 
 static void

@@ -322,11 +322,15 @@ flock_mk_lock(struct gensio_os_funcs *o, int fd)
 static void
 flock_rm_lock(struct gensio_os_funcs *o, int fd)
 {
+    (void) o;
+    (void) fd;
 }
 
 static int
 flock_mk_lock(struct gensio_os_funcs *o, int fd)
 {
+    (void) o;
+    (void) fd;
     return 0;
 }
 

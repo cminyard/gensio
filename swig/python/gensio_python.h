@@ -189,9 +189,11 @@ static void os_funcs_unlock(struct os_funcs_data *odata)
 #else
 void os_funcs_lock(struct os_funcs_data *odata)
 {
+    (void) odata;
 }
 void os_funcs_unlock(struct os_funcs_data *odata)
 {
+    (void) odata;
 }
 #endif
 

@@ -1039,6 +1039,7 @@ static bool
 is_a_pty(const char *ttyname)
 {
 #ifdef _WIN32
+    (void) ttyname;
     return false;
 #else
     char buf[PATH_MAX];

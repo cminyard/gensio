@@ -1168,12 +1168,14 @@ win_free_funcs(struct gensio_os_funcs *o)
 static void win_get_monotonic_time(struct gensio_os_funcs *o,
 				   gensio_time *time)
 {
+    (void) o;
     win_ms64_time_to_gensio(time, GetTickCount64());
 }
 
 static int win_handle_fork(struct gensio_os_funcs *o)
 {
     /* FIXME */
+    (void) o;
     return GE_NOTSUP;
 }
 
@@ -1181,6 +1183,7 @@ static int win_wait_intr_sigmask(struct gensio_waiter *waiter,
 				 unsigned int count, gensio_time *timeout,
 				 struct gensio_os_proc_data *proc_data)
 {
+    (void) proc_data;
     return win_wait_intr(waiter, count, timeout);
 }
 
@@ -1347,6 +1350,7 @@ win_iod_socket_init(struct gensio_iod_win *wiod, void *cb_data)
     DWORD socktype = 0;
     int socklen = sizeof(socktype);
 
+    (void) cb_data;
     rv = getsockopt(wiod->fd, SOL_SOCKET, SO_TYPE,
 		    (char *) &socktype, &socklen);
     if (rv)
@@ -1408,6 +1412,7 @@ struct gensio_iod_win_file {
 static void
 win_dummy_wake(struct gensio_iod_win *wiod)
 {
+    (void) wiod;
 }
 
 static int
@@ -1909,6 +1914,7 @@ win_iod_oneway_init(struct gensio_iod_win *wiod, void *cb_data)
     struct gensio_iod_win_oneway *owiod = wiod_to_win_oneway(wiod);
     struct gensio_os_funcs* o = wiod->iod.f;
 
+    (void) cb_data;
     owiod->buf = gensio_circbuf_alloc(o, 2048);
     if (!owiod->buf)
 	return GE_NOMEM;
@@ -1992,6 +1998,7 @@ win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
     BOOL readable;
     int rv;
 
+    (void) cb_data;
     if (wiod->fd > 1 || wiod->fd < 0)
 	return GE_INVAL;
 
@@ -3040,6 +3047,7 @@ static void win_pty_read_handler(struct gensio_iod *iod, void *cb_data)
 {
     struct gensio_iod_win_pty *piod = cb_data;
 
+    (void) iod;
     piod->wiod.read.handler(&piod->wiod.iod, piod->wiod.cb_data);
 }
 
@@ -3047,6 +3055,7 @@ static void win_pty_write_handler(struct gensio_iod *iod, void *cb_data)
 {
     struct gensio_iod_win_pty *piod = cb_data;
 
+    (void) iod;
     piod->wiod.write.handler(&piod->wiod.iod, piod->wiod.cb_data);
 }
 
@@ -3054,6 +3063,7 @@ static void win_pty_except_handler(struct gensio_iod *iod, void *cb_data)
 {
     struct gensio_iod_win_pty *piod = cb_data;
 
+    (void) iod;
     piod->wiod.except.handler(&piod->wiod.iod, piod->wiod.cb_data);
 }
 
@@ -3063,6 +3073,7 @@ static void win_pty_cleared_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_iod_win *wiod = &piod->wiod;
     void (*cleared)(struct gensio_iod *iod, void *cb_data) = NULL;
 
+    (void) iod;
     EnterCriticalSection(&wiod->lock);
     assert(piod->clearcount > 0);
     piod->clearcount--;
@@ -3132,6 +3143,7 @@ win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
     BOOL readable;
     int err;
 
+    (void) cb_data;
     wiod->clean = win_iod_pty_clean;
     wiod->set_read_handler = win_pty_set_read_handler;
     wiod->set_write_handler = win_pty_set_write_handler;
@@ -3730,6 +3742,7 @@ win_read_flags(struct gensio_iod *iod, unsigned char *buf,
 static bool
 win_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 {
+    (void) o;
     switch (fd) {
     case 0:
 	return GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_DISK;
@@ -3776,6 +3789,7 @@ win_flush(struct gensio_iod *iod, int whichbuf)
 {
     struct gensio_iod_win *wiod = iod_to_win(iod);
 
+    (void) whichbuf;
     if (wiod->type == GENSIO_IOD_CONSOLE ||
 	wiod->type == GENSIO_IOD_PIPE)
 	win_oneway_flush(wiod);
@@ -3971,6 +3985,7 @@ gensio_win_control(struct gensio_os_funcs *o, int func, void *data,
 {
     struct gensio_data *d = o->user_data;
 
+    (void) datalen;
     switch (func) {
     case GENSIO_CONTROL_SET_PROC_DATA:
 	d->proc_data = data;
@@ -4178,6 +4193,7 @@ gensio_os_thread_setup(struct gensio_os_funcs *o)
     HRESULT res;
     void *threadval;
 
+    (void) o;
     if (!threadinfo_setup) {
 	AcquireSRWLockExclusive(&threadinfo_idx_lock);
 	if (!threadinfo_setup) {
@@ -4255,6 +4271,7 @@ proc_release_sem(struct gensio_os_proc_data *data)
 {
     BOOL rvb;
 
+    (void) data;
     rvb = ReleaseSemaphore(proc_data.global_waiter, 1, NULL);
     if (!rvb)
 	/* Too many posts is improbable, but ok. */
@@ -4412,6 +4429,9 @@ gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
 				       void (*handler)(void *handler_data),
 				       void *handler_data)
 {
+    (void) data;
+    (void) handler;
+    (void) handler_data;
     return GE_NOTSUP;
 }
 
@@ -4508,6 +4528,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 {
     int err;
 
+    (void) file;
     if (oserr == 0)
 	return 0;
 
@@ -4558,6 +4579,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
     int err = 0;
 
+    (void) wake_sig;
     AcquireSRWLockExclusive(&def_win_os_funcs_lock);
     if (!def_win_os_funcs)
 	err = i_gensio_win_funcs_alloc(0, &def_win_os_funcs);
@@ -4574,6 +4596,8 @@ int
 gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		       unsigned int flags, va_list va)
 {
+    (void) wake_sig;
+    (void) va;
     return i_gensio_win_funcs_alloc(flags, o);
 }
 
@@ -4581,6 +4605,7 @@ int
 gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		      unsigned int flags, ...)
 {
+    (void) wake_sig;
     return i_gensio_win_funcs_alloc(flags, o);
 }
 

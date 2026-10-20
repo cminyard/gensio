@@ -58,6 +58,7 @@ cmd_handler(LPVOID data)
     unsigned char *buf = (unsigned char *) &cmd;
     DWORD buflen = 0, len;
 
+    (void) data;
     while (!in_exit) {
 	if (!ReadFile(ctl_s, buf + buflen, sizeof(cmd) - buflen, &len,
 		      NULL))
@@ -79,6 +80,7 @@ to_child_handler(LPVOID data)
     unsigned char buf[1024];
     DWORD buflen, len;
 
+    (void) data;
     while (!in_exit) {
 	if (!ReadFile(in, buf, sizeof(buf), &buflen, NULL))
 	    break;
@@ -95,6 +97,7 @@ from_child_handler(LPVOID data)
     unsigned char buf[1024];
     DWORD buflen, len;
 
+    (void) data;
     while (!in_exit) {
 	if (!ReadFile(readh_m, buf, sizeof(buf), &buflen, NULL))
 	    break;
