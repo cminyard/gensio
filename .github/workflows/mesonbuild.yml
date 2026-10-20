@@ -1,8 +1,4 @@
-# Build and test with meson on Linux, macOS and Windows (MinGW).  The
-# full test suite, including the oomtests, needs the fixes from
-# https://github.com/cminyard/gensio/pull/104,
-# https://github.com/cminyard/gensio/pull/105 and
-# https://github.com/cminyard/gensio/pull/106.
+# Build and test with meson on Linux, macOS and Windows (MinGW).
 name: MesonBuild
 on:
   push:
