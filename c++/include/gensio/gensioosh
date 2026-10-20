@@ -9,6 +9,10 @@
 #ifndef GENSIOOSH_CPP_INCLUDE
 #define GENSIOOSH_CPP_INCLUDE
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 #include <string>
 #include <stdexcept>
 #include <atomic>
