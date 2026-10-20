@@ -12,11 +12,17 @@ libgensiotool = static_library(
 build_ssl = 'ssl' in builtin_gensios or 'ssl' in dynamic_gensio_names
 
 gensiot_link = [libgensiotool, libgensioosh, libgensio]
+gensiot_deps = []
+if found_deps['openssl'].found()
+    gensiot_deps += found_deps['openssl']
+endif
 if found_deps['glib-2.0'].found()
     gensiot_link += libgensioglib
+    gensiot_deps += found_deps['glib-2.0']
 endif
 if found_deps['tcl'].found()
     gensiot_link += libgensiotcl
+    gensiot_deps += found_deps['tcl']
 endif
 
 executable(
@@ -24,11 +30,7 @@ executable(
     'gensiotool.c',
     link_with: gensiot_link,
     include_directories: [top_inc, inc_inc, glib_inc, tcl_inc],
-    dependencies: [
-        found_deps['glib-2.0'],
-        found_deps['openssl'],
-        found_deps['tcl'],
-    ],
+    dependencies: gensiot_deps,
     install: true,
 )
 install_man('gensiot.1')

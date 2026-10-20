@@ -36,18 +36,21 @@ sh = find_program('sh')
 openssl_prog = find_program('openssl', required: false)
 
 oomtest_link = [libgensioosh, libgensio]
+oomtest_deps = osh_libs
 if found_deps['glib-2.0'].found()
     oomtest_link += libgensioglib
+    oomtest_deps += found_deps['glib-2.0']
 endif
 if found_deps['tcl'].found()
     oomtest_link += libgensiotcl
+    oomtest_deps += found_deps['tcl']
 endif
 oomtest = executable(
     'oomtest',
     'oomtest.c',
     include_directories: [top_inc, inc_inc, glib_inc, tcl_inc],
     link_with: oomtest_link,
-    dependencies: [found_deps['glib-2.0'], found_deps['tcl']] + osh_libs,
+    dependencies: oomtest_deps,
     build_by_default: false,
 )
 # Used by test_script.py

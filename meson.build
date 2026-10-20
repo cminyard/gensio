@@ -224,6 +224,9 @@ foreach d : deps
         # Only use pkg-config, so the deprecated macOS system Tcl
         # framework isn't used (configure doesn't find it either).
         dep = dependency(d.get(1), required: required, method: 'pkg-config')
+    elif d.get(0) == 'HAVE_GLIB' and target_machine.system() == 'windows'
+        # No glib support on windows yet.
+	dep = disabler()
     else
         dep = dependency(d.get(1), required: required)
     endif
