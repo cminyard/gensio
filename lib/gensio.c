@@ -2614,7 +2614,7 @@ struct gensio_def_entry builtin_defaults[] = {
     /* For chardelay */
     { "min-delay",	GENSIO_DEFAULT_STR,	.def.strval = "1m" },
     { "max-delay",	GENSIO_DEFAULT_STR,	.def.strval = "20m" },
-    { NULL }
+    { NULL, 0, .def.strval = NULL }
 };
 
 static struct gensio_def_entry *defaults;

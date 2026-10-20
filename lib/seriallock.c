@@ -263,12 +263,19 @@ uucp_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 static void
 uucp_rm_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 {
+    (void) o;
+    (void) fd;
+    (void) devname;
 }
 
 static int
 uucp_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 	     int fd, const char *devname)
 {
+    (void) o;
+    (void) ll;
+    (void) fd;
+    (void) devname;
     return 0;
 }
 

@@ -51,7 +51,7 @@ static struct penum_val parity_enums[] = {
     { "ODD", GENSIO_SER_PARITY_ODD },
     { "MARK", GENSIO_SER_PARITY_MARK },
     { "SPACE", GENSIO_SER_PARITY_SPACE },
-    { NULL }
+    { NULL, 0 }
 };
 
 static int

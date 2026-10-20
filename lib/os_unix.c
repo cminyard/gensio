@@ -2112,6 +2112,7 @@ check_for_sigpending(sigset_t *check_for)
     }
     return rv;
 #else
+    (void) check_for;
     return 0;
 #endif
 #if 0

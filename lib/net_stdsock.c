@@ -772,6 +772,8 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
 		       sizeof(val)) == -1)
 	    return -1;
     }
+#else
+    (void) protocol;
 #endif
     return 0;
 }

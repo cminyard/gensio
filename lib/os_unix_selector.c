@@ -563,6 +563,9 @@ sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
 static int
 sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
 {
+    (void) sel;
+    (void) fdc;
+    (void) op;
     return 1;
 }
 #endif
@@ -1634,6 +1637,7 @@ int
 sel_setup_forked_process(struct selector_s *sel)
 {
     /* Nothing to do. */
+    (void) sel;
     return 0;
 }
 #endif

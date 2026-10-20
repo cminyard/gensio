@@ -3043,6 +3043,10 @@ process_rs485(struct gensio_os_funcs *o, struct gensio_unix_termios *t, int fd,
     err = GE_INVAL;
     goto out;
 #else
+    (void) o;
+    (void) t;
+    (void) fd;
+    (void) str;
     return GE_NOTSUP;
 #endif
 }

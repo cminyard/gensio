@@ -831,7 +831,7 @@ struct oom_tests oom_tests[] = {
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
     },
-    { NULL }
+    { .connecter = NULL }
 };
 
 static struct gensio_os_funcs *o;
@@ -2152,6 +2152,8 @@ getrandom(void *ibuf, size_t buflen, unsigned int flags)
 {
     size_t i;
     unsigned char *buf = ibuf;
+
+    (void) flags;
 
     for (i = 0; i < buflen; i++)
 	buf[i] = rand();

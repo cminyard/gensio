@@ -818,6 +818,11 @@ dnssd_service_done(DNSServiceRef sdRef,
     struct gensio_mdns_service *s = context;
     struct gensio_mdns *m = s->m;
 
+    (void) sdRef;
+    (void) flags;
+    (void) regtype;
+    (void) domain;
+
     if (errorCode) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Error from service registration: %d", errorCode);
@@ -1974,6 +1979,7 @@ static void
 gensio_mdnslib_resolver_free(struct gensio_os_funcs *o,
 			     struct gensio_mdns_watch_resolver *r)
 {
+    (void) o;
     DNSServiceRefDeallocate(r->dnssd_sref);
 }
 
@@ -1981,6 +1987,7 @@ static void
 gensio_mdnslib_browser_free(struct gensio_os_funcs *o,
 			    struct gensio_mdns_watch_browser *b)
 {
+    (void) o;
     DNSServiceRefDeallocate(b->dnssd_sref);
 }
 
@@ -2004,6 +2011,9 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
     enum gensio_mdns_data_state state;
     char *host = NULL;
     const char **txt = NULL;
+
+    (void) sdRef;
+    (void) ttl;
 
     if (errorCode) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
@@ -2085,6 +2095,10 @@ gensio_mdnslib_start_resolver(struct gensio_mdns *m,
     uint32_t sinterface;
     DNSServiceProtocol sprotocol;
     int err;
+
+    (void) type;
+    (void) domain;
+    (void) iaprotocol;
 
     err = interface_to_dnssd_interface(ifinterface, &sinterface);
     if (err)
@@ -2559,6 +2573,9 @@ dnssd_service_callback(DNSServiceRef sdRef,
     const char **txt = NULL;
     char *host = NULL;
 
+    (void) sdRef;
+    (void) fullname;
+
     port = ntohs(port);
 
     if (errorCode) {
@@ -2638,6 +2655,8 @@ dnssd_watch_callback(DNSServiceRef sdRef,
     int ifinterface, err = 0;
     char *type = NULL;
     char *domain = NULL;
+
+    (void) sdRef;
 
     if (w->removed)
 	return;
@@ -3378,6 +3397,8 @@ dnssd_read_handler(struct gensio_iod *iod, void *cb_data)
 {
     struct gensio_mdns *m = cb_data;
 
+    (void) iod;
+
     gensio_mdns_lock(m);
     DNSServiceProcessResult(m->dnssd_sref);
     gensio_mdns_unlock(m);
@@ -3393,6 +3414,8 @@ static void
 dnssd_cleared_handler(struct gensio_iod *iod, void *cb_data)
 {
     struct gensio_mdns *m = cb_data;
+
+    (void) iod;
 
     gensio_mdns_lock(m);
     m->o->release_iod(m->iod);

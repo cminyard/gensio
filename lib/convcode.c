@@ -153,16 +153,10 @@ convcode_encoded_bits_from_encoded_bytes
 {
     unsigned int size = nbytes * 8;
     unsigned int tail_size = 0;
-    unsigned int nsyms, p = 0, i;
+    unsigned int nsyms;
     int err;
 
     if (puncture) {
-	/* p is the number of bits set in the puncture. */
-	for (i = 0; i < puncture_len; i++) {
-	    if (puncture[i])
-		p++;
-	}
-
 	/* Go backwards until we find one that works. */
 	err = convcode_decoded_size(size, num_polys, k, do_tail,
 				    puncture, puncture_len, &nsyms);

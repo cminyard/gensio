@@ -31,8 +31,6 @@ private:
 
 class Close_Done: public Gensio_Close_Done {
 public:
-    Close_Done(Waiter *w): waiter(w) { }
-
     void set_gensio(Gensio *g) { io = g; }
 
 private:
@@ -42,7 +40,6 @@ private:
     }
 
     Gensio *io = NULL;
-    Waiter *waiter;
 };
 
 class Client_Event: public Event {
@@ -144,7 +141,7 @@ do_client_test(Os_Funcs &o, string ios)
     Gensio *g;
     string s("This is a test!\r\n");
     Open_Done oe(&w);
-    Close_Done ce(&w);
+    Close_Done ce;
     Client_Event e(&w, (unsigned char *) s.c_str(), (gensiods) s.size(), &ce);
     const char *errstr;
     gensio_time waittime = { 2, 0 };
