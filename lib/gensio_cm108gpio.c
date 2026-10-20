@@ -207,9 +207,14 @@ hid_write(struct gensio_os_funcs *o, int fd,
 {
     int rv, err = 0;
 
-    rv = write(fd, io, len);
-    if (rv != len)
-	err = gensio_os_err_to_err(o, errno);
+    while (len > 0) {
+	rv = write(fd, io, len);
+	if (rv < 0) {
+	    err = gensio_os_err_to_err(o, errno);
+	    return err;
+	}
+	len -= rv;
+    }
 
     return err;
 }

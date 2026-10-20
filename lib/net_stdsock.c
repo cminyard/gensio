@@ -2368,7 +2368,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o,
     if (rv == -1)
 	return GE_INVAL;
 
-    if (addrlen < 0)
+    if (addrlen <= 0)
 	return GE_INVAL;
     if ((unsigned int) addrlen > sizeof(sa))
 	return GE_TOOBIG;

@@ -1570,7 +1570,7 @@ gensio_sol_cleanup_mem(void)
 }
 
 static struct gensio_class_cleanup sol_cleanup = {
-    gensio_sol_cleanup_mem
+    .cleanup = gensio_sol_cleanup_mem
 };
 
 

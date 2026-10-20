@@ -458,7 +458,7 @@ compare_128bit_mask(unsigned int subnet_mask,
 	subnet_mask -= 8;
     }
     if (subnet_mask > 0) {
-	mask = ~0 << (8 - subnet_mask);
+	mask = ~0U << (8 - subnet_mask);
 	if ((a1.s6_addr[i] & mask) != (a2.s6_addr[i] & mask))
 	    return false;
     }

@@ -223,7 +223,7 @@ class Telnet_Logger: public Os_Funcs_Log_Handler {
 // This is a demo of an extra thread we start, using the RAII principle.
 class Telnet_Thread: public Os_Funcs_Thread_Func {
 public:
-    Telnet_Thread(Os_Funcs &o) : w(o), o(o) {
+    Telnet_Thread(Os_Funcs &o) : o(o), w(o) {
 	tid = o.new_thread(this);
     }
 

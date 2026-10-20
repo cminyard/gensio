@@ -657,7 +657,7 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
     }
     rv = fwrite(ipmisim_emu, 1, strlen(ipmisim_emu), f);
     fclose(f);
-    if (rv != strlen(ipmisim_emu)) {
+    if (rv != (ssize_t) strlen(ipmisim_emu)) {
 	printf("Unable to write ipmisim emu file '%s',\n"
 	       "skipping ipmisol test\n", test->emuname);
 	goto out_err;
@@ -2164,7 +2164,7 @@ fill_random(void *buf, size_t buflen)
 {
     ssize_t randsize = 0, randrv;
 
-    while (randsize < buflen) {
+    while (randsize < (ssize_t) buflen) {
 	randrv = getrandom(((char *) buf) + randsize, buflen - randsize, 0);
 	if (randrv < 0) {
 	    perror("getrandom");
@@ -2203,7 +2203,8 @@ main(int argc, char *argv[])
     int rv;
     struct gensio_thread *loopth[3];
     struct gensio_waiter *loopwaiter[3];
-    unsigned int i, j;
+    int i;
+    unsigned int j;
     unsigned long errcount = 0, skipcount = 0, testcount = 0;
     unsigned int repeat_count = 1;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;

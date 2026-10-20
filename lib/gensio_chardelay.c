@@ -210,7 +210,7 @@ chardelay_ul_write(struct chardelay_filter *rfilter,
 	 * the end of a sendon string, we have a match.
 	 */
 	for (j = 0; j < len; j++) {
-	    for (k = 0; k < rfilter->config.sendonc; k++) {
+	    for (k = 0; k < (unsigned int) rfilter->config.sendonc; k++) {
 		gensiods pos = rfilter->sendon_pos[k];
 
 		if (rfilter->config.sendon[k][pos] == buf[j]) {
@@ -491,7 +491,7 @@ gensio_chardelay_config(struct gensio_pparm_info *p,
     }
 
     if (config->sendon) {
-	for (i = 0; i < config->sendonc; i++) {
+	for (i = 0; i < (unsigned int) config->sendonc; i++) {
 	    if (config->sendon_lens[i] == 0) {
 		gensio_pparm_slog(p, "sendon strings must not be empty");
 		goto out_inval;

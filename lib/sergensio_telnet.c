@@ -507,7 +507,7 @@ com_port_will_do(void *cb_data, unsigned char cmd)
 }
 
 static void
-com_port_handler(void *cb_data, unsigned char *option, int len)
+com_port_handler(void *cb_data, unsigned char *option, unsigned int len)
 {
     struct telnet_filter *tfilter = cb_data;
     unsigned int exp_option;
@@ -565,7 +565,7 @@ rfc1073_will_do(void *cb_data, unsigned char cmd)
 }
 
 static void
-rfc1073_handler(void *cb_data, unsigned char *option, int len)
+rfc1073_handler(void *cb_data, unsigned char *option, unsigned int len)
 {
     struct telnet_filter *tfilter = cb_data;
 
@@ -926,14 +926,20 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 static struct telnet_cmd telnet_server_cmds[] =
 {
     /*                        I will,  I do,  sent will, sent do */
-    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       1, },
-    { TN_OPT_ECHO,		   1,     0,          1,       1, },
-    { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1, },
+    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       1,
+      0, 0, NULL, NULL },
+    { TN_OPT_ECHO,		   1,     0,          1,       1,
+      0, 0, NULL, NULL },
+    { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1,
+      0, 0, NULL, NULL },
 #define SERV_COM_PORT_POS 3
-    { TN_OPT_COM_PORT,		   0,     0,          0,       0, },
+    { TN_OPT_COM_PORT,		   0,     0,          0,       0,
+      0, 0, NULL, NULL },
 #define SERV_RFC1073_POS 4
-    { TN_OPT_NAWS,		   0,     0,          0,       0, },
-    { TELNET_CMD_END_OPTION }
+    { TN_OPT_NAWS,		   0,     0,          0,       0,
+      0, 0, NULL, NULL },
+    { TELNET_CMD_END_OPTION,	   0,     0,          0,       0,
+      0, 0, NULL, NULL }
 };
 
 static unsigned char telnet_server_init_seq[] = {
@@ -953,14 +959,20 @@ static unsigned char telnet_server_rfc1073_seq[] = {
 
 static const struct telnet_cmd telnet_client_cmds[] = {
     /*                        I will,  I do,  sent will, sent do */
-    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     0,          0,       0, },
-    { TN_OPT_ECHO,		   1,     0,          0,       0, },
-    { TN_OPT_BINARY_TRANSMISSION,  1,     1,          0,       0, },
+    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     0,          0,       0,
+      0, 0, NULL, NULL },
+    { TN_OPT_ECHO,		   1,     0,          0,       0,
+      0, 0, NULL, NULL },
+    { TN_OPT_BINARY_TRANSMISSION,  1,     1,          0,       0,
+      0, 0, NULL, NULL },
 #define CLIENT_COM_PORT_POS 3
-    { TN_OPT_COM_PORT,		   0,     0,          0,       0, },
+    { TN_OPT_COM_PORT,		   0,     0,          0,       0,
+      0, 0, NULL, NULL },
 #define CLIENT_RFC1073_POS 4
-    { TN_OPT_NAWS,		   0,     0,          0,       0, },
-    { TELNET_CMD_END_OPTION }
+    { TN_OPT_NAWS,		   0,     0,          0,       0,
+      0, 0, NULL, NULL },
+    { TELNET_CMD_END_OPTION,	   0,     0,          0,       0,
+      0, 0, NULL, NULL }
 };
 
 static const unsigned char telnet_client_rfc2217_seq[] = {

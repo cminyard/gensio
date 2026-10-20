@@ -82,7 +82,7 @@ struct alsa_sound_format_cnv {
     { GENSIO_SOUND_FMT_S16_LE, SND_PCM_FORMAT_S16_LE },
     { GENSIO_SOUND_FMT_U16_LE, SND_PCM_FORMAT_U16_LE },
 
-    { GENSIO_SOUND_FMT_UNKNOWN }
+    { GENSIO_SOUND_FMT_UNKNOWN, GENSIO_SOUND_FMT_UNKNOWN }
 };
 
 static enum gensio_sound_fmt_type fallback_order[] = {

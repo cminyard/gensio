@@ -326,9 +326,9 @@ check_waitpid(struct stdion_channel *schan)
 	if (rv == GE_INPROGRESS) {
 	    goto try_again;
 	} else {
-	    if (rv)
+	    if (rv) {
 		/* FIXME = no real way to report this. */
-		;
+	    }
 
 	    nadata->exit_code_set = true;
 	    nadata->opid = -1;

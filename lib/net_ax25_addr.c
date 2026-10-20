@@ -171,7 +171,7 @@ ax25_addr_getaddr(const struct gensio_addr *addr, void *oaddr, gensiods *rlen)
     *rlen = sizeof(struct gensio_ax25_addr);
 }
 
-const static struct gensio_addr_funcs ax25_addr_funcs = {
+static const struct gensio_addr_funcs ax25_addr_funcs = {
     .addr_equal = ax25_addr_equal,
     .addr_to_str = ax25_addr_to_str,
     .addr_to_str_all = ax25_addr_to_str,

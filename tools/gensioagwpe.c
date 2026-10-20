@@ -657,7 +657,7 @@ packet_to_addr(struct agwpe_packet *p, bool via, char *addr, unsigned int len,
     if (pos > len)
 	return false;
     if (via) {
-	if (p->len < 1 || p->len < (p->data[0] * 10 + 1))
+	if (p->len < 1 || p->len < ((unsigned int ) p->data[0] * 10 + 1))
 	    return false;
 	if (p->data[0] > GENSIO_AX25_ADDR_MAX_EXTRA)
 	    return false;
@@ -1542,7 +1542,7 @@ main(int argc, char *argv[])
 {
     char *agwpe_gensio = "tcp,7001";
     char *tnc_gensio;
-    unsigned int i;
+    int i;
     int rv;
     struct gensio_os_proc_data *proc_data = NULL;
     struct accinfo ai_data, *ai = &ai_data;

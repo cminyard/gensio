@@ -176,8 +176,8 @@ static const OSSL_DISPATCH dummy_rand_functions[] = {
 };
 
 static const OSSL_ALGORITHM dummy_rand_rand[] = {
-    { "dummy", "provider=dummy-rand", dummy_rand_functions },
-    { NULL, NULL, NULL }
+    { "dummy", "provider=dummy-rand", dummy_rand_functions, NULL },
+    { NULL, NULL, NULL, NULL }
 };
 
 static const OSSL_ALGORITHM *dummy_rand_query(void *provctx,

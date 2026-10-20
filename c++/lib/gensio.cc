@@ -343,7 +343,6 @@ namespace gensios {
     gensio_alloc(struct gensio *io, Os_Funcs &o)
     {
 	struct gensio *cio;
-	struct sergensio *sio;
 	unsigned int i;
 	struct gensio_frdata *f;
 	struct gensio_cpp_data *d;

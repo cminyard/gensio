@@ -79,7 +79,8 @@ struct telnet_cmd
 
     /* If this is non-null, this will be called on any options
        received by the code */
-    void (*option_handler)(void *cb_data, unsigned char *option, int len);
+    void (*option_handler)(void *cb_data, unsigned char *option,
+			   unsigned int len);
 
     /* If this is non-null, this will be called if a will/wont/do/dont
        command is sent by the remote end.  For will and do commands,
