@@ -783,7 +783,14 @@ fd_finish_cleared(struct fd_ll *fdll)
 {
     if (fdll->iod)
 	fdll->o->close(&fdll->iod);
-    if (fdll->state == FD_OPEN_ERR_WAIT)
+    /*
+     * Report the open error for errors during open and if fd_open()
+     * had to close after sub_open().  Note that open_done is not
+     * cleared if the open completed immediately, so check open_err,
+     * too.
+     */
+    if (fdll->state == FD_OPEN_ERR_WAIT ||
+		(fdll->open_done && fdll->open_err))
 	fdll->deferred_open = true;
     fdll->deferred_close = true;
     fd_sched_deferred_op(fdll);
@@ -910,8 +917,32 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     if (err == GE_INPROGRESS || err == GE_RETRY || err == 0) {
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {
-	    err = err2;
-	    fdll->o->close(&fdll->iod);
+	    if (!fdll->ops->check_close) {
+		err = err2;
+		fdll->o->close(&fdll->iod);
+		goto out;
+	    }
+
+	    /*
+	     * sub_open() succeeded, so the handler may have things to
+	     * undo, like the timer and serial port lock in serialdev or
+	     * the child process in pty.  Run the close process and
+	     * report the error in the open done when that finishes.
+	     */
+	    fdll->open_done = done;
+	    fdll->open_data = open_data;
+	    fdll->open_err = err2;
+	    fd_ref(fdll); /* Released when the close finishes. */
+	    /*
+	     * A close from the user now just fails, the open done
+	     * will report the error.
+	     */
+	    fdll->close_requested = true;
+	    fdll->ops->check_close(fdll->handler_data, fdll->iod,
+				   GENSIO_LL_CLOSE_STATE_START, NULL);
+	    fd_set_state(fdll, FD_IN_CLOSE);
+	    fd_check_close(fdll);
+	    err = GE_INPROGRESS;
 	    goto out;
 	}
 
