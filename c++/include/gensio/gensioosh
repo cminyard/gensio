@@ -9,6 +9,18 @@
 #ifndef GENSIOOSH_CPP_INCLUDE
 #define GENSIOOSH_CPP_INCLUDE
 
+#ifndef _WIN32
+// Include this here.  It's included inside the gensios namespace
+// below (from gensio.h/gensio_os_funcs.h) but if it's done from
+// there it won't be in the global scope.  Include it here to work
+// around the issue.
+//
+// signal.h is the only problematic one, and it's requirement is
+// unfortunate, but some interfaces need sigset_t and the default
+// messaging signal is set from signal.h.
+#include <signal.h>
+#endif
+
 #include <string>
 #include <stdexcept>
 #include <atomic>
