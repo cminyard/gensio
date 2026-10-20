@@ -139,6 +139,11 @@ option(
     description: 'Link libssl with the main library, see "Issues with openssl and signal masks" in the FAQ. auto checks on macOS',
 )
 option(
+    'go',
+    type: 'feature',
+    description: 'Build and test the Go bindings, requires swig >= 4.1, C++ and shared libraries',
+)
+option(
     'alsa',
     type: 'feature',
     description: 'enable ALSA',

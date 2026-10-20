@@ -23,10 +23,15 @@ jobs:
         run: |
           brew update
           brew install meson ninja pkgconf swig openssl portaudio
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          # No go.sum, the bindings only use the standard library
+          cache: false
       - name: Configure
         run: |
           export PKG_CONFIG_PATH="$(brew --prefix openssl)/lib/pkgconfig"
-          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true
+          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true -Dgo=enabled
       - name: Build
         run: |
           ninja -C build
@@ -53,9 +58,14 @@ jobs:
             libssl-dev libpam0g-dev libglib2.0-dev tcl-dev \
             libavahi-client-dev libasound2-dev portaudio19-dev libudev-dev \
             libsctp-dev openssl
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          # No go.sum, the bindings only use the standard library
+          cache: false
       - name: Configure
         run: |
-          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true
+          meson setup build --prefix=$(pwd)/$INSTALLPREFIX -Dinternal-trace=true -Dgo=enabled
       - name: Build
         run: |
           ninja -C build

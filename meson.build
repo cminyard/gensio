@@ -124,11 +124,6 @@ else
     conf.set10('HAVE_PTY', cc.has_function('posix_openpt'))
 endif
 
-
-
-golang = find_program('go', required: false)
-conf.set10('HAVE_GO', golang.found())
-
 # The C python bindings need swig >= 4.0, the C++ ones swig >= 4.1.
 # swig only understands -version, so meson's version check can't be used.
 swig = find_program('swig', required: get_option('swig'))
@@ -144,6 +139,23 @@ if swig.found()
 endif
 swig_cpp_ok = swig_version.version_compare('>=4.1.0')
 conf.set10('HAVE_SWIG', swig_version.version_compare('>=4.0.0'))
+
+# The Go bindings are built from the C++ ones with swig >= 4.1 and
+# need shared libraries.
+go_ok = (get_option('cplusplus') and swig_cpp_ok
+         and get_option('default_library') != 'static'
+         and target_machine.system() != 'cygwin')
+if get_option('go').enabled() and not go_ok
+    error('Go enabled, but it needs C++, swig >= 4.1.0 and shared libraries')
+endif
+have_go = false
+if go_ok
+    golang = find_program('go', required: get_option('go'))
+    have_go = golang.found()
+endif
+if have_go
+    conf.set('HAVE_GO', 1)
+endif
 
 pymod = import('python')
 python = pymod.find_installation('python3', required: get_option('python'))
@@ -448,6 +460,9 @@ endif
 subdir('tests')
 if have_python_swig and get_option('cplusplus') and swig_cpp_ok
     subdir('c++/swig/pygensio/tests')
+endif
+if have_go
+    subdir('c++/swig/go')
 endif
 
 configure_file(output: 'config.h', configuration: conf)
