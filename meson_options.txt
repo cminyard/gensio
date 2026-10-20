@@ -115,6 +115,30 @@ option(
     description: 'enable Avahi mDNS',
 )
 option(
+    'dnssd',
+    type: 'feature',
+    description: 'enable dnssd mDNS, used if avahi is not available',
+)
+option(
+    'winmdns',
+    type: 'feature',
+    description: 'enable Windows mDNS, used if avahi and dnssd are not available',
+)
+option(
+    'file-stdio',
+    type: 'combo',
+    choices: ['auto', 'yes', 'no'],
+    value: 'auto',
+    description: 'Use stdio instead of unix files for the file gensio, auto uses stdio on Windows only',
+)
+option(
+    'link-ssl-with-main',
+    type: 'combo',
+    choices: ['auto', 'yes', 'no'],
+    value: 'auto',
+    description: 'Link libssl with the main library, see "Issues with openssl and signal masks" in the FAQ. auto checks on macOS',
+)
+option(
     'alsa',
     type: 'feature',
     description: 'enable ALSA',
