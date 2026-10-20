@@ -86,7 +86,9 @@ namespace gensios {
 
 	// This is for use by subclasses.  Don't use one with an empty
 	// parameter list, that can be used accidentally.
-	Os_Funcs(bool dummy) { };
+	Os_Funcs(bool dummy) {
+	    (void) dummy;
+	};
 
 	void set_log_handler(Os_Funcs_Log_Handler *ilogger) {
 	    logger = ilogger;

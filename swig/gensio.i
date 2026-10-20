@@ -260,6 +260,7 @@ gensio_do_service(struct waiter *waiter, gensio_time *timeout)
 static void
 gensio_thread_sighandler(int sig)
 {
+    (void) sig;
     /* Nothing to do, signal just wakes things up. */
 }
 #endif
@@ -313,6 +314,8 @@ static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
 {
     struct mdns_watch *w = (struct mdns_watch *) userdata;
     struct gensio_os_funcs *o = w->o;
+
+    (void) watch;
 
     gensio_os_funcs_lock(o, w->lock);
     gensio_os_funcs_unlock(o, w->lock);

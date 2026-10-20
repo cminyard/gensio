@@ -19,6 +19,8 @@ namespace gensios {
 
     void mdns_free_done(struct gensio_mdns *m, void *user_data)
     {
+	(void) m;
+
 	if (!user_data)
 	    return;
 	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(user_data);
@@ -96,6 +98,8 @@ namespace gensios {
 			    const char *info, void *userdata)
     {
 	MDNS_Service *s = static_cast<MDNS_Service *>(userdata);
+
+	(void) se;
 
 	try {
 	    s->raw_event_handler->handle(s->event, ev, info);
@@ -197,6 +201,8 @@ namespace gensios {
     {
 	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
 
+	(void) w;
+
 	event->w->raw_event_handler->handle(event, state,
 					    interfacenum, ipdomain,
 					    name, type, domain, host,
@@ -230,6 +236,8 @@ namespace gensios {
 
     void mdns_watch_free_done(struct gensio_mdns_watch *w, void *user_data)
     {
+	(void) w;
+
 	if (!user_data)
 	    return;
 	MDNS_Watch_Free_Done *done =

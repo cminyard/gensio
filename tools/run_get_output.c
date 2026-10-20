@@ -57,6 +57,8 @@ run_io_event(struct gensio *io, void *user_data,
     gensiods i;
     struct run_data *d = user_data;
 
+    (void) auxdata;
+
     if (err) {
     out_err:
 	if (err != GE_REMCLOSE && !d->err) {
@@ -140,6 +142,9 @@ run_errio_event(struct gensio *io, void *user_data,
 		const char *const *auxdata)
 {
     struct run_data *d = user_data;
+
+    (void) io;
+    (void) auxdata;
 
     if (err) {
 	if (err != GE_REMCLOSE && !d->err) {

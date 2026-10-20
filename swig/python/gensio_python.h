@@ -1304,6 +1304,8 @@ static void gensio_mdns_free_done(struct gensio_mdns *mdns, void *userdata)
     struct gensio_os_funcs *o = m->o;
     OI_PY_STATE gstate;
 
+    (void) mdns;
+
     gstate = OI_PY_STATE_GET();
 
     swig_finish_call(m->done_val, "mdns_close_done", NULL, false);
@@ -1329,6 +1331,8 @@ static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
     struct mdns_watch *w = (struct mdns_watch *) userdata;
     struct gensio_os_funcs *o = w->o;
     OI_PY_STATE gstate;
+
+    (void) watch;
 
     gstate = OI_PY_STATE_GET();
 
@@ -1364,6 +1368,8 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
     char *s = NULL;
     gensiods len = 0, pos = 0;
     int rv;
+
+    (void) watch;
 
     gstate = OI_PY_STATE_GET();
 

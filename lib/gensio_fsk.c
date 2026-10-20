@@ -500,6 +500,8 @@ fsk_ll_write_pending(struct gensio_filter *filter)
 static bool
 fsk_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return true;
 }
 
@@ -518,6 +520,9 @@ fsk_ul_can_write(struct gensio_filter *filter, bool *val)
 static int
 fsk_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -529,6 +534,8 @@ decode_ax25_control_field(char *str, size_t strlen,
     static char *uname[32] = { [0x0f] = "SABME", [0x07] = "SABM",
 	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
 	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
+
+    (void) buflen;
 
     if ((*buf & 1) == 0) {
 	/* I frame. */
@@ -639,6 +646,8 @@ fsk_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 {
     struct fsk_filter *sfilter = filter_to_fsk(filter);
     int err = sfilter->keyinfo.key_err;
+
+    (void) was_timeout;
 
     if (err) {
 	sfilter->keyinfo.key_err = 0;
@@ -1063,6 +1072,8 @@ fsk_ul_write(struct gensio_filter *filter,
     unsigned int cbuf;
     uint16_t crc;
     int rv = 0;
+
+    (void) auxdata;
 
     if (!sfilter->tx) {
 	if (rcount) {
@@ -2013,6 +2024,9 @@ fsk_ll_write(struct gensio_filter *filter,
 static int
 fsk_setup(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -2128,6 +2142,12 @@ static int
 fsk_filter_control(struct gensio_filter *filter, bool get, int op,
 		   char *data, gensiods *datalen)
 {
+    (void) filter;
+    (void) get;
+    (void) op;
+    (void) data;
+    (void) datalen;
+
     return GE_NOTSUP;
 }
 
@@ -2138,6 +2158,8 @@ static int gensio_fsk_filter_func(struct gensio_filter *filter, int op,
 				  gensiods buflen,
 				  const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
 	fsk_set_callbacks(filter, func, data);

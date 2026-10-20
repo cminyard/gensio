@@ -437,6 +437,8 @@ add_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item,
 static void
 remove_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item)
 {
+    (void) sel;
+
     item->next->prev = item->prev;
     item->prev->next = item->next;
 }
@@ -569,6 +571,8 @@ static void
 finish_oldstate(sel_runner_t *runner, void *cbdata)
 {
     fd_state_t *oldstate = cbdata;
+
+    (void) runner;
 
     if (oldstate->done)
 	oldstate->done(oldstate->tmp_fd, oldstate->done_cbdata);

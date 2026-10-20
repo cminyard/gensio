@@ -15,6 +15,9 @@ namespace gensios {
     int Event::new_channel(Gensio *new_channel,
 			   const char *const *auxdata)
     {
+	(void) new_channel;
+	(void) auxdata;
+
 	return GE_NOTSUP;
     }
 
@@ -37,6 +40,8 @@ namespace gensios {
 	{
 	    Event *cb = g->get_cb();
 	    Gensio *g2;
+
+	    (void) io;
 
 	    if (!cb)
 		return GE_NOTSUP;
@@ -287,6 +292,8 @@ namespace gensios {
 							frdata);
 	Event *cb = d->g->get_cb();
 
+	(void) io;
+
 	// Disable callbacks from here out.
 	d->g->set_event_handler(NULL);
 
@@ -370,6 +377,11 @@ namespace gensios {
 				  const char *const *auxdata)
     {
 	Event *cb = static_cast<Event *>(user_data);
+
+	(void) io;
+	(void) err;
+	(void) buflen;
+	(void) auxdata;
 
 	switch(event) {
 	case GENSIO_EVENT_PARMLOG: {
@@ -867,6 +879,8 @@ namespace gensios {
     {
 	Accepter *a = static_cast<Accepter *>(user_data);
 
+	(void) acc;
+
 	return a->raw_event_handler->handle(a, event, data);
     }
 
@@ -877,6 +891,8 @@ namespace gensios {
 						 struct gensio_acc_cpp_data,
 						 frdata);
 	Accepter_Event *cb = d->a->get_cb();
+
+	(void) acc;
 
 	d->a->set_event_handler(NULL);
 
@@ -943,6 +959,8 @@ namespace gensios {
     {
 	Accepter_Event *cb = static_cast<Accepter_Event *>(user_data);
 	struct gensio_parmlog_data *p;
+
+	(void) iacc;
 
 	if (event != GENSIO_ACC_EVENT_PARMLOG)
 	    return GE_NOTSUP;

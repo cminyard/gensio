@@ -204,6 +204,9 @@ glib_read_handler(GIOChannel *source,
 {
     struct gensio_iod_glib *iod = data;
 
+    (void) source;
+    (void) condition;
+
     gensio_glib_did_something(iod->r.f);
     iod->read_handler(&iod->r, iod->cb_data);
     return G_SOURCE_CONTINUE;
@@ -216,6 +219,9 @@ glib_write_handler(GIOChannel *source,
 {
     struct gensio_iod_glib *iod = data;
 
+    (void) source;
+    (void) condition;
+
     gensio_glib_did_something(iod->r.f);
     iod->write_handler(&iod->r, iod->cb_data);
     return G_SOURCE_CONTINUE;
@@ -227,6 +233,9 @@ glib_except_handler(GIOChannel *source,
 		    gpointer data)
 {
     struct gensio_iod_glib *iod = data;
+
+    (void) source;
+    (void) condition;
 
     gensio_glib_did_something(iod->r.f);
     iod->except_handler(&iod->r, iod->cb_data);
@@ -366,6 +375,8 @@ static void
 file_runner(struct gensio_runner *r, void *cb_data)
 {
     struct gensio_iod_glib *iod = cb_data;
+
+    (void) r;
 
     g_mutex_lock(&iod->lock);
     while (iod->read_enabled || iod->write_enabled) {
@@ -873,6 +884,8 @@ gensio_glib_free_waiter(struct gensio_waiter *w)
 static gboolean
 dummy_timeout_handler(gpointer data)
 {
+    (void) data;
+
     /* Will be removed in the main loop, avoid races with remove. */
     return G_SOURCE_CONTINUE;
 }
@@ -1582,6 +1595,8 @@ gensio_glib_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
     int err;
     struct stat statb;
 
+    (void) o;
+
     err = fstat(fd, &statb);
     if (err == -1)
 	return false;
@@ -1609,6 +1624,8 @@ gensio_glib_flush(struct gensio_iod *iiod, int whichbuf)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
     GError *err = NULL;
+
+    (void) whichbuf;
 
     g_io_channel_flush(iod->chan, &err);
 }
@@ -1941,12 +1958,16 @@ gensio_glib_free_funcs(struct gensio_os_funcs *f)
 static void
 gensio_glib_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
+    (void) f;
+
     us_time_to_gensio(g_get_monotonic_time(), time);
 }
 
 static int
 gensio_glib_handle_fork(struct gensio_os_funcs *f)
 {
+    (void) f;
+
     return 0;
 }
 
@@ -1982,6 +2003,8 @@ gensio_glib_control(struct gensio_os_funcs *o, int func, void *data,
 		    gensiods *datalen)
 {
     struct gensio_data *d = o->user_data;
+
+    (void) datalen;
 
     switch (func) {
     case GENSIO_CONTROL_SET_PROC_DATA:

@@ -91,6 +91,9 @@ speed_done(struct gensio *io, int err, const char *buf, gensiods len,
 {
     struct ser_dump_data *ddata = cb_data;
 
+    (void) io;
+    (void) len;
+
     if (err) {
 	ddata->speed = 0;
     } else {
@@ -105,6 +108,9 @@ signature_done(struct gensio *io, int err, const char *buf, gensiods len,
 {
     struct ser_dump_data *ddata = cb_data;
     struct gensio_os_funcs *o = ddata->serinfo->o;
+
+    (void) io;
+    (void) err;
 
     if (buf) {
 	if (ddata->signature)
@@ -123,6 +129,9 @@ parity_done(struct gensio *io, int err, const char *buf, gensiods len,
 	    void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
+
+    (void) io;
+    (void) len;
 
     if (err) {
 	ddata->parity = '?';
@@ -149,6 +158,9 @@ datasize_done(struct gensio *io, int err, const char *buf, gensiods len,
 {
     struct ser_dump_data *ddata = cb_data;
 
+    (void) io;
+    (void) len;
+
     if (err) {
 	ddata->datasize = 0;
     } else {
@@ -162,6 +174,9 @@ stopbits_done(struct gensio *io, int err, const char *buf, gensiods len,
 	      void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
+
+    (void) io;
+    (void) len;
 
     if (err) {
 	ddata->stopbits = 0;

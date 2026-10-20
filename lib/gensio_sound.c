@@ -954,6 +954,8 @@ gensio_sound_ll_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct sound_ll *soundll = cbdata;
 
+    (void) runner;
+
     gensio_sound_ll_lock(soundll);
     soundll->deferred_op_pending = false;
     switch(soundll->state) {
@@ -1305,6 +1307,8 @@ gensio_sound_ll_func(struct gensio_ll *ll, int op,
 		     const char *const *auxdata)
 {
     struct sound_ll *soundll = ll_to_sound(ll);
+
+    (void) auxdata;
 
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:

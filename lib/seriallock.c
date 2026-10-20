@@ -284,6 +284,8 @@ uucp_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 static void
 flock_rm_lock(struct gensio_os_funcs *o, int fd)
 {
+    (void) o;
+
     flock(fd, LOCK_UN);
     ioctl(fd, TIOCNXCL);
 }
@@ -328,6 +330,8 @@ serial_rm_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 	       bool do_uucp_lock, bool do_flock,
 	       int fd, const char *devname)
 {
+    (void) ll;
+
     if (do_uucp_lock)
 	uucp_rm_lock(o, fd, devname);
     if (do_flock)

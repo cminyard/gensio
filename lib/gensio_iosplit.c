@@ -30,36 +30,51 @@ struct iosplit_filter {
 static bool
 iosplit_ul_read_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static bool
 iosplit_ll_write_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static bool
 iosplit_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static int
 iosplit_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
 static int
 iosplit_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
 static int
 iosplit_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -70,6 +85,8 @@ iosplit_ul_write(struct gensio_filter *filter,
 	       const struct gensio_sg *sg, gensiods sglen,
 	       const char *const *auxdata)
 {
+    (void) filter;
+
     return handler(cb_data, rcount, sg, sglen, auxdata);
 }
 
@@ -80,18 +97,23 @@ iosplit_ll_write(struct gensio_filter *filter,
 	       unsigned char *buf, gensiods buflen,
 	       const char *const *auxdata)
 {
+    (void) filter;
+
     return handler(cb_data, rcount, buf, buflen, auxdata);
 }
 
 static int
 iosplit_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
 static void
 iosplit_filter_cleanup(struct gensio_filter *filter)
 {
+    (void) filter;
 }
 
 static void

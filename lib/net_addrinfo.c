@@ -424,6 +424,9 @@ sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
 
     /* a1 is an IF_NET6 address. */
 
+    (void) l1;
+    (void) l2;
+
     if (a2->sa_family != AF_INET)
 	return false;
 

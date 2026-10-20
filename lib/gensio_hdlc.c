@@ -202,6 +202,8 @@ hdlc_ll_write_pending(struct gensio_filter *filter)
 static bool
 hdlc_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
@@ -220,6 +222,9 @@ hdlc_ul_can_write(struct gensio_filter *filter, bool *val)
 static int
 hdlc_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -231,6 +236,8 @@ decode_ax25_control_field(char *str, size_t strlen,
     static char *uname[32] = { [0x0f] = "SABME", [0x07] = "SABM",
 	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
 	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
+
+    (void) buflen;
 
     if ((*buf & 1) == 0) {
 	/* I frame. */
@@ -319,6 +326,10 @@ static int
 hdlc_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 		 bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -326,6 +337,10 @@ static int
 hdlc_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 		    bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -429,6 +444,8 @@ hdlc_ul_write(struct gensio_filter *filter,
     unsigned char *outbuf;
     uint16_t crc = 0xffff;
     int rv = 0;
+
+    (void) auxdata;
 
     hdlc_lock(sfilter);
     if (sfilter->err) {
@@ -868,6 +885,9 @@ hdlc_ll_write(struct gensio_filter *filter,
 static int
 hdlc_setup(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -928,6 +948,12 @@ static int
 hdlc_filter_control(struct gensio_filter *filter, bool get, int op,
 		       char *data, gensiods *datalen)
 {
+    (void) filter;
+    (void) get;
+    (void) op;
+    (void) data;
+    (void) datalen;
+
     return GE_NOTSUP;
 }
 
@@ -938,6 +964,8 @@ static int gensio_hdlc_filter_func(struct gensio_filter *filter, int op,
 				      gensiods buflen,
 				      const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
 	hdlc_set_callbacks(filter, func, data);
@@ -1010,6 +1038,9 @@ gensio_hdlc_filter_raw_alloc(struct gensio_pparm_info *p,
 {
     struct hdlc_filter *sfilter;
     unsigned int i;
+
+    (void) p;
+    (void) child;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)

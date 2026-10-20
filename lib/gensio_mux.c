@@ -851,6 +851,8 @@ finish_close_close_done(struct gensio *child, void *close_data)
     struct mux_inst *chan = close_data;
     struct mux_data *muxdata = chan->mux;
 
+    (void) child;
+
     mux_lock_and_ref(muxdata);
     i_finish_close_close_done(chan, muxdata);
     mux_deref_and_unlock(muxdata);
@@ -1060,6 +1062,8 @@ chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct mux_inst *chan = cbdata;
     struct mux_data *muxdata = chan->mux;
+
+    (void) runner;
 
     mux_lock_and_ref(muxdata);
     chan->deferred_op_pending = false;
@@ -1649,6 +1653,8 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
     struct mux_data *muxdata = open_data;
     struct mux_inst *chan;
 
+    (void) child;
+
     mux_lock_and_ref(muxdata);
     chan = mux_chan0(muxdata);
     if (err) {
@@ -2047,6 +2053,8 @@ static void
 mux_on_err_close(struct gensio *child, void *close_data)
 {
     struct mux_data *muxdata = close_data;
+
+    (void) child;
 
     mux_lock_and_ref(muxdata);
     if (muxdata->do_normal_close)
@@ -2716,6 +2724,8 @@ mux_child_cb(struct gensio *io, void *user_data, int event,
     struct mux_data *muxdata = user_data;
     int rv;
 
+    (void) io;
+
     switch (event) {
     case GENSIO_EVENT_READ:
 	return mux_child_read(muxdata, err, buf, buflen, auxdata);
@@ -2919,6 +2929,8 @@ static int
 gensio_gensio_acc_mux_cb(void *acc_data, int op, void *data1, void *data2,
 			 void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return muxna_alloc_gensio(acc_data, data4, data1, data2);

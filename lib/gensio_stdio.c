@@ -382,6 +382,8 @@ check_waitpid_timeout(struct gensio_timer *t, void *cb_data)
     struct stdion_channel *schan = cb_data;
     struct stdiona_data *nadata = schan->nadata;
 
+    (void) t;
+
     stdiona_lock(nadata);
     check_waitpid(schan);
     stdiona_deref_and_unlock(nadata);
@@ -426,6 +428,8 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct stdiona_data *nadata = schan->nadata;
     struct gensio_os_funcs *o = nadata->o;
     struct gensio *io = schan->io;
+
+    (void) runner;
 
     stdiona_lock(nadata);
  restart:
@@ -567,6 +571,8 @@ stdion_read_ready(struct gensio_iod *iod, void *cbdata)
     struct stdion_channel *schan = cbdata;
     struct stdiona_data *nadata = schan->nadata;
 
+    (void) iod;
+
     stdiona_lock(nadata);
     nadata->o->set_read_handler(schan->out_iod, false);
     nadata->o->set_except_handler(schan->out_iod, false);
@@ -593,6 +599,8 @@ stdion_write_ready(struct gensio_iod *iod, void *cbdata)
     struct stdion_channel *schan = cbdata;
     struct stdiona_data *nadata = schan->nadata;
     int err;
+
+    (void) iod;
 
     stdiona_lock(nadata);
     if (schan->in_write_ready) {
@@ -1060,6 +1068,8 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return stdion_write(io, count, cbuf, buflen);
@@ -1288,6 +1298,8 @@ stdiona_do_connect(struct gensio_runner *runner, void *cbdata)
 {
     struct stdiona_data *nadata = cbdata;
 
+    (void) runner;
+
     stdiona_lock(nadata);
  retry:
     if (nadata->in_startup) {
@@ -1436,6 +1448,8 @@ enable_done_op(struct gensio_runner *runner, void *cb_data)
 {
     struct stdiona_data *nadata = cb_data;
 
+    (void) runner;
+
     stdiona_lock(nadata);
     if (nadata->enable_done) {
 	gensio_acc_done done = nadata->enable_done;
@@ -1456,6 +1470,8 @@ stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
 {
     struct stdiona_data *nadata = gensio_acc_get_gensio_data(accepter);
     int rv = 0;
+
+    (void) enabled;
 
     /* FIXME - there's no real enable for this, maybe there should be? */
     if (nadata->enable_done) {
@@ -1485,6 +1501,10 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
 		      const char *addr, void *done, void *data,
 		      const void *data2, void *ret)
 {
+    (void) addr;
+    (void) data2;
+    (void) ret;
+
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
 	return stdiona_startup(acc);
@@ -1518,6 +1538,8 @@ stdio_gensio_accepter_alloc(const void *gdata,
     bool raw = false;
     int i;
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, "stdio", user_data);
+
+    (void) gdata;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
@@ -1583,6 +1605,8 @@ str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 			     void *user_data,
 			     struct gensio_accepter **acc)
 {
+    (void) str;
+
     return stdio_gensio_accepter_alloc(NULL, args, o, cb, user_data, acc);
 }
 

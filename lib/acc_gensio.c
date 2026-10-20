@@ -35,6 +35,8 @@ struct gensna_data {
 static int
 gensna_startup(struct gensio_accepter *accepter, struct gensna_data *nadata)
 {
+    (void) accepter;
+
     return gensio_acc_startup(nadata->child);
 }
 
@@ -44,6 +46,8 @@ gensna_child_shutdown(struct gensio_accepter *accepter,
 {
     struct gensna_data *nadata = shutdown_data;
 
+    (void) accepter;
+
     nadata->shutdown_done(nadata->acc, NULL);
 }
 
@@ -52,6 +56,8 @@ gensna_shutdown(struct gensio_accepter *accepter,
 		struct gensna_data *nadata,
 		gensio_acc_done shutdown_done)
 {
+    (void) accepter;
+
     nadata->shutdown_done = shutdown_done;
     return gensio_acc_shutdown(nadata->child, gensna_child_shutdown, nadata);
 }
@@ -60,6 +66,8 @@ static void
 gensna_cb_en_done(struct gensio_accepter *accepter, void *cb_data)
 {
     struct gensna_data *nadata = cb_data;
+
+    (void) accepter;
 
     nadata->cb_en_done(nadata->acc, NULL);
 }
@@ -72,6 +80,8 @@ gensna_set_accept_callback_enable(struct gensio_accepter *accepter,
 {
     gensio_acc_done ldone = NULL;
 
+    (void) accepter;
+
     nadata->cb_en_done = done;
     if (done)
 	ldone = gensna_cb_en_done;
@@ -82,6 +92,8 @@ gensna_set_accept_callback_enable(struct gensio_accepter *accepter,
 static void
 gensna_free(struct gensio_accepter *accepter, struct gensna_data *nadata)
 {
+    (void) accepter;
+
     if (nadata->child)
 	gensio_acc_free(nadata->child);
     if (nadata->acc_cb)
@@ -150,6 +162,8 @@ static int
 gensna_control(struct gensio_accepter *accepter, struct gensna_data *nadata,
 	       bool get, unsigned int option, char *data, gensiods *datalen)
 {
+    (void) accepter;
+
     return nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_CONTROL,
 			  &get, data, datalen, &option);
 }
@@ -157,6 +171,8 @@ gensna_control(struct gensio_accepter *accepter, struct gensna_data *nadata,
 static void
 gensna_disable(struct gensio_accepter *accepter, struct gensna_data *nadata)
 {
+    (void) accepter;
+
     nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_DISABLE,
 		   NULL, NULL, NULL, NULL);
 }
@@ -217,6 +233,8 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     void *finish_data;
     bool base_allocated = true;
     int err;
+
+    (void) accepter;
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return gensio_acc_cb(nadata->acc, event, data);

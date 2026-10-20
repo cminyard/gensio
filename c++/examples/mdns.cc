@@ -114,6 +114,9 @@ int main(int argc, char *argv[])
 {
     int err = 1;
 
+    (void) argc;
+    (void) argv;
+
     try {
 	Os_Funcs o(0, new MDNS_Logger);
 	Waiter w(o);

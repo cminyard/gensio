@@ -161,6 +161,8 @@ child_cb(struct gensio *io, void *user_data,
 {
     struct mdnsn_data *ndata = user_data;
 
+    (void) io;
+
     return gensio_cb(ndata->io, event, err, buf, buflen, auxdata);
 }
 
@@ -182,6 +184,8 @@ static void
 mdnsn_deferred_op(struct gensio_runner *runner, void *cb_data)
 {
     struct mdnsn_data *ndata = cb_data;
+
+    (void) runner;
 
     mdnsn_lock(ndata);
     if (ndata->state == MDNSN_IN_CLOSE)
@@ -222,6 +226,8 @@ child_open_cb(struct gensio *io, int err, void *cb_data)
 {
     struct mdnsn_data *ndata = cb_data;
 
+    (void) io;
+
     mdnsn_lock(ndata);
     i_child_open_cb(ndata, err);
     mdnsn_deref_and_unlock(ndata);
@@ -231,6 +237,8 @@ static void
 child_closed_cb(struct gensio *io, void *cb_data)
 {
     struct mdnsn_data *ndata = cb_data;
+
+    (void) io;
 
     mdnsn_lock(ndata);
     gensio_free(ndata->child);
@@ -243,6 +251,8 @@ static void
 mdns_freed(struct gensio_mdns *m, void *userdata)
 {
     struct mdnsn_data *ndata = userdata;
+
+    (void) m;
 
     mdnsn_lock(ndata);
     ndata->mdns_in_free = false;
@@ -510,6 +520,8 @@ mdns_timeout(struct gensio_timer *timer, void *cb_data)
 {
     struct mdnsn_data *ndata = cb_data;
 
+    (void) timer;
+
     mdnsn_lock(ndata);
     ndata->timer_running = false;
     switch (ndata->state) {
@@ -544,6 +556,13 @@ mdns_cb(struct gensio_mdns_watch *w,
     const char **argv = NULL;
     char *s, *stack = NULL;
     int err = 0;
+
+    (void) w;
+    (void) interface;
+    (void) ipdomain;
+    (void) name;
+    (void) domain;
+    (void) host;
 
     mdnsn_lock(ndata);
     if (ndata->timer_running)

@@ -1521,6 +1521,9 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
     bool closed;
 #endif
 
+    (void) retry;
+    (void) force;
+
     err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
 			 (intptr_t) &gsi);
     if (err)
@@ -2568,6 +2571,8 @@ gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o)
 void
 gensio_stdsock_cleanup(struct gensio_os_funcs *o)
 {
+    (void) o;
+
 #ifdef _WIN32
     WSACleanup();
 #endif

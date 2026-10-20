@@ -281,6 +281,8 @@ basen_finish_free(struct basen_data *ndata)
 static void
 i_basen_ref(struct basen_data *ndata, int line)
 {
+    (void) line;
+
     assert(ndata->refcount > 0);
     ndata->refcount++;
     i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
@@ -302,6 +304,8 @@ i_basen_lock_and_ref(struct basen_data *ndata, int line)
 static void
 i_basen_deref(struct basen_data *ndata, int line)
 {
+    (void) line;
+
     assert(ndata->refcount > 1);
     i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
     ndata->refcount--;
@@ -312,6 +316,8 @@ static void
 i_basen_deref_and_unlock(struct basen_data *ndata, int line)
 {
     unsigned int count;
+
+    (void) line;
 
     assert(ndata->refcount > 0);
     i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
@@ -522,6 +528,8 @@ basen_ll_close_done(void *cb_data, void *close_data)
 {
     struct basen_data *ndata = cb_data;
 
+    (void) close_data;
+
     basen_lock(ndata);
     i_basen_add_trace(ndata, 1100, __LINE__);
     switch(ndata->state) {
@@ -559,6 +567,8 @@ static int
 i_ll_close(struct basen_data *ndata, int line)
 {
     int rv;
+
+    (void) line;
 
     rv = gensio_ll_close(ndata->ll, basen_ll_close_done, ndata);
     return rv;
@@ -674,6 +684,8 @@ static void
 basen_timer_stopped(struct gensio_timer *t, void *cb_data)
 {
     struct basen_data *ndata = cb_data;
+
+    (void) t;
 
     basen_lock(ndata);
     basen_deref_and_unlock(ndata);
@@ -852,6 +864,8 @@ i_handle_ioerr(struct basen_data *ndata, int err, int line)
 {
     int rv;
 
+    (void) line;
+
     i_basen_add_trace(ndata, 905, line);
     assert(err);
 
@@ -1028,6 +1042,8 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct basen_data *ndata = cbdata;
     int err;
 
+    (void) runner;
+
     basen_lock(ndata);
     ndata->deferred_op_pending = false;
 
@@ -1186,6 +1202,8 @@ static void
 basen_ll_open_done(void *cb_data, int err, void *open_data)
 {
     struct basen_data *ndata = cb_data;
+
+    (void) open_data;
 
     basen_lock_and_ref(ndata);
     ndata->ll_open_pending = false;
@@ -1483,6 +1501,8 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
     struct basen_data *ndata = cb_data;
     int err;
 
+    (void) timer;
+
     basen_lock(ndata);
     switch (ndata->state) {
     case BASEN_IN_FILTER_OPEN:
@@ -1514,6 +1534,8 @@ static void
 basen_drain_timeout(struct gensio_timer *timer, void *cb_data)
 {
     struct basen_data *ndata = cb_data;
+
+    (void) timer;
 
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN)
@@ -2100,6 +2122,8 @@ gensio_base_parms_alloc(struct gensio_os_funcs *o, bool is_accepter,
 {
     struct gensio_base_parms *parms;
     int rv;
+
+    (void) is_accepter;
 
     parms = o->zalloc(o, sizeof(*parms));
     if (!parms)

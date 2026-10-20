@@ -243,6 +243,8 @@ sterm_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct sterm_data *sdata = cbdata;
 
+    (void) runner;
+
     sterm_lock(sdata);
  restart:
     serconf_process(sdata);
@@ -583,6 +585,8 @@ sterm_iflowcontrol(struct sterm_data *sdata, int iflowcontrol,
 		   gensio_control_done cdone,
 		   void *cb_data)
 {
+    (void) iflowcontrol;
+
     /* Input flow control is not independently settable. */
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_XONXOFF, 0, siflowcontrol,
@@ -601,6 +605,8 @@ static const struct termio_xlat_str sterm_on_off_xlatstr[] = {
 static int
 sterm_xlat_sbreak(struct sterm_data *sdata, bool get, int *oval, int val)
 {
+    (void) sdata;
+
     if (get) {
 	if (val)
 	    *oval = GENSIO_SER_ON;
@@ -632,6 +638,8 @@ sterm_sbreak(struct sterm_data *sdata, int breakv, const char *sbreakv,
 static int
 serconf_xlat_dtr(struct sterm_data *sdata, bool get, int *oval, int val)
 {
+    (void) sdata;
+
     if (get) {
 	if (val)
 	    *oval = GENSIO_SER_ON;
@@ -663,6 +671,8 @@ sterm_dtr(struct sterm_data *sdata, int dtr, const char *sdtr,
 static int
 serconf_xlat_rts(struct sterm_data *sdata, bool get, int *oval, int val)
 {
+    (void) sdata;
+
     if (get) {
 	if (val)
 	    *oval = GENSIO_SER_ON;
@@ -698,6 +708,8 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     int modemstate = 0, rv;
     bool force_send;
     struct modemstate_cb *c, *n;
+
+    (void) t;
 
     sterm_lock(sdata);
     if (sdata->handling_modemstate || !sdata->open) {
@@ -880,6 +892,8 @@ sterm_acontrol(void *handler_data, struct gensio_iod *iod, bool get,
     gensio_control_done done = idata->done;
     void *cb_data = idata->cb_data;;
 
+    (void) iod;
+
     if (!sdata->set_tty)
 	return GE_NOTSUP;
 
@@ -932,6 +946,8 @@ sterm_timer_stopped(struct gensio_timer *timer, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
 
+    (void) timer;
+
     sdata->timer_stopped = true;
 }
 
@@ -944,6 +960,8 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
     struct gensio_os_funcs *o = sdata->o;
     int rv, err = 0;
     gensiods count = 0;
+
+    (void) iod;
 
     sterm_lock(sdata);
     if (state == GENSIO_LL_CLOSE_STATE_START) {
@@ -1055,6 +1073,8 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod,
     struct gensio_os_funcs *o = sdata->o;
     int err;
     int options = 0;
+
+    (void) timeout;
 
     sdata->timer_stopped = false;
     sdata->iod = NULL; /* If it's a re-open make sure this is clear. */
@@ -1330,6 +1350,8 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
 {
     struct sterm_data *sdata = handler_data;
 
+    (void) iod;
+
     switch (option) {
     case GENSIO_CONTROL_SEND_BREAK:
 	if (get)
@@ -1392,6 +1414,8 @@ sterm_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
     struct sterm_data *sdata = handler_data;
     int rv = sdata->o->write(iod, sg, sglen, rcount);
 
+    (void) auxdata;
+
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
     return rv;
@@ -1403,6 +1427,8 @@ sterm_do_read(struct gensio_iod *iod, void *data, gensiods datalen,
 {
     struct sterm_data *sdata = cb_data;
     int rv;
+
+    (void) auxdata;
 
     if (sdata->o->read_flags) {
 	gensiods pcount = datalen / 2, count;
@@ -1427,6 +1453,8 @@ static void
 sterm_read_ready(void *handler_data, struct gensio_iod *iod)
 {
     struct sterm_data *sdata = handler_data;
+
+    (void) iod;
 
     gensio_fd_ll_handle_incoming(sdata->ll, sterm_do_read, NULL, sdata);
 }

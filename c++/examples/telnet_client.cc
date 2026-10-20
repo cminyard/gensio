@@ -38,6 +38,8 @@ private:
     {
 	gensiods count;
 
+	(void) auxdata;
+
 	if (ierr) {
 	    err = ierr;
 	    io->set_read_callback_enable(false);
@@ -96,6 +98,8 @@ class Telnet_Logger: public Os_Funcs_Log_Handler {
 
 int main(int argc, char *argv[])
 {
+    (void) argc;
+
     try {
 	// Note that Telnet_Logger must be dynamically allocated.
 	// Os_Funcs will delete it when the Os_Funcs is destroyed.

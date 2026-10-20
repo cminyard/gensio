@@ -439,6 +439,8 @@ gensio_sound_alsa_read_handlerb(struct gensio_iod *iod, void *cb_data,
     unsigned int i;
     unsigned short revents;
 
+    (void) iod;
+
     gensio_sound_ll_lock(soundll);
     for (i = 0; i < a->nrfds; i++)
 	a->fds[i].revents = ievents;
@@ -485,6 +487,8 @@ gensio_sound_alsa_write_handlerb(struct gensio_iod *iod, void *cb_data,
     unsigned int i;
     unsigned short revents;
 
+    (void) iod;
+
     gensio_sound_ll_lock(soundll);
     for (i = 0; i < a->nrfds; i++)
 	a->fds[i].revents = ievents;
@@ -522,6 +526,8 @@ gensio_sound_alsa_cleared_handler(struct gensio_iod *iod, void *cb_data)
     struct sound_info *si = cb_data;
     struct sound_ll *soundll = si->soundll;
 
+    (void) iod;
+
     gensio_sound_ll_lock(soundll);
     soundll->nr_waiting_close--;
     if (soundll->nr_waiting_close == 0) {
@@ -538,6 +544,8 @@ gensio_sound_alsa_timeout(struct gensio_timer *t, void *cb_data)
     struct sound_info *si = cb_data;
     struct alsa_info *a = si->pinfo;
     unsigned int i;
+
+    (void) t;
 
     for (i = 0; i < a->nrfds; i++)
 	si->soundll->o->clear_fd_handlers(a->iods[i]);
@@ -690,6 +698,8 @@ gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
     void **hints, **n;
     gensiods count = 0, size = 0;
     char **names = NULL, **specs = NULL;
+
+    (void) o;
 
     if (snd_device_name_hint(-1, "pcm", &hints) < 0) {
 	*rcount = 0;

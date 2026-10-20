@@ -649,12 +649,17 @@ static void
 certauth_set_callbacks(struct gensio_filter *filter,
 		       gensio_filter_cb cb, void *cb_data)
 {
+    (void) filter;
+    (void) cb;
+    (void) cb_data;
     /* We don't currently use callbacks. */
 }
 
 static bool
 certauth_ul_read_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false; /* We never have data pending to the upper layer. */
 }
 
@@ -1752,6 +1757,9 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 static int
 certauth_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -2015,6 +2023,9 @@ certauth_ll_write(struct gensio_filter *filter,
     int err = 0;
     unsigned char *obuf = buf;
     gensiods elemleft;
+
+    (void) handler;
+    (void) cb_data;
 
     if (buflen == 0)
 	goto out;
@@ -2511,6 +2522,8 @@ int gensio_certauth_filter_func(struct gensio_filter *filter, int op,
 				gensiods buflen,
 				const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
 	certauth_set_callbacks(filter, func, data);
@@ -3301,6 +3314,8 @@ certauthna_new_child(void *acc_data, void **finish_data,
 {
     struct certauthna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_certauth_filter_alloc(nadata->data, filter);
 }
 
@@ -3379,6 +3394,8 @@ certauthna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
     struct certauthna_data *nadata = acc_data;
     int err;
 
+    (void) finish_data;
+
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
       return err;
@@ -3397,6 +3414,8 @@ static int
 gensio_gensio_acc_certauth_cb(void *acc_data, int op, void *data1, void *data2,
 			      void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return certauthna_alloc_gensio(acc_data, data4, data1, data2);

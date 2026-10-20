@@ -220,12 +220,18 @@ check_sctp_present(struct gensio_os_funcs *o, struct oom_tests *test)
 #if HAVE_LIBSCTP
     int s;
 
+    (void) o;
+    (void) test;
+
     s = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
     if (s == -1)
 	return false;
     close(s);
     return true;
 #else
+    (void) o;
+    (void) test;
+
     return false;
 #endif
 }
@@ -353,6 +359,8 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
     const char *str;
     gensiods pos;
 
+    (void) auxdata;
+
     if (event != GENSIO_EVENT_READ)
 	return GE_NOTSUP;
 
@@ -418,6 +426,9 @@ static int
 ipmisim_err_cb(struct gensio *io, void *user_data, int event, int err,
 	   unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
+    (void) event;
+    (void) auxdata;
+
     /* FIXME - Add debug I/O. */
     if (err) {
 	struct oom_tests *test = user_data;
@@ -544,6 +555,8 @@ static void
 ipmisim_end(struct gensio_os_funcs *o, struct oom_tests *test)
 {
     int err;
+
+    (void) o;
 
     if (test->io) {
 	err = gensio_close_s(test->io);
@@ -836,6 +849,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     if (!debug)
 	return;
     printf("gensio %s log: ", gensio_log_level_to_str(level));
@@ -1117,6 +1132,8 @@ con_cb(struct gensio *io, void *user_data,
     gensiods count;
     int rv = 0;
 
+    (void) auxdata;
+
     assert(!od->finished);
     OOMLOCK(&od->lock);
     add_ref_trace(ref_inc, err, __LINE__, event);
@@ -1238,6 +1255,8 @@ acc_cb(struct gensio_accepter *accepter,
     struct oom_test_data *od = user_data;
     int rv = 0;
 
+    (void) accepter;
+
     assert(!od->finished);
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
@@ -1280,6 +1299,8 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 {
     struct oom_test_data *od = user_data;
     gensiods size;
+
+    (void) auxdata;
 
     assert(!od->finished);
     if (err) {
@@ -1663,6 +1684,8 @@ static int
 close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 {
     int rv, err = 0;
+
+    (void) close_acc;
 
     od->scon.expect_close = true;
     od->ccon.expect_close = true;

@@ -141,6 +141,8 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
     struct echon_data *ndata = cb_data;
     int err = 0;
 
+    (void) runner;
+
     echon_lock(ndata);
  restart:
     if (ndata->state == ECHON_IN_OPEN || ndata->state == ECHON_IN_OPEN_CLOSE) {
@@ -321,6 +323,8 @@ static int
 echon_control(struct gensio *io, bool get, int option, char *data,
 	      gensiods *datalen)
 {
+    (void) io;
+
     if (option != GENSIO_CONTROL_RADDR)
 	return GE_NOTSUP;
     if (!get)
@@ -336,6 +340,8 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return echon_write(io, count, cbuf, buflen);
@@ -418,6 +424,8 @@ echo_gensio_alloc(const void *gdata,
     const char *data = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "echo", user_data);
 
+    (void) gdata;
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -470,6 +478,8 @@ str_to_echo_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
+    (void) str;
+
     return echo_gensio_alloc(NULL, args, o, cb, user_data, new_gensio);
 }
 

@@ -189,6 +189,8 @@ gensio_os_argvenv_get(struct gensio_os_funcs *o,
     gensiods olen = *rlen;
     const char *val;
 
+    (void) o;
+
     if (!argvenv_find(argv, name, NULL, &val))
 	return GE_NOTFOUND;
     *rlen = strlen(val);

@@ -76,24 +76,35 @@ xlt_ll_write_pending(struct gensio_filter *filter)
 static bool
 xlt_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static int
 xlt_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
 static int
 xlt_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
 static int
 xlt_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -182,12 +193,15 @@ xlt_ll_write(struct gensio_filter *filter,
 static int
 xlt_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
 static void
 xlt_filter_cleanup(struct gensio_filter *filter)
 {
+    (void) filter;
 }
 
 static void
@@ -289,6 +303,8 @@ gensio_xlt_config(struct gensio_pparm_info *p,
     const char *str;
     bool bval;
     unsigned int i;
+
+    (void) o;
 
     for (i = 0; i < 256; i++) {
 	config->inxlt[i] = i;
@@ -508,6 +524,8 @@ xltna_new_child(void *acc_data, void **finish_data,
 {
     struct xltna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_xlt_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
@@ -516,6 +534,8 @@ xltna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct xltna_data *nadata = acc_data;
     int err;
+
+    (void) finish_data;
 
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
@@ -529,6 +549,8 @@ static int
 gensio_gensio_acc_xlt_cb(void *acc_data, int op, void *data1, void *data2,
 			   void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return xltna_alloc_gensio(acc_data, data4, data1, data2);

@@ -1417,6 +1417,8 @@ static int
 convdecode_symbol_nu_t_r(struct convcode *ce, convcode_symsize symbol,
 			 const uint8_t *uncertainty)
 {
+    (void) uncertainty;
+
     return convdecode_symbol_i(ce, symbol, true, false, true, NULL);
 }
 
@@ -1431,6 +1433,8 @@ static int
 convdecode_symbol_nu_nt_r(struct convcode *ce, convcode_symsize symbol,
 			  const uint8_t *uncertainty)
 {
+    (void) uncertainty;
+
     return convdecode_symbol_i(ce, symbol, false, false, true, NULL);
 }
 
@@ -1445,6 +1449,8 @@ static int
 convdecode_symbol_nu_t_nr(struct convcode *ce, convcode_symsize symbol,
 			  const uint8_t *uncertainty)
 {
+    (void) uncertainty;
+
     return convdecode_symbol_i(ce, symbol, true, false, false, NULL);
 }
 
@@ -1459,6 +1465,8 @@ static int
 convdecode_symbol_nu_nt_nr(struct convcode *ce, convcode_symsize symbol,
 			   const uint8_t *uncertainty)
 {
+    (void) uncertainty;
+
     return convdecode_symbol_i(ce, symbol, false, false, false, NULL);
 }
 

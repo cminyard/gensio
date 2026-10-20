@@ -110,6 +110,8 @@ convcode_ll_write_pending(struct gensio_filter *filter)
 static bool
 convcode_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
@@ -128,6 +130,9 @@ convcode_ul_can_write(struct gensio_filter *filter, bool *val)
 static int
 convcode_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -135,6 +140,10 @@ static int
 convcode_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 		     bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -142,6 +151,10 @@ static int
 convcode_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 			bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -341,6 +354,9 @@ convcode_ll_write(struct gensio_filter *filter,
 static int
 convcode_setup(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -388,6 +404,12 @@ static int
 convcode_filter_control(struct gensio_filter *filter, bool get, int op,
 		       char *data, gensiods *datalen)
 {
+    (void) filter;
+    (void) get;
+    (void) op;
+    (void) data;
+    (void) datalen;
+
     return GE_NOTSUP;
 }
 
@@ -398,6 +420,8 @@ static int gensio_convcode_filter_func(struct gensio_filter *filter, int op,
 				      gensiods buflen,
 				      const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
 	convcode_set_callbacks(filter, func, data);
@@ -466,6 +490,9 @@ gensio_convcode_filter_raw_alloc(struct gensio_pparm_info *p,
 {
     struct convcode_filter *sfilter;
     unsigned int i, read_deliver_size, write_deliver_size;
+
+    (void) p;
+    (void) child;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
@@ -538,6 +565,8 @@ gensio_convcode_filter_alloc(struct gensio_pparm_info *p,
 	.max_write_size = 256,
     };
     unsigned int i, poly;
+
+    (void) parms;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(p, args[i], "readbuf", &data.max_read_size) > 0)

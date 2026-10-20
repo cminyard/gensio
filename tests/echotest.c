@@ -9,6 +9,9 @@ main(int argc, char *argv[])
     int rv = 0;
     int close = 0;
 
+    (void) argc;
+    (void) argv;
+
     do {
 	len = fread(buf, 1, 1, stdin);
 	if (len > 0) {

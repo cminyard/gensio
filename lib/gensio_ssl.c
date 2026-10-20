@@ -51,6 +51,8 @@ struct gensio_ssl_filter_data {
 static void
 gensio_do_ssl_init(void *cb_data)
 {
+    (void) cb_data;
+
     SSL_library_init();
 }
 
@@ -210,6 +212,9 @@ static void
 ssl_set_callbacks(struct gensio_filter *filter,
 		  gensio_filter_cb cb, void *cb_data)
 {
+    (void) filter;
+    (void) cb;
+    (void) cb_data;
     /* We don't currently use callbacks. */
 }
 
@@ -266,6 +271,9 @@ ssl_ul_can_write(struct gensio_filter *filter, bool *val)
 static int
 ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx)
 {
+    (void) preverify_ok;
+    (void) x509_ctx;
+
     /* Always succeed, check the result in ssl_check_open_done(). */
     return 1;
 }
@@ -418,6 +426,8 @@ ssl_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int success, rv = GE_INPROGRESS, shutdown, err;
 
+    (void) timeout;
+
     ssl_lock(sfilter);
     sfilter->connected = false;
 
@@ -517,6 +527,8 @@ ssl_ul_write(struct gensio_filter *filter,
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
     gensiods i;
+
+    (void) auxdata;
 
     ssl_lock(sfilter);
     if (sfilter->err) {
@@ -735,6 +747,8 @@ ssl_setup(struct gensio_filter *filter, struct gensio *io)
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int success;
     gensiods bio_size = sfilter->max_read_size * 2;
+
+    (void) io;
 
     sfilter->ssl = SSL_new(sfilter->ctx);
     if (!sfilter->ssl)
@@ -1035,6 +1049,8 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 				  gensiods buflen,
 				  const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
 	ssl_set_callbacks(filter, func, data);
@@ -1608,6 +1624,8 @@ sslna_new_child(void *acc_data, void **finish_data,
 {
     struct sslna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_ssl_filter_alloc(nadata->data, filter);
 }
 
@@ -1617,6 +1635,10 @@ sslna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 		   const char *const *auxdata)
 {
     struct sslna_data *nadata = user_data;
+
+    (void) err;
+    (void) buflen;
+    (void) auxdata;
 
     if (event == GENSIO_EVENT_LOG) {
 	struct gensio_log_data *d = (struct gensio_log_data *) buf;
@@ -1635,6 +1657,8 @@ sslna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
     struct sslna_data *nadata = acc_data;
     int err;
 
+    (void) finish_data;
+
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
       return err;
@@ -1650,6 +1674,8 @@ static int
 gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2,
 			 void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return sslna_alloc_gensio(acc_data, data4, data1, data2);

@@ -253,6 +253,8 @@ file_runner(struct gensio_runner *r, void *cb_data)
 {
     struct gensio_iod_tcl *iod = cb_data;
 
+    (void) r;
+
     Tcl_MutexLock(&iod->lock);
     while (iod->read_enabled || iod->write_enabled) {
 	if (iod->read_enabled) {
@@ -1227,6 +1229,8 @@ gensio_tcl_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
     int err;
     struct stat statb;
 
+    (void) o;
+
     err = fstat(fd, &statb);
     if (err == -1)
 	return false;
@@ -1398,6 +1402,8 @@ gensio_tcl_service(struct gensio_os_funcs *o, gensio_time *timeout)
     struct timeout_info ti = { .timeout = timeout };
     int rv = GE_TIMEDOUT;
 
+    (void) o;
+
     setup_timeout(&ti);
 
     if (timeout_wait(&ti))
@@ -1438,6 +1444,8 @@ gensio_tcl_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
     Tcl_Time ttime;
 
+    (void) f;
+
     Tcl_GetTime(&ttime);
     time->secs = ttime.sec;
     time->nsecs = ttime.usec * 1000;
@@ -1446,6 +1454,8 @@ gensio_tcl_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 static int
 gensio_tcl_handle_fork(struct gensio_os_funcs *f)
 {
+    (void) f;
+
     return 0;
 }
 
@@ -1481,6 +1491,8 @@ gensio_tcl_control(struct gensio_os_funcs *o, int func, void *data,
 		   gensiods *datalen)
 {
     struct gensio_data *d = o->user_data;
+
+    (void) datalen;
 
     switch (func) {
     case GENSIO_CONTROL_SET_PROC_DATA:

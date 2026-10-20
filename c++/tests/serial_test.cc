@@ -72,6 +72,9 @@ int main(int argc, char *argv[])
     char echo_dev[100];
     int err;
 
+    (void) argc;
+    (void) argv;
+
     err = get_echo_dev(o, echo_dev, sizeof(echo_dev));
     if (err) {
 	printf("Unable to get echo dev, test skipped: %s\n",

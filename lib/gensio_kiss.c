@@ -115,12 +115,16 @@ kiss_ll_write_pending(struct gensio_filter *filter)
 static bool
 kiss_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static int
 kiss_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+
     gensio_set_is_packet(io, true);
     return 0;
 }
@@ -165,6 +169,8 @@ static int
 kiss_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct kiss_filter *kfilter = filter_to_kiss(filter);
+
+    (void) timeout;
 
     if (kfilter->write_data_len == 0 || !kfilter->out_msg_ready)
 	return 0;
@@ -285,6 +291,8 @@ kiss_ll_write(struct gensio_filter *filter,
     gensiods in_buflen = buflen, count = 0;
     int err = 0;
 
+    (void) iauxdata;
+
     kiss_lock(kfilter);
     if (kfilter->in_msg_complete || buflen == 0) {
 	if (rcount)
@@ -377,6 +385,8 @@ kiss_ll_write(struct gensio_filter *filter,
 static int
 kiss_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
@@ -828,6 +838,8 @@ kissna_new_child(void *acc_data, void **finish_data,
 {
     struct kissna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_kiss_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
@@ -836,6 +848,8 @@ kissna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct kissna_data *nadata = acc_data;
     int err;
+
+    (void) finish_data;
 
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
@@ -849,6 +863,8 @@ static int
 gensio_gensio_acc_kiss_cb(void *acc_data, int op, void *data1, void *data2,
 			  void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return kissna_alloc_gensio(acc_data, data4, data1, data2);

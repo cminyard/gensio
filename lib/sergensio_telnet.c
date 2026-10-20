@@ -204,6 +204,9 @@ telnet_ll_read_needed(struct gensio_filter *filter)
 static int
 telnet_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -287,6 +290,9 @@ telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 static int
 telnet_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -1833,6 +1839,9 @@ stel_control(void *handler_data, bool get, int option,
 {
     struct stel_data *sdata = handler_data;
 
+    (void) get;
+    (void) datalen;
+
     if (!gensio_is_serial(sdata->io))
 	return GE_NOTSUP;
 
@@ -2094,6 +2103,9 @@ static void
 stelc_rfc1073_cmd(void *handler_data, const unsigned char *option,
 		  unsigned int len)
 {
+    (void) handler_data;
+    (void) option;
+    (void) len;
     /* We don't get these. */
 }
 
@@ -2147,6 +2159,7 @@ stelc_timeout(void *handler_data)
 static void
 stelc_got_sync(void *handler_data)
 {
+    (void) handler_data;
     /* Nothing to do, break handling is only on the server side. */
 }
 
@@ -2730,6 +2743,8 @@ stela_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, stela->o, stela->cb, "telnet",
 			      stela->user_data);
 
+    (void) child;
+
     snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_rfc2217);
     snprintf(arg2, sizeof(arg2), "winsize=%d", stela->allow_rfc1073);
     snprintf(arg3, sizeof(arg3), "writebuf=%lu",
@@ -2756,6 +2771,8 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
     struct stel_data *sdata = finish_data;
     struct stela_data *stela = acc_data;
     int err;
+
+    (void) child;
 
     err = gensio_acc_base_parms_apply(stela->acc, io);
     if (err)

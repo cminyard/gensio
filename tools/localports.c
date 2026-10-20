@@ -85,6 +85,8 @@ pshutdown(struct ioinfo *ioinfo1, enum ioinfo_shutdown_reason reason)
     struct gensio_os_funcs *o = p->o;
     struct ioinfo *ioinfo2;
 
+    (void) reason;
+
     ioinfo2 = ioinfo_otherioinfo(ioinfo1);
     gensio_free(pc->io1);
     gensio_free(pc->io2);
@@ -118,6 +120,9 @@ perr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 static void
 pout(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
+    (void) ioinfo;
+    (void) fmt;
+    (void) ap;
     /* There should never be anything to print. */
 }
 
@@ -296,6 +301,8 @@ local_port_accept(struct gensio_accepter *accepter,
 		  void *user_data, int event, void *data)
 {
     struct local_portinfo *pi = user_data;
+
+    (void) accepter;
 
     switch (event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:

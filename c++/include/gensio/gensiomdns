@@ -75,7 +75,9 @@ namespace gensios {
 			    const char *domain, const char *host,
 			    const struct gensio_addr *addr,
 			    const char * const *txt) = 0;
-	virtual void set_parent(Raw_MDNS_Event_Handler *parent) { }
+	virtual void set_parent(Raw_MDNS_Event_Handler *parent) {
+	    (void) parent;
+	}
     };
 
     class GENSIOMDNSCPP_DLL_PUBLIC Raw_MDNS_Service_Event_Handler {
@@ -85,7 +87,9 @@ namespace gensios {
 	virtual void handle(MDNS_Service_Event *e,
 			    enum gensio_mdns_service_event ev,
 			    const char *info) = 0;
-	virtual void set_parent(Raw_MDNS_Service_Event_Handler *parent) { }
+	virtual void set_parent(Raw_MDNS_Service_Event_Handler *parent) {
+	    (void) parent;
+	}
     };
 
     class GENSIOMDNSCPP_DLL_PUBLIC MDNS {

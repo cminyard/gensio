@@ -81,6 +81,8 @@ glogger(void *cbdata, const char *format, ...)
 {
     va_list va;
 
+    (void) cbdata;
+
     va_start(va, format);
     vfprintf(stderr, format, va);
     va_end(va);
@@ -90,6 +92,8 @@ static void
 gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
+
+    (void) reason;
 
     gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
 }
@@ -120,6 +124,11 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
 		  int ierr, unsigned char *buf, gensiods *buflen,
 		  const char *const *auxdata)
 {
+    (void) ioinfo;
+    (void) io;
+    (void) ierr;
+    (void) buflen;
+
     if (event != GENSIO_EVENT_NEW_CHANNEL)
 	return GE_NOTSUP;
     handle_rem_req((struct gensio *) buf, auxdata[0]);
@@ -141,6 +150,9 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
     struct gdata *oginfo = ioinfo_userdata(oioinfo);
+
+    (void) buf;
+    (void) buflen;
 
     if (ginfo->got_oob)
 	return;
@@ -430,6 +442,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     if (!debug)
 	return;
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
@@ -455,6 +469,8 @@ translate_filename(char *filename)
 	if (i > 2 && filename[i] == ':')
 	    filename[i] = '!';
     }
+#else
+    (void) filename;
 #endif
 }
 
@@ -814,6 +830,8 @@ verify_cert(struct gensio_os_funcs *o,
     FILE *f;
     char *filename;
     char cmpcert[16384];
+
+    (void) o;
 
     if (port)
 	filename = alloc_sprintf("%s%c%s,%d.crt", dir, DIRSEP, name, port);
@@ -1310,6 +1328,8 @@ winch_ready(int x_chrs, int y_chrs, int x_bits, int y_bits,
 static void
 pr_localport(void *cb_data, const char *fmt, va_list ap)
 {
+    (void) cb_data;
+
     vfprintf(stderr, fmt, ap);
 }
 
@@ -1576,6 +1596,8 @@ check_mdns_done(struct gensio_timer *t, void *userdata)
 {
     struct mdns_cb_data *cb_data = userdata;
 
+    (void) t;
+
     cb_data->done = true;
     gensio_os_funcs_wake(cb_data->o, cb_data->wait);
 }
@@ -1596,6 +1618,13 @@ mdns_cb(struct gensio_mdns_watch *w,
     const char *protocol;
     static const char *stackstr = "gensiostack=";
     unsigned int i;
+
+    (void) w;
+    (void) iface;
+    (void) ipdomain;
+    (void) name;
+    (void) domain;
+    (void) host;
 
     gensio_os_funcs_stop_timer(o, cb_data->timer);
 
@@ -1669,6 +1698,8 @@ static void
 mdns_freed(struct gensio_mdns *m, void *userdata)
 {
     struct mdns_cb_data *cb_data = userdata;
+
+    (void) m;
 
     gensio_os_funcs_wake(cb_data->o, cb_data->wait);
 }

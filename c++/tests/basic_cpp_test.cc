@@ -66,6 +66,8 @@ private:
     gensiods read(int err, SimpleUCharVector idata,
 		  const char *const *auxdata) override
     {
+	(void) auxdata;
+
 	if (err) {
 	    errstr = gensio_err_to_str(err);
 	    io->set_read_callback_enable(false);
@@ -202,6 +204,8 @@ private:
     {
 	gensiods count;
 
+	(void) auxdata;
+
 	if (err) {
 	    if (err != GE_REMCLOSE)
 		errstr = gensio_err_to_str(err);
@@ -330,6 +334,8 @@ private:
 		  const char *const *auxdata) override
     {
 	gensiods i;
+
+	(void) auxdata;
 
 	if (portfound) {
 	    io->set_read_callback_enable(false);

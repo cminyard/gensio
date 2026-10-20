@@ -661,6 +661,9 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 
     if (!hosts_access(&req))
 	return "Access denied\r\n";
+#else
+    (void) iod;
+    (void) iprogname;
 #endif
 
     return NULL;
@@ -2990,6 +2993,8 @@ process_rs485(struct gensio_os_funcs *o, struct gensio_unix_termios *t, int fd,
     char *end;
     int err;
 
+    (void) fd;
+
     if (!str || strcasecmp(str, "off") == 0) {
 	t->rs485.flags &= ~SER_RS485_ENABLED;
 	return 0;
@@ -3495,6 +3500,8 @@ void
 gensio_unix_do_flush(struct gensio_os_funcs *o, int fd, int whichbuf)
 {
     int arg;
+
+    (void) o;
 
     if ((whichbuf & (GENSIO_IN_BUF | GENSIO_OUT_BUF)) ==
 			(GENSIO_IN_BUF | GENSIO_OUT_BUF))
@@ -4161,6 +4168,7 @@ gensio_memtrack_alloc(void)
 void
 gensio_memtrack_cleanup(struct gensio_memtrack *m)
 {
+    (void) m;
 }
 
 void *
@@ -4168,6 +4176,11 @@ gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size,
 		void *caller[], unsigned int caller_size)
 {
     void *d = malloc(size);
+
+    (void) m;
+    (void) caller;
+    (void) caller_size;
+
     if (d)
 	memset(d, 0, size);
     return d;
@@ -4177,6 +4190,10 @@ void
 gensio_i_free(struct gensio_memtrack *m, void *data,
 	      void *caller[], unsigned int caller_size)
 {
+    (void) m;
+    (void) caller;
+    (void) caller_size;
+
     free(data);
 }
 
@@ -4414,6 +4431,8 @@ gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 {
     lock_thread_type tid;
     bool do_unlock = true;
+
+    (void) f;
 
     if (once->called == 1)
 	/* once has been done, just return. */

@@ -54,6 +54,8 @@ fd_read_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
 
+    (void) iod;
+
     fd_data->data_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
 
@@ -61,6 +63,8 @@ static void
 fd_write_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
+
+    (void) iod;
 
     fd_data->write_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
@@ -70,6 +74,8 @@ fd_except_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
 
+    (void) iod;
+
     fd_data->except_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
 
@@ -77,6 +83,8 @@ static void
 free_fd_data(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = data;
+
+    (void) iod;
 
     fd_data->o->release_iod(fd_data->iod);
     if (fd_data->freed)
@@ -160,6 +168,8 @@ timer_handler(struct gensio_timer *t, void *data)
     struct gensio_os_funcs *o = info->o;
     void              *cb_data;
     os_timed_out_t    timed_out;
+
+    (void) t;
 
     o->lock(timer->lock);
     timed_out = timer->timed_out;
@@ -416,6 +426,8 @@ gio_set_fd_handlers(os_handler_t *handler, os_hnd_fd_id_t *id,
 		    os_data_ready_t write_ready,
 		    os_data_ready_t except_ready)
 {
+    (void) handler;
+
     id->write_ready = write_ready;
     id->except_ready = except_ready;
 }
@@ -449,6 +461,8 @@ gio_get_monotonic_time(os_handler_t *handler, struct timeval *tv)
 static int
 gio_get_real_time(os_handler_t *handler, struct timeval *tv)
 {
+    (void) handler;
+
     gettimeofday(tv, NULL);
     return 0;
 }

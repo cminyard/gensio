@@ -63,6 +63,8 @@ gensio_sound_file_api_set_read(struct sound_info *si, bool enable)
 static void
 gensio_sound_file_api_set_write(struct sound_info *si, bool enable)
 {
+    (void) si;
+    (void) enable;
 }
 
 static unsigned int
@@ -137,6 +139,8 @@ int
 gensio_sound_file_api_devices(struct gensio_os_funcs *o,
 			      char ***rnames, char ***rspecs, gensiods *rcount)
 {
+    (void) o;
+
     *rnames = NULL;
     *rspecs = NULL;
     *rcount = 0;
@@ -148,6 +152,8 @@ gensio_sound_file_api_setup(struct gensio_pparm_info *p,
 			    struct sound_info *si, struct gensio_sound_info *io)
 {
     struct gensio_os_funcs *o = si->soundll->o;
+
+    (void) p;
 
     si->cardname = gensio_strdup(o, io->devname);
     if (!si->cardname)

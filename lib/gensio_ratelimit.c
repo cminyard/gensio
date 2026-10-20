@@ -71,12 +71,16 @@ ratelimit_set_callbacks(struct ratelimit_filter *rfilter,
 static bool
 ratelimit_ul_read_pending(struct ratelimit_filter *rfilter)
 {
+    (void) rfilter;
+
     return false; /* We don't hold any read data. */
 }
 
 static bool
 ratelimit_ll_write_pending(struct ratelimit_filter *rfilter)
 {
+    (void) rfilter;
+
     return false; /* We don't hold any write data. */
 }
 
@@ -90,12 +94,17 @@ ratelimit_ul_can_write(struct ratelimit_filter *rfilter, bool *rv)
 static bool
 ratelimit_ll_read_needed(struct ratelimit_filter *rfilter)
 {
+    (void) rfilter;
+
     return false;
 }
 
 static int
 ratelimit_check_open_done(struct ratelimit_filter *rfilter, struct gensio *io)
 {
+    (void) rfilter;
+    (void) io;
+
     return 0;
 }
 
@@ -103,6 +112,9 @@ static int
 ratelimit_try_connect(struct ratelimit_filter *rfilter, gensio_time *timeout,
 		      bool was_timeout)
 {
+    (void) timeout;
+    (void) was_timeout;
+
     rfilter->xmit_ready = true;
     return 0;
 }
@@ -111,6 +123,10 @@ static int
 ratelimit_try_disconnect(struct ratelimit_filter *rfilter, gensio_time *timeout,
 			 bool was_timeout)
 {
+    (void) rfilter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -160,18 +176,23 @@ ratelimit_ll_write(struct ratelimit_filter *rfilter,
 		unsigned char *buf, gensiods buflen,
 		const char *const *auxdata)
 {
+    (void) rfilter;
+
     return handler(cb_data, rcount, buf, buflen, auxdata);
 }
 
 static int
 ratelimit_setup(struct ratelimit_filter *rfilter)
 {
+    (void) rfilter;
+
     return 0;
 }
 
 static void
 ratelimit_filter_cleanup(struct ratelimit_filter *rfilter)
 {
+    (void) rfilter;
 }
 
 static void
@@ -302,6 +323,8 @@ gensio_ratelimit_config(struct gensio_pparm_info *p,
 			struct ratelimit_config *config)
 {
     unsigned int i;
+
+    (void) o;
 
     config->xmit_buf_len = 1;
 
@@ -472,6 +495,8 @@ ratelimitna_new_child(void *acc_data, void **finish_data,
 {
     struct ratelimitna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_ratelimit_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
@@ -480,6 +505,8 @@ ratelimitna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct ratelimitna_data *nadata = acc_data;
     int err;
+
+    (void) finish_data;
 
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
@@ -492,6 +519,8 @@ static int
 gensio_gensio_acc_ratelimit_cb(void *acc_data, int op, void *data1, void *data2,
 			       void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return ratelimitna_alloc_gensio(acc_data, data4, data1, data2);

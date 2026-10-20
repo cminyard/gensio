@@ -411,6 +411,8 @@ conaccna_do_deferred(struct gensio_runner *runner, void *cb_data)
 {
     struct conaccna_data *nadata = cb_data;
 
+    (void) runner;
+
     conaccna_lock(nadata);
     nadata->deferred_op_pending = false;
 
@@ -501,6 +503,8 @@ conaccn_close_done(struct gensio *child_io, void *close_cb_data)
     struct conaccn_data *ndata = close_cb_data;
     gensio_done close_done;
     void *close_data;
+
+    (void) child_io;
 
     conaccn_lock(ndata);
     close_done = ndata->close_done;
@@ -632,6 +636,8 @@ conaccn_event(struct gensio *io, void *user_data,
 {
     struct conaccn_data *ndata = user_data;
 
+    (void) io;
+
     if (!ndata->io)
 	return GE_NOTSUP;
 
@@ -656,6 +662,8 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
 {
     struct conaccn_data *ndata = open_data;
     struct conaccna_data *nadata = ndata->nadata;
+
+    (void) io;
 
     conaccna_lock(nadata);
     if (nadata->state == CONACCNA_OPEN_SHUTDOWN ||
@@ -794,6 +802,8 @@ conaccna_retry_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct conaccna_data *nadata = cb_data;
 
+    (void) t;
+
     conaccna_lock(nadata);
     switch (nadata->state) {
     case CONACCNA_SHUTDOWN:
@@ -825,6 +835,8 @@ static void
 retry_timer_done(struct gensio_timer *t, void *cb_data)
 {
     struct conaccna_data *nadata = cb_data;
+
+    (void) t;
 
     conaccna_lock(nadata);
     switch (nadata->state) {
@@ -864,6 +876,8 @@ conaccna_startup(struct gensio_accepter *accepter,
 {
     int rv = 0;
 
+    (void) accepter;
+
     conaccna_lock(nadata);
     if (nadata->state == CONACCNA_SHUTDOWN) {
 	nadata->con_err = 0;
@@ -890,6 +904,8 @@ conaccn_shutdown_close_done(struct gensio *child_io, void *close_cb_data)
 {
     struct conaccn_data *ndata = close_cb_data;
     struct conaccna_data *nadata = ndata->nadata;
+
+    (void) child_io;
 
     conaccn_finish_free(ndata);
     conaccna_lock(nadata);
@@ -918,6 +934,8 @@ conaccna_shutdown(struct gensio_accepter *accepter,
     struct gensio_os_funcs *o = nadata->o;
     struct conaccn_data *ndata;
     int rv = 0, err;
+
+    (void) accepter;
 
     conaccna_lock(nadata);
     switch (nadata->state) {
@@ -995,6 +1013,8 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
 {
     int rv = 0, err;
     bool do_deferred = true;
+
+    (void) accepter;
 
     conaccna_lock(nadata);
     if (nadata->enabled_done) {
@@ -1090,6 +1110,8 @@ static void
 conaccna_free(struct gensio_accepter *accepter,
 	      struct conaccna_data *nadata)
 {
+    (void) accepter;
+
     conaccna_lock(nadata);
     conaccna_deref_and_unlock(nadata);
 }
@@ -1098,6 +1120,8 @@ static void
 conaccna_disable(struct gensio_accepter *accepter,
 		 struct conaccna_data *nadata)
 {
+    (void) accepter;
+
     conaccna_lock(nadata);
     nadata->state = CONACCNA_DEAD;
     conaccna_unlock(nadata);
@@ -1109,6 +1133,8 @@ conaccna_control(struct gensio_accepter *accepter, struct conaccna_data *nadata,
 {
     int err;
     int iooption;
+
+    (void) accepter;
 
     switch (option) {
     case GENSIO_ACC_CONTROL_LADDR:
@@ -1139,6 +1165,8 @@ conacc_base_acc_op(struct gensio_accepter *acc, int func,
 		   void *acc_op_data, void *done, int val1,
 		   void *data, void *data2, void *ret)
 {
+    (void) data2;
+
     switch (func) {
     case GENSIO_BASE_ACC_STARTUP:
 	return conaccna_startup(acc, acc_op_data);

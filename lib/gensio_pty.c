@@ -81,6 +81,10 @@ struct pty_data {
 static int pty_check_open(void *handler_data, struct gensio_iod *iod,
 			  gensio_time *timeout)
 {
+    (void) handler_data;
+    (void) iod;
+    (void) timeout;
+
     return 0;
 }
 
@@ -182,11 +186,15 @@ gensio_cleanup_pty(struct pty_data *tdata)
 #ifndef _WIN32
 static int
 setup_for_user(struct pty_data *tdata) {
+    (void) tdata;
+
     return 0;
 }
 
 static void
-cleanup_for_user(struct pty_data *tdata) {}
+cleanup_for_user(struct pty_data *tdata) {
+    (void) tdata;
+}
 
 #else
 
@@ -314,6 +322,8 @@ pty_sub_open(void *handler_data, struct gensio_iod **riod,
     struct pty_data *tdata = handler_data;
     int err;
 
+    (void) timeout;
+
     tdata->check_close_count = 0;
     err = gensio_setup_child_on_pty(tdata);
     if (!err)
@@ -426,6 +436,9 @@ pty_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 {
     int rv = iod->f->write(iod, sg, sglen, rcount);
 
+    (void) handler_data;
+    (void) auxdata;
+
     if (rv && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
     return rv;
@@ -437,6 +450,9 @@ pty_do_read(struct gensio_iod *iod, void *data, gensiods count,
 {
     int rv = iod->f->read(iod, data, count, rcount);
 
+    (void) auxdata;
+    (void) cb_data;
+
     if (rv && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
     return rv;
@@ -446,6 +462,8 @@ static void
 pty_read_ready(void *handler_data, struct gensio_iod *iod)
 {
     struct pty_data *tdata = handler_data;
+
+    (void) iod;
 
     gensio_fd_ll_handle_incoming(tdata->ll, pty_do_read, NULL, tdata);
 }
@@ -458,6 +476,8 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
     struct gensio_os_funcs *o = tdata->o;
     const char **env, **argv;
     int err, val;
+
+    (void) iod;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:

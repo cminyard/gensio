@@ -1243,6 +1243,8 @@ gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
 gensio_cntstr *
 gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
+    (void) o;
+
     gensio_refcount_inc(&str->refcount);
     return str;
 }

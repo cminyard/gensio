@@ -65,6 +65,10 @@ keyop_done(struct gensio *io, int err, const char *buf, gensiods len,
 {
     struct keyinfo *keyinfo = cb_data;
 
+    (void) io;
+    (void) buf;
+    (void) len;
+
     if (err)
 	keyinfo->report_key_log(keyinfo->cb_data, GENSIO_LOG_WARNING,
 				"afskmdm: Error keying transmitter: %s\n",
@@ -181,6 +185,11 @@ key_cb(struct gensio *io, void *user_data, int event, int err,
 {
     struct keyinfo *keyinfo = user_data;
 
+    (void) io;
+    (void) err;
+    (void) buflen;
+    (void) auxdata;
+
     switch(event) {
     case GENSIO_EVENT_READ:
 	return 0;
@@ -254,6 +263,8 @@ static void
 key_close_done(struct gensio *io, void *close_data)
 {
     struct keyinfo *keyinfo = close_data;
+
+    (void) io;
 
     keyinfo->key_io_state = KEY_CLOSED;
 }

@@ -316,6 +316,8 @@ sol_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct sol_ll *solll = cbdata;
 
+    (void) runner;
+
     sol_lock(solll);
     while (solll->deferred_op_pending) {
 	solll->deferred_op_pending = false;
@@ -369,6 +371,8 @@ handle_xmit_dones(struct gensio_runner *runner, void *cbdata)
     struct sol_ll *solll = cbdata;
     struct gensio_os_funcs *o = solll->o;
     unsigned int deref_count = 0;
+
+    (void) runner;
 
     sol_lock(solll);
     o->lock(solll->xmit_done_lock);
@@ -428,6 +432,8 @@ transmit_complete(ipmi_sol_conn_t *conn,
     struct sol_tc *tc = cb_data;
     struct sol_ll *solll = tc->solll;
     struct gensio_os_funcs *o = solll->o;
+
+    (void) conn;
 
     if (err)
 	err = sol_xlat_ipmi_err(o, err);
@@ -543,6 +549,8 @@ sol_data_received(ipmi_sol_conn_t *conn,
     struct sol_ll *solll = user_data;
     int rv = 0;
 
+    (void) conn;
+
     sol_lock(solll);
     if (count <= gensio_buffer_left(&solll->read_data)) {
 	gensio_buffer_output(&solll->read_data, idata, count);
@@ -558,11 +566,15 @@ sol_data_received(ipmi_sol_conn_t *conn,
 static void
 sol_break_detected(ipmi_sol_conn_t *conn, void *user_data)
 {
+    (void) conn;
+    (void) user_data;
 }
 
 static void
 bmc_transmit_overrun(ipmi_sol_conn_t *conn, void *user_data)
 {
+    (void) conn;
+    (void) user_data;
 }
 
 static void
@@ -570,6 +582,8 @@ connection_closed(ipmi_con_t *ipmi, void *cb_data)
 {
     struct sol_ll *solll = cb_data;
     enum sol_state old_state;
+
+    (void) ipmi;
 
     sol_lock(solll);
     old_state = solll->state;
@@ -591,6 +605,8 @@ sol_connection_state(ipmi_sol_conn_t *conn, ipmi_sol_state state,
 		     int err, void *cb_data)
 {
     struct sol_ll *solll = cb_data;
+
+    (void) conn;
 
     if (err)
 	err = sol_xlat_ipmi_err(solll->o, err);
@@ -657,6 +673,9 @@ conn_changed(ipmi_con_t   *ipmi,
 	     void         *cb_data)
 {
     struct sol_ll *solll = cb_data;
+
+    (void) ipmi;
+    (void) port_num;
 
     if (err)
 	err = sol_xlat_ipmi_err(solll->o, err);
@@ -967,6 +986,8 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 		   void *buf, const void *cbuf, gensiods buflen,
 		   const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
 	sol_set_callbacks(ll, cbuf, buf);
@@ -1014,6 +1035,10 @@ ipmisol_flush_done(ipmi_sol_conn_t *conn, int error,
 {
     struct sol_ll *solll = cb_data;
     int rv;
+
+    (void) conn;
+    (void) error;
+    (void) queue_selectors_flushed;
 
     sol_lock(solll);
     if (solll->state == SOL_OPEN && solll->pending_break) {
@@ -1082,6 +1107,9 @@ ipmisol_break_done(ipmi_sol_conn_t *conn, int err, void *cb_data)
     struct sol_ll *solll = cb_data;
     int rv;
 
+    (void) conn;
+    (void) err;
+
     sol_lock(solll);
     if (solll->state == SOL_OPEN && solll->pending_break) {
 	/* A flush came in while one was pending, do it. */
@@ -1120,6 +1148,8 @@ ipmisol_op_done(ipmi_sol_conn_t *conn, int err, void *icb_data)
 {
     struct sol_op_done **op_done = icb_data;
     struct sol_ll *solll = (*op_done)->solll;
+
+    (void) conn;
 
     sol_lock(solll);
     sol_op_done(solll, err, op_done);
@@ -1677,6 +1707,8 @@ static void
 iterm_ser_cb(void *handler_data, int op, void *data)
 {
     struct iterm_data *idata = handler_data;
+
+    (void) data;
 
     if (op == GENSIO_SOL_LL_FREE) {
 	iterm_free(handler_data);

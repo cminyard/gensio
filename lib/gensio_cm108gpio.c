@@ -664,6 +664,8 @@ cm108gpio_deferred_op(struct gensio_runner *runner, void *cb_data)
     struct cm108gpio_data *ndata = cb_data;
     int err = 0;
 
+    (void) runner;
+
     cm108gpio_lock(ndata);
  restart:
     if (ndata->state == CM108GPIO_IN_OPEN || ndata->state == CM108GPIO_IN_OPEN_CLOSE) {
@@ -873,6 +875,8 @@ gensio_cm108gpio_func(struct gensio *io, int func, gensiods *count,
 		       const void *cbuf, gensiods buflen, void *buf,
 		       const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return cm108gpio_write(io, count, cbuf, buflen);

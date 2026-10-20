@@ -246,6 +246,8 @@ handle_ax25_close(struct gensio *unused, void *user_data)
     struct agwpe_ax25_conn *conn = user_data;
     struct agwpe_inst *inst = conn->inst;
 
+    (void) unused;
+
     if (inst->in_close) {
 	/* The whole instance is being shut down, nothing to report. */
 	if (conn->in_xmit)
@@ -292,6 +294,8 @@ io_conn_event(struct gensio *io, void *user_data, int event, int err,
     struct agwpe_packet op;
     gensiods count;
     int rv;
+
+    (void) io;
 
     switch (event) {
     case GENSIO_EVENT_READ:
@@ -458,6 +462,8 @@ process_ask_port_information(struct agwpe_inst *inst, struct agwpe_packet *p)
     struct agwpe_packet op;
     char data[100];
 
+    (void) p;
+
     if (!check_output_ready(inst))
 	return 0;
 
@@ -479,6 +485,8 @@ process_version_info(struct agwpe_inst *inst, struct agwpe_packet *p)
 {
     struct agwpe_packet op;
     unsigned char data[8];
+
+    (void) p;
 
     if (!check_output_ready(inst))
 	return 0;
@@ -744,6 +752,8 @@ conn_opened(struct gensio *io, int err, void *user_data)
 {
     struct agwpe_ax25_conn *conn = user_data;
 
+    (void) io;
+
     if (err) {
 	conn->report_close = true;
 	conn->timeout = true;
@@ -982,6 +992,8 @@ handle_net_close(struct gensio *unused, void *user_data)
     struct agwpe_inst *inst = user_data;
     struct gensio_link *l, *l2;
 
+    (void) unused;
+
     if (inst->io)
 	gensio_free(inst->io);
 
@@ -1035,6 +1047,9 @@ io_net_event(struct gensio *io, void *user_data, int event, int err,
     struct agwpe_inst *inst = user_data;
     gensiods len, used = 0, left;
     int rv;
+
+    (void) io;
+    (void) auxdata;
 
     if (err)
 	goto protocol_err;
@@ -1200,6 +1215,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     struct accinfo *ai = user_data;
     struct agwpe_inst *inst;
 
+    (void) accepter;
+
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
 
@@ -1264,6 +1281,8 @@ handle_new_ax25_channel(struct accinfo *ai, struct gensio *io,
     struct gensio_addr *gaddr = NULL;
     struct gensio_ax25_addr *xaddr;
     int rv = GE_INVAL;
+
+    (void) io;
 
     for (i = 0; auxdata && auxdata[i]; i++) {
 	if (strncmp(auxdata[i], "addr:", 5)) {
@@ -1383,6 +1402,8 @@ io_tnc_event(struct gensio *io, void *user_data, int event, int err,
      * for some of this.
      */
 
+    (void) err;
+
     switch (event) {
     case GENSIO_EVENT_READ:
 	for (i = 0; auxdata && auxdata[i]; i++) {
@@ -1496,6 +1517,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
     vfprintf(stderr, log, args);
     fprintf(stderr, "\n");

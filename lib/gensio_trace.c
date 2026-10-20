@@ -62,24 +62,33 @@ trace_unlock(struct trace_filter *tfilter)
 static bool
 trace_ul_read_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static bool
 trace_ll_write_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static bool
 trace_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static int
 trace_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -87,6 +96,8 @@ static int
 trace_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct trace_filter *tfilter = filter_to_trace(filter);
+
+    (void) timeout;
 
     if (tfilter->tr_stdout) {
 	tfilter->tr = stdout;
@@ -103,6 +114,9 @@ trace_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 static int
 trace_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -230,6 +244,8 @@ trace_ll_write(struct gensio_filter *filter,
 static int
 trace_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
@@ -510,12 +526,17 @@ tracena_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "trace",
 			      nadata->user_data);
 
+    (void) finish_data;
+
     return gensio_trace_filter_alloc(&p, nadata->o, nadata->args, filter);
 }
 
 static int
 tracena_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    (void) acc_data;
+    (void) finish_data;
+
     gensio_set_attr_from_child(io, gensio_get_child(io, 0));
     return 0;
 }
@@ -524,6 +545,8 @@ static int
 gensio_gensio_acc_trace_cb(void *acc_data, int op, void *data1, void *data2,
 			   void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return tracena_alloc_gensio(acc_data, data4, data1, data2);

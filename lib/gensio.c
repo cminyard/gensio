@@ -501,6 +501,8 @@ gensio_open_s_done(struct gensio *io, int err, void *cb_data)
 {
     struct gensio_open_s_data *data = cb_data;
 
+    (void) io;
+
     data->err = err;
     data->o->wake(data->waiter);
 }
@@ -661,6 +663,8 @@ gensio_acontrol_s_done(struct gensio *io, int err, const char *str,
     struct gensio_acontrol_s_data *data = cb_data;
     gensiods copysize = len;
 
+    (void) io;
+
     data->err = err;
     if (!err && data->is_get) {
 	if (copysize > data->datalen - 1)
@@ -781,6 +785,8 @@ static void
 gensio_close_s_done(struct gensio *io, void *cb_data)
 {
     struct gensio_close_s_data *data = cb_data;
+
+    (void) io;
 
     data->o->wake(data->waiter);
 }
@@ -1051,6 +1057,8 @@ gensio_acc_shutdown_s_done(struct gensio_accepter *acc, void *cb_data)
 {
     struct gensio_close_s_data *data = cb_data;
 
+    (void) acc;
+
     data->o->wake(data->waiter);
 }
 
@@ -1173,6 +1181,8 @@ static void
 acc_cb_enable_done(struct gensio_accepter *acc, void *done_data)
 {
     struct acc_cb_enable_data *data = done_data;
+
+    (void) acc;
 
     data->o->wake(data->waiter);
 }
@@ -2405,6 +2415,9 @@ gensio_pparm_cstr(struct gensio_pparm_info *p,
     const char *sval;
     int rv = gensio_pparm_value(p, str, key, &sval);
 
+    (void) seps;
+    (void) endchars;
+
     if (!rv)
 	return 0;
 
@@ -3356,6 +3369,8 @@ gensio_syncio_event(struct gensio *io, void *user_data,
     struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = io->sync_io;
     gensiods done_len;
+
+    (void) user_data;
 
     switch (event) {
     case GENSIO_EVENT_READ:

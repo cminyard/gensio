@@ -85,6 +85,8 @@ static int sctp_check_open(void *handler_data, struct gensio_iod *iod,
     struct sctp_data *tdata = handler_data;
     int err;
 
+    (void) timeval;
+
     err = tdata->o->sock_control(iod, GENSIO_SOCKCTL_CHECK_OPEN, NULL, NULL);
     if (!err)
 	err = sctp_setup(tdata);
@@ -155,6 +157,8 @@ sctp_sub_open(void *handler_data, struct gensio_iod **iod,
 	      gensio_time *timeout)
 {
     struct sctp_data *tdata = handler_data;
+
+    (void) timeout;
 
     return sctp_try_open(tdata, iod);
 }
@@ -314,6 +318,8 @@ sctp_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
     struct sctp_sndrcvinfo sinfo;
     unsigned int stream = 0, i;
 
+    (void) iod;
+
     memset(&sinfo, 0, sizeof(sinfo));
 
     if (auxdata) {
@@ -372,6 +378,8 @@ static void
 sctp_read_ready(void *handler_data, struct gensio_iod *iod)
 {
     struct sctp_data *tdata = handler_data;
+
+    (void) iod;
 
     gensio_fd_ll_handle_incoming(tdata->ll, sctp_do_read, tdata->auxdata,
 				 tdata);
@@ -728,6 +736,8 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 {
     int rv;
 
+    (void) accepter;
+
     rv = gensio_os_open_listen_sockets(nadata->o, nadata->ai,
 				    sctpna_readhandler, NULL, sctpna_fd_cleared,
 				    sctpna_setup_socket, nadata,
@@ -746,6 +756,8 @@ sctpna_shutdown(struct gensio_accepter *accepter,
 {
     unsigned int i;
 
+    (void) accepter;
+
     nadata->shutdown_done = shutdown_done;
     nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
     for (i = 0; i < nadata->nr_acceptfds; i++)
@@ -759,6 +771,8 @@ sctpna_cb_en_done(struct gensio_runner *runner, void *cb_data)
     struct sctpna_data *nadata = cb_data;
     gensio_acc_done done = nadata->cb_en_done;
 
+    (void) runner;
+
     nadata->cb_en_done = NULL;
     done(nadata->acc, NULL);
 }
@@ -770,6 +784,8 @@ sctpna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				  gensio_acc_done done)
 {
     unsigned int i;
+
+    (void) accepter;
 
     if (nadata->cb_en_done)
 	return GE_INUSE;
@@ -786,6 +802,8 @@ sctpna_set_accept_callback_enable(struct gensio_accepter *accepter,
 static void
 sctpna_free(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 {
+    (void) accepter;
+
     if (nadata->lock)
 	nadata->o->free_lock(nadata->lock);
     if (nadata->cb_en_done_runner)
@@ -817,6 +835,8 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
     int protocol = GENSIO_NET_PROTOCOL_SCTP;
     bool nodelay = false;
     GENSIO_DECLARE_PPGENSIO(p, nadata->o, cb, "sctp", user_data);
+
+    (void) accepter;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai,
 				   &protocol, &is_port_set, &iargc, &iargs);
@@ -939,6 +959,8 @@ static int
 sctpna_control(struct gensio_accepter *accepter, struct sctpna_data *nadata,
 	       bool get, unsigned int option, char *data, gensiods *datalen)
 {
+    (void) accepter;
+
     switch (option) {
     case GENSIO_ACC_CONTROL_LADDR:
 	return sctpna_control_laddr(nadata, get, data, datalen);
@@ -955,6 +977,8 @@ static void
 sctpna_disable(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 {
     unsigned int i;
+
+    (void) accepter;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);

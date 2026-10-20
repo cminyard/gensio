@@ -426,6 +426,8 @@ fd_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
 
+    (void) runner;
+
     fd_lock(fdll);
     if (fdll->deferred_open) {
 	fdll->deferred_open = false;
@@ -575,6 +577,9 @@ static int
 gensio_ll_fd_read(struct gensio_iod *iod, void *buf, gensiods count, gensiods *rcount,
 		  const char ***auxdata, void *cb_data)
 {
+    (void) auxdata;
+    (void) cb_data;
+
     return iod->f->read(iod, buf, count, rcount);
 }
 
@@ -582,6 +587,8 @@ static void
 fd_read_ready(struct gensio_iod *iod, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
+
+    (void) iod;
 
     if (fdll->ops->read_ready) {
 	fdll->ops->read_ready(fdll->handler_data, fdll->iod);
@@ -829,6 +836,8 @@ fd_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct fd_ll *fdll = cb_data;
 
+    (void) t;
+
     fd_lock(fdll);
     switch (fdll->timer_state) {
     case T_STOPPED:
@@ -860,6 +869,8 @@ fd_cleared(struct gensio_iod *iod, void *cb_data)
     struct fd_ll *fdll = cb_data;
     int err;
     gensio_time timeout;
+
+    (void) iod;
 
     fd_lock_and_ref(fdll);
     if (fdll->state == FD_IN_OPEN_RETRY) {

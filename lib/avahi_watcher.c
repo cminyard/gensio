@@ -90,6 +90,8 @@ gensio_avahi_read_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
+    (void) iod;
+
     o->lock(u->lock);
     if (u->disabled || w->freed) {
 	o->set_read_handler(w->iod, false);
@@ -107,6 +109,8 @@ gensio_avahi_write_handler(struct gensio_iod *iod, void *cb_data)
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
+
+    (void) iod;
 
     o->lock(u->lock);
     if (u->disabled || w->freed) {
@@ -126,6 +130,8 @@ gensio_avahi_except_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
+    (void) iod;
+
     o->lock(u->lock);
     if (u->disabled || w->freed) {
 	o->set_except_handler(w->iod, false);
@@ -143,6 +149,8 @@ gensio_avahi_cleared_handler(struct gensio_iod *iod, void *cb_data)
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
+
+    (void) iod;
 
     gensio_list_rm(&u->watches, &w->link);
     o->release_iod(w->iod);
@@ -244,6 +252,8 @@ gensio_avahi_timeout(struct gensio_timer *t, void *cb_data)
     struct gensio_avahi_userdata *u = at->u;
     struct gensio_os_funcs *o = u->o;
 
+    (void) t;
+
     o->lock(u->lock);
     if (!at->stopped && !u->disabled)
 	at->callback(at, at->userdata);
@@ -319,6 +329,8 @@ gensio_avahi_timer_stopped(struct gensio_timer *timer, void *userdata)
     AvahiTimeout *at = userdata;
     struct gensio_avahi_userdata *u = at->u;
     struct gensio_os_funcs *o = u->o;
+
+    (void) timer;
 
     o->lock(u->lock);
     i_gensio_avahi_timer_stopped(at);
@@ -400,6 +412,8 @@ gensio_avahi_poll_runner(struct gensio_runner *runner, void *userdata)
     struct AvahiPoll *ap = userdata;
     struct gensio_avahi_userdata *u = ap->userdata;
     struct gensio_os_funcs *o = u->o;
+
+    (void) runner;
 
     /* Make sure all users are out of their locks. */
     o->lock(u->lock);

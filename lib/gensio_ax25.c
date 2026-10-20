@@ -834,6 +834,13 @@ ax25_chan_trace_msg(struct ax25_chan *chan,
     t->orig_cmd = orig_cmd;
     if (chan->msgtrace_pos >= AX25_CHAN_NR_MSGTRACE)
 	chan->msgtrace_pos = 0;
+#else
+    (void) chan;
+    (void) type;
+    (void) is_cmd;
+    (void) orig_cmd;
+    (void) data;
+    (void) len;
 #endif
 }
 
@@ -902,6 +909,8 @@ i_ax25_base_trace_unlock(struct ax25_base *base)
 static void
 i_ax25_base_ref(struct ax25_base *base, int line)
 {
+    (void) line;
+
     gensio_refcount_inc(&base->refcount);
     i_ax25_base_add_other(base, AX25_TRACE_BASE_REF,
 			  gensio_refcount_get(&base->refcount), line);
@@ -923,6 +932,8 @@ i_ax25_base_lock_and_ref(struct ax25_base *base, int line)
 static void
 i_ax25_base_deref(struct ax25_base *base, int line)
 {
+    (void) line;
+
     i_ax25_base_add_other(base, AX25_TRACE_BASE_DEREF,
 			  gensio_refcount_get(&base->refcount), line);
     gensio_refcount_dec(&base->refcount);
@@ -990,6 +1001,8 @@ static void
 i_ax25_base_deref_and_unlock(struct ax25_base *base, int line)
 {
     unsigned int count;
+
+    (void) line;
 
     i_ax25_base_add_other(base, AX25_TRACE_BASE_DEREF,
 			  gensio_refcount_get(&base->refcount), line);
@@ -1081,6 +1094,8 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 static void
 i_ax25_chan_ref(struct ax25_chan *chan, int line)
 {
+    (void) line;
+
     gensio_refcount_inc(&chan->refcount);
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_REF,
 			       gensio_refcount_get(&chan->refcount), line);
@@ -1091,6 +1106,9 @@ static bool
 i_ax25_chan_ref_if_nz(struct ax25_chan *chan, int line)
 {
     bool rv = gensio_refcount_inc_if_nz(&chan->refcount);
+
+    (void) line;
+
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_REF,
 			       gensio_refcount_get(&chan->refcount), line);
     return rv;
@@ -1112,6 +1130,8 @@ i_ax25_chan_lock_and_ref(struct ax25_chan *chan, int line)
 static void
 i_ax25_chan_deref(struct ax25_chan *chan, int line)
 {
+    (void) line;
+
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
 			       gensio_refcount_get(&chan->refcount), line);
     assert(gensio_refcount_dec(&chan->refcount) > 0);
@@ -1122,6 +1142,8 @@ static void
 i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
+
+    (void) line;
 
     assert(chan->locked);
     i_ax25_base_lock_add_other(base, AX25_TRACE_CHAN_DEREF,
@@ -1278,6 +1300,8 @@ decode_ax25_control_field(char *str, size_t strlen,
 	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
 	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
 
+    (void) buflen;
+
     if ((*buf & 1) == 0) {
 	/* I frame. */
 	snprintf(str, strlen, "I p=%d nr=%d ns=%d",
@@ -1311,6 +1335,8 @@ ax25_prmsg(struct gensio_os_funcs *o,
     gensiods pos = 0, pos2 = 0;
     int err;
     unsigned int i, j, k;
+
+    (void) sglen;
 
     if (buflen < 15)
 	return;
@@ -1427,6 +1453,8 @@ add_seq(uint8_t val, uint8_t amt, uint8_t window)
 static bool
 seq_in_range(uint8_t start, uint8_t end, uint8_t val, uint8_t window)
 {
+    (void) window;
+
     if (start == end)
 	return start == val;
     if (end > start)
@@ -1707,6 +1735,8 @@ ax25_chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct ax25_chan *chan = cbdata;
 
+    (void) runner;
+
     gensio_refcount_set(&chan->deferred_op_pending, 1);
 
     ax25_chan_lock(chan);
@@ -1902,6 +1932,8 @@ ax25_base_child_close_done(void *ll_data, void *open_data)
     struct ax25_base *base = open_data;
     int rv;
 
+    (void) ll_data;
+
     ax25_base_lock_and_ref(base);
     rv = i_ax25_base_child_close_done(base);
     if (rv)
@@ -1913,6 +1945,8 @@ static void
 ax25_base_child_open_done(void *ll_data, int err, void *open_data)
 {
     struct ax25_base *base = open_data;
+
+    (void) ll_data;
 
     ax25_base_lock_and_ref(base);
     ax25_base_handle_open_done(base, err);
@@ -2369,6 +2403,8 @@ ax25_chan_timeout(struct gensio_timer *timer, void *cb_data)
     gensio_time t;
     int64_t now;
 
+    (void) timer;
+
     o->get_monotonic_time(o, &t);
     now = gensio_time_to_msecs(&t);
 
@@ -2569,6 +2605,8 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
     const char *auxdata_ui[4] = { "oob", addrstr, pidstr, NULL };
     const char *auxdata_heard[4] = { "oob", "heard", addrstr, NULL };
     gensiods rcount;
+
+    (void) pf;
 
     snprintf(pidstr, sizeof(pidstr), "pid:%d", *data);
     data++;
@@ -2882,6 +2920,8 @@ static void
 ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd)
 {
+    (void) is_cmd;
+
     if (!chan) {
 	ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 	return;
@@ -2939,6 +2979,10 @@ static void
 ax25_chan_handle_dm(struct ax25_base *base, struct ax25_chan *chan,
 		    struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd)
 {
+    (void) base;
+    (void) addr;
+    (void) is_cmd;
+
     if (!chan)
 	/* Ignore this. */
 	return;
@@ -2992,6 +3036,9 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
 		    struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
 		    unsigned char *data, unsigned int len)
 {
+    (void) addr;
+    (void) is_cmd;
+
     if (!chan) {
 	ax25_proto_err(base, chan, "Unexpected UA when disconnected");
 	/* Ignore this. */
@@ -3116,6 +3163,9 @@ ax25_chan_handle_xid(struct ax25_base *base, struct ax25_chan *chan,
 {
     unsigned int i = 0, group_len, len;
 
+    (void) base;
+    (void) addr;
+
     if (!chan || chan->state != AX25_CHAN_OPEN)
 	/* Ignore this. */
 	return;
@@ -3201,6 +3251,10 @@ ax25_chan_handle_test(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
 		      unsigned char *buf, unsigned int buflen)
 {
+    (void) base;
+    (void) addr;
+    (void) is_cmd;
+
     if (!chan || chan->state != AX25_CHAN_OPEN)
 	/* Ignore this. */
 	return;
@@ -3216,6 +3270,13 @@ ax25_chan_handle_frmr(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
 		      unsigned char *buf, unsigned int buflen)
 {
+    (void) base;
+    (void) addr;
+    (void) pf;
+    (void) is_cmd;
+    (void) buf;
+    (void) buflen;
+
     if (!chan)
 	/* Ignore this. */
 	return;
@@ -3388,6 +3449,8 @@ ax25_chan_handle_i(struct ax25_base *base, struct ax25_chan *chan,
 {
     int rv = 0;
 
+    (void) addr;
+
     chan->got_firstmsg = true;
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
@@ -3542,6 +3605,8 @@ ax25_chan_handle_rr(struct ax25_base *base, struct ax25_chan *chan,
 {
     int rv = 0;
 
+    (void) base;
+
     assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
@@ -3573,6 +3638,8 @@ ax25_chan_handle_rnr(struct ax25_base *base, struct ax25_chan *chan,
 {
     int rv = 0;
 
+    (void) base;
+
     assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
@@ -3602,6 +3669,8 @@ static int
 ax25_chan_handle_rej(struct ax25_base *base, struct ax25_chan *chan,
 		     uint8_t nr, uint8_t pf, bool is_cmd)
 {
+    (void) base;
+
     assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
@@ -3654,6 +3723,8 @@ static int
 ax25_chan_handle_srej(struct ax25_base *base, struct ax25_chan *chan,
 		      uint8_t nr, uint8_t pf, bool is_cmd)
 {
+    (void) base;
+
     assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
@@ -4415,6 +4486,8 @@ ax25_chan_send_raw(struct ax25_chan *chan,
     struct ax25_raw_data *raw;
     unsigned char *buf;
     unsigned int i, len, pos;
+
+    (void) tnc_port;
 
     len = sizeof(*raw) + datalen;
     if (chan->base->conf.do_crc)
@@ -5763,6 +5836,8 @@ static int
 gensio_gensio_acc_ax25_cb(void *acc_data, int op, void *data1, void *data2,
 			  void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return ax25a_alloc_gensio(acc_data, data4, data1, data2);

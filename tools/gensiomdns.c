@@ -43,6 +43,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     if (!debug)
 	return;
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
@@ -60,12 +62,16 @@ static void mdns_freed(struct gensio_mdns *m, void *userdata)
 {
     struct freed_data *f = userdata;
 
+    (void) m;
+
     gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 
 static void mdns_watch_freed(struct gensio_mdns_watch *w, void *userdata)
 {
     struct freed_data *f = userdata;
+
+    (void) w;
 
     gensio_os_funcs_wake(f->o, f->closewaiter);
 }
@@ -94,6 +100,8 @@ check_close_done(struct gensio_timer *t, void *cb_data)
 {
     struct freed_data *f = cb_data;
 
+    (void) t;
+
     gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 
@@ -110,6 +118,8 @@ mdns_info_found(struct gensio_mdns_watch *w,
     const char * const *s;
     int rv;
     struct freed_data *f = userdata;
+
+    (void) w;
 
     if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW) {
 	printf("All-for-now:\n");
@@ -179,6 +189,8 @@ mdns_service_cb(struct gensio_mdns_service *service,
 		const char *info,
 		void *cb_data)
 {
+    (void) service;
+
     switch(ev) {
     case GENSIO_MDNS_SERVICE_ERROR:
 	printf("Service registration error: %s\n", info);

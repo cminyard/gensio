@@ -118,6 +118,8 @@ static int net_check_open(void *handler_data, struct gensio_iod *iod,
 {
     struct net_data *tdata = handler_data;
 
+    (void) timeout;
+
     tdata->last_err = tdata->o->sock_control(iod, GENSIO_SOCKCTL_CHECK_OPEN,
 					     NULL, NULL);
     return tdata->last_err;
@@ -130,6 +132,8 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod,
     struct gensio_iod *new_iod = NULL;
     int err = GE_INUSE;
     unsigned int setup = 0;
+
+    (void) timeout;
 
     if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP) {
         setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
@@ -1020,6 +1024,8 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
     char unpath[MAX_UNIX_ADDR_PATH];
 #endif
 
+    (void) iod;
+
     if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP)
 	return 0;
 
@@ -1081,6 +1087,8 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     int rv;
 
+    (void) accepter;
+
     rv = gensio_os_open_listen_sockets(nadata->o, nadata->ai,
 			       netna_readhandler,
 			       NULL, netna_fd_cleared, netna_b4_listen, nadata,
@@ -1097,6 +1105,8 @@ netna_shutdown(struct gensio_accepter *accepter,
 	       gensio_acc_done shutdown_done)
 {
     unsigned int i;
+
+    (void) accepter;
 
     nadata->shutdown_done = shutdown_done;
     nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
@@ -1116,6 +1126,8 @@ netna_cb_en_done(struct gensio_runner *runner, void *cb_data)
     struct netna_data *nadata = cb_data;
     gensio_acc_done done = nadata->cb_en_done;
 
+    (void) runner;
+
     nadata->cb_en_done = NULL;
     done(nadata->acc, NULL);
 }
@@ -1127,6 +1139,8 @@ netna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				 gensio_acc_done done)
 {
     unsigned int i;
+
+    (void) accepter;
 
     if (nadata->cb_en_done)
 	return GE_INUSE;
@@ -1143,6 +1157,8 @@ netna_set_accept_callback_enable(struct gensio_accepter *accepter,
 static void
 netna_free(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
+    (void) accepter;
+
     if (nadata->lock)
 	nadata->o->free_lock(nadata->lock);
     if (nadata->cb_en_done_runner)
@@ -1187,6 +1203,8 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     struct gensio_base_parms *parms;
     GENSIO_DECLARE_PPGENSIO(p, nadata->o, cb,
 			    nadata->typestr, user_data);
+
+    (void) accepter;
 
     parms = gensio_acc_base_parms_dup(nadata->acc);
     if (!parms)
@@ -1310,6 +1328,8 @@ static int
 netna_control(struct gensio_accepter *accepter, struct netna_data *nadata,
 	      bool get, unsigned int option, char *data, gensiods *datalen)
 {
+    (void) accepter;
+
     switch (option) {
     case GENSIO_ACC_CONTROL_LADDR:
 	return netna_control_laddr(nadata, get, data, datalen);
@@ -1344,6 +1364,8 @@ static void
 netna_disable(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     unsigned int i;
+
+    (void) accepter;
 
     nadata->o->lock(nadata->lock);
     for (i = 0; i < nadata->nr_acceptfds; i++) {

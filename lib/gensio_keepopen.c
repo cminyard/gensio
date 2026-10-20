@@ -302,6 +302,8 @@ keepn_open_done(struct gensio *io, int err, void *iopen_data)
 {
     struct keepn_data *ndata = iopen_data;
 
+    (void) io;
+
     keepn_lock(ndata);
     switch (ndata->state) {
     case KEEPN_IN_OPEN:
@@ -356,6 +358,8 @@ static void
 keepn_close_done(struct gensio *io, void *open_data)
 {
     struct keepn_data *ndata = open_data;
+
+    (void) io;
 
     keepn_lock(ndata);
     switch (ndata->state) {
@@ -412,6 +416,8 @@ keepn_event(struct gensio *io, void *user_data,
 {
     struct keepn_data *ndata = user_data;
 
+    (void) io;
+
     if (err && event == GENSIO_EVENT_READ) {
 	keepn_handle_io_err(ndata, err);
 	return 0;
@@ -426,6 +432,8 @@ keepn_retry_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct keepn_data *ndata = cb_data;
     int err;
+
+    (void) t;
 
     keepn_lock(ndata);
     switch (ndata->state) {

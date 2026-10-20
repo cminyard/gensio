@@ -409,6 +409,8 @@ static void udpna_check_read_state(struct udpna_data *nadata)
 static void
 i_udpna_fd_read_enable(struct udpna_data *nadata, int line)
 {
+    (void) line;
+
     assert(nadata->read_disable_count > 0);
     nadata->read_disable_count--;
     i_udp_add_trace(nadata, NULL, 5100 + nadata->read_disable_count, line);
@@ -419,6 +421,8 @@ i_udpna_fd_read_enable(struct udpna_data *nadata, int line)
 static void
 i_udpna_fd_read_disable(struct udpna_data *nadata, int line)
 {
+    (void) line;
+
     nadata->read_disable_count++;
     i_udp_add_trace(nadata, NULL, 5200 + nadata->read_disable_count, line);
     udpna_check_read_state(nadata);
@@ -501,6 +505,8 @@ static void
 udpna_fd_cleared(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
+
+    (void) iod;
 
     udpna_lock(nadata);
     udpna_deref_and_unlock(nadata);
@@ -717,6 +723,8 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
 
+    (void) runner;
+
     udpna_lock(nadata);
     nadata->deferred_op_pending = false;
     if (nadata->pending_data_owner) {
@@ -754,6 +762,8 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct udpn_data *ndata = cbdata;
     struct udpna_data *nadata = ndata->nadata;
+
+    (void) runner;
 
     udpna_lock(nadata);
     ndata->deferred_op_pending = false;
@@ -1011,6 +1021,8 @@ udpna_writehandler(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
     struct gensio_link *l;
+
+    (void) iod;
 
     udpna_lock_and_ref(nadata);
     if (nadata->in_write) {
@@ -1557,6 +1569,8 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
 {
     struct udpna_data *nadata = data;
 
+    (void) iod;
+
     if (nadata->protocol == GENSIO_NET_PROTOCOL_UDP)
 	return 0;
 
@@ -1621,6 +1635,8 @@ static void
 udpna_enable_op(struct gensio_runner *runner, void *cb_data)
 {
     struct udpna_data *nadata = cb_data;
+
+    (void) runner;
 
     udpna_lock(nadata);
     if (nadata->enable_done) {
@@ -1798,6 +1814,8 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 		    const char *addr, void *done, void *data,
 		    const void *data2, void *ret)
 {
+    (void) data2;
+
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
 	return udpna_startup(acc);

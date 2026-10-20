@@ -187,6 +187,8 @@ glogger(void *cbdata, const char *format, ...)
 {
     va_list va;
 
+    (void) cbdata;
+
     va_start(va, format);
     vlog_event(LOG_ERR, format, va);
     va_end(va);
@@ -751,12 +753,17 @@ gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 static void
 gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
+    (void) ioinfo;
+
     vlog_event(LOG_ERR, fmt, ap);
 }
 
 static void
 gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
+    (void) ioinfo;
+    (void) fmt;
+    (void) ap;
     /* We shouldn't get any of these. */
 }
 
@@ -866,6 +873,8 @@ static struct ioinfo_user_handlers guh = {
 static void
 acc_shutdown(struct gensio_accepter *acc, void *done_data)
 {
+    (void) acc;
+
     closecount_decr_ginfo(done_data);
 }
 
@@ -1096,6 +1105,8 @@ get_2fa(struct auth_data *auth, struct gensio *io)
 static int
 setup_process(struct gensio_os_funcs *o)
 {
+    (void) o;
+
     return 0;
 }
 
@@ -1160,6 +1171,8 @@ static void
 switch_from_user(struct auth_data *auth)
 {
     int err;
+
+    (void) auth;
 
     err = setuid(geteuid());
     if (err)
@@ -2707,6 +2720,11 @@ mux_event(struct gensio *io, void *user_data, int event, int ierr,
 {
     gensiods len;
 
+    (void) io;
+    (void) ierr;
+    (void) buflen;
+    (void) auxdata;
+
     switch (event) {
     case GENSIO_EVENT_READ:
     case GENSIO_EVENT_WRITE_READY:
@@ -2773,6 +2791,8 @@ open_mux(struct gensio **io, struct auth_data *auth, struct gensio **nio)
 static void
 pr_localport(void *cb_data, const char *fmt, va_list ap)
 {
+    (void) cb_data;
+
     vlog_event(LOG_ERR, fmt, ap);
 }
 
@@ -3224,6 +3244,8 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
     struct gdata *ginfo;
     struct gensio *io;
 
+    (void) user_data;
+
     if (event == GENSIO_ACC_EVENT_PARMLOG) {
 	/* NOTE: accepter will be NULL in this case. */
 	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) data;
@@ -3368,6 +3390,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     if (!debug)
 	return;
     log_event(LOG_ERR, "gensio %s log: ", gensio_log_level_to_str(level));

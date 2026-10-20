@@ -141,6 +141,8 @@ decode_ax25_control_field(char *str, size_t strlen,
 	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
 	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
 
+    (void) buflen;
+
     if ((*buf & 1) == 0) {
 	/* I frame. */
 	snprintf(str, strlen, "I p=%d nr=%d ns=%d",
@@ -276,6 +278,8 @@ axfec_ll_write_pending(struct gensio_filter *filter)
 static bool
 axfec_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
@@ -294,6 +298,9 @@ axfec_ul_can_write(struct gensio_filter *filter, bool *val)
 static int
 axfec_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -301,6 +308,10 @@ static int
 axfec_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 		     bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -308,6 +319,10 @@ static int
 axfec_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 			bool was_timeout)
 {
+    (void) filter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -400,6 +415,8 @@ axfec_ul_write(struct gensio_filter *filter,
     unsigned int numones;
     uint16_t crc = 0xffff;
     int rv = 0;
+
+    (void) auxdata;
 
     axfec_lock(sfilter);
     if (sfilter->err) {
@@ -1138,6 +1155,9 @@ axfec_ll_write(struct gensio_filter *filter,
 static int
 axfec_setup(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+    (void) io;
+
     return 0;
 }
 
@@ -1193,6 +1213,12 @@ static int
 axfec_filter_control(struct gensio_filter *filter, bool get, int op,
 		       char *data, gensiods *datalen)
 {
+    (void) filter;
+    (void) get;
+    (void) op;
+    (void) data;
+    (void) datalen;
+
     return GE_NOTSUP;
 }
 
@@ -1271,6 +1297,9 @@ gensio_axfec_filter_raw_alloc(struct gensio_pparm_info *p,
     struct axfec_filter *sfilter;
     unsigned int i;
     convcode_state polys[2] = { 023, 035 };
+
+    (void) p;
+    (void) child;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
@@ -1359,6 +1388,8 @@ gensio_axfec_filter_alloc(struct gensio_pparm_info *p,
 	.preamble_len = 15,
     };
     unsigned int i;
+
+    (void) parms;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(p, args[i], "readbuf", &data.max_read_size) > 0)

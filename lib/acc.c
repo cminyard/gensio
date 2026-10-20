@@ -261,6 +261,8 @@ basena_child_shutdown_done(struct gensio_accepter *accepter,
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
+    (void) shutdown_data;
+
     basena_lock(nadata);
     if (nadata->in_cb_count) {
 	nadata->call_shutdown_done = true;
@@ -301,6 +303,8 @@ basena_cb_en_done(struct gensio_accepter *accepter, void *cb_data)
     gensio_acc_done done;
     void *done_data;
     struct gensio_accepter *acc = nadata->acc;
+
+    (void) cb_data;
 
     basena_lock(nadata);
     done = nadata->set_cb_enable_done;
@@ -405,6 +409,8 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 		     const char *addr, void *done, void *data, const
 		     void *data2, void *ret)
 {
+    (void) data2;
+
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
 	return basena_startup(acc);

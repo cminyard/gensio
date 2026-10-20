@@ -54,6 +54,8 @@ child_open_handler(struct gensio *io, int err, void *open_data)
 {
     struct gensio_ll_child *cdata = open_data;
 
+    (void) io;
+
     cdata->open_done(cdata->cb_data, err, cdata->open_data);
 }
 
@@ -75,6 +77,8 @@ static void
 child_close_handler(struct gensio *io, void *close_data)
 {
     struct gensio_ll_child *cdata = close_data;
+
+    (void) io;
 
     cdata->close_done(cdata->cb_data, cdata->close_data);
 }
@@ -117,6 +121,8 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 		     void *buf, const void *cbuf, gensiods buflen,
 		     const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
 	child_set_callbacks(ll, (void *) cbuf, buf);
@@ -154,6 +160,8 @@ child_event(struct gensio *io, void *user_data, int event, int err,
 {
     struct gensio_ll_child *cdata = user_data;
     gensiods rv;
+
+    (void) io;
 
     switch (event) {
     case GENSIO_EVENT_READ:

@@ -94,6 +94,8 @@ perf_ll_write_pending(struct gensio_filter *filter)
 static bool
 perf_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
@@ -121,6 +123,8 @@ perf_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
     struct perf_filter *pfilter = filter_to_perf(filter);
 
+    (void) io;
+
     perf_filter_start_timer(pfilter);
     pfilter->o->get_monotonic_time(pfilter->o, &pfilter->start_time);
     return 0;
@@ -129,6 +133,9 @@ perf_check_open_done(struct gensio_filter *filter, struct gensio *io)
 static int
 perf_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -210,6 +217,9 @@ perf_handle_end_check(struct perf_filter *pfilter)
 static int
 perf_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -223,6 +233,8 @@ perf_ul_write(struct gensio_filter *filter,
     struct perf_filter *pfilter = filter_to_perf(filter);
     int err = 0;
     gensiods i, writelen = 0;
+
+    (void) auxdata;
 
     /* Just ignore data from the upper layer. */
     for (i = 0; i < sglen; i++)
@@ -274,6 +286,9 @@ perf_ll_write(struct gensio_filter *filter,
 {
     struct perf_filter *pfilter = filter_to_perf(filter);
     int err = 0;
+
+    (void) buf;
+    (void) auxdata;
 
     if (rcount)
 	*rcount = buflen; /* Ignore data from below. */
@@ -341,6 +356,8 @@ perf_filter_io_err(struct gensio_filter *filter, int err)
 {
     struct perf_filter *pfilter = filter_to_perf(filter);
 
+    (void) err;
+
     perf_lock(pfilter);
     perf_handle_end_check(pfilter);
     perf_unlock(pfilter);
@@ -349,6 +366,8 @@ perf_filter_io_err(struct gensio_filter *filter, int err)
 static int
 perf_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
@@ -616,12 +635,17 @@ perfna_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "perf",
 			      nadata->user_data);
 
+    (void) finish_data;
+
     return gensio_perf_filter_alloc(&p, nadata->o, nadata->args, filter);
 }
 
 static int
 perfna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    (void) acc_data;
+    (void) finish_data;
+
     gensio_set_attr_from_child(io, gensio_get_child(io, 0));
     return 0;
 }
@@ -630,6 +654,8 @@ static int
 gensio_gensio_acc_perf_cb(void *acc_data, int op, void *data1, void *data2,
 			   void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return perfna_alloc_gensio(acc_data, data4, data1, data2);

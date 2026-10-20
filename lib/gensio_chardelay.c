@@ -114,6 +114,8 @@ chardelay_set_callbacks(struct chardelay_filter *rfilter,
 static bool
 chardelay_ul_read_pending(struct chardelay_filter *rfilter)
 {
+    (void) rfilter;
+
     return false; /* We don't hold any read data. */
 }
 
@@ -133,12 +135,17 @@ chardelay_ul_can_write(struct chardelay_filter *rfilter, bool *rv)
 static bool
 chardelay_ll_read_needed(struct chardelay_filter *rfilter)
 {
+    (void) rfilter;
+
     return false;
 }
 
 static int
 chardelay_check_open_done(struct chardelay_filter *rfilter, struct gensio *io)
 {
+    (void) rfilter;
+    (void) io;
+
     return 0;
 }
 
@@ -146,6 +153,10 @@ static int
 chardelay_try_connect(struct chardelay_filter *rfilter, gensio_time *timeout,
 		      bool was_timeout)
 {
+    (void) rfilter;
+    (void) timeout;
+    (void) was_timeout;
+
     return 0;
 }
 
@@ -153,6 +164,8 @@ static int
 chardelay_try_disconnect(struct chardelay_filter *rfilter, gensio_time *timeout,
 			 bool was_timeout)
 {
+    (void) was_timeout;
+
     if (rfilter->writebuf_pos == 0) {
 	rfilter->xmit_ready = false;
 	return 0;
@@ -265,6 +278,8 @@ chardelay_ll_write(struct chardelay_filter *rfilter,
 		unsigned char *buf, gensiods buflen,
 		const char *const *auxdata)
 {
+    (void) rfilter;
+
     return handler(cb_data, rcount, buf, buflen, auxdata);
 }
 
@@ -279,6 +294,7 @@ chardelay_setup(struct chardelay_filter *rfilter)
 static void
 chardelay_filter_cleanup(struct chardelay_filter *rfilter)
 {
+    (void) rfilter;
 }
 
 static void
@@ -661,6 +677,8 @@ chardelayna_new_child(void *acc_data, void **finish_data,
 {
     struct chardelayna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_chardelay_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
@@ -669,6 +687,8 @@ chardelayna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct chardelayna_data *nadata = acc_data;
     int err;
+
+    (void) finish_data;
 
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
@@ -681,6 +701,8 @@ static int
 gensio_gensio_acc_chardelay_cb(void *acc_data, int op, void *data1, void *data2,
 			       void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return chardelayna_alloc_gensio(acc_data, data4, data1, data2);

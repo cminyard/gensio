@@ -392,6 +392,8 @@ gensio_soapy_ll_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct soapy_ll *soapyll = cbdata;
 
+    (void) runner;
+
     gensio_soapy_ll_lock(soapyll);
     soapyll->deferred_op_pending = false;
     switch(soapyll->state) {
@@ -997,6 +999,8 @@ soapy_control_antenna(struct soapy_ll *soapyll,
 		      struct soapy_config *realconf)
 {
     char *antenna;
+
+    (void) conf;
 
     if (realconf->channel < 0)
 	return GE_NOTSUP;
@@ -1686,6 +1690,8 @@ gensio_soapy_ll_func(struct gensio_ll *ll, int op,
 		     const char *const *auxdata)
 {
     struct soapy_ll *soapyll = ll_to_soapy(ll);
+
+    (void) auxdata;
 
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:

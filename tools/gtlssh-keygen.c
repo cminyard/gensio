@@ -73,6 +73,8 @@ glogger(void *cbdata, const char *format, ...)
 {
     va_list va;
 
+    (void) cbdata;
+
     va_start(va, format);
     vfprintf(stderr, format, va);
     va_end(va);
@@ -331,6 +333,8 @@ check_for_certfile(const char *dir, const char *name, void *cbdata)
 {
     const char *s = strrchr(name, '.');
 
+    (void) dir;
+
     if (!s || strcmp(s, ".crt") == 0) {
 	bool *certpresent = cbdata;
 
@@ -347,6 +351,8 @@ remove_links(const char *dir, const char *name, void *cbdata)
     const char *s;
     char *fname;
     int rv;
+
+    (void) cbdata;
 
     for (s = name; *s && *s != '.'; s++) {
 	/* Before the '.' must be all hex digits. */
@@ -465,12 +471,19 @@ static bool
 hash_cert_cmp(void *data1, unsigned int data1len,
 	      void *data2, unsigned int data2len, void *cbdata)
 {
+    (void) data1len;
+    (void) data2len;
+    (void) cbdata;
+
     return cmp_certs(data1, data2);
 }
 
 static void
 hash_cert_free(void *data, unsigned int datalen, void *cbdata)
 {
+    (void) datalen;
+    (void) cbdata;
+
     free_cert(data);
 }
 

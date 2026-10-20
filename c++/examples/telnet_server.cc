@@ -39,6 +39,8 @@ private:
     {
 	gensiods count;
 
+	(void) auxdata;
+
 	if (err) {
 	    if (err != GE_REMCLOSE)
 		*errstr = gensio_err_to_str(err);

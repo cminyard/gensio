@@ -80,15 +80,32 @@ namespace gensios {
 	virtual int auth_begin() { return GE_NOTSUP; }
 	virtual int precert_verify() { return GE_NOTSUP; }
 	virtual int postcert_verify(int err, const char *errstr)
-	    { return GE_NOTSUP; }
+	    {
+		(void) err;
+		(void) errstr;
+		return GE_NOTSUP;
+	    }
 	virtual int password_verify(const std::string val)
-	    { return GE_NOTSUP; }
+	    {
+		(void) val;
+		return GE_NOTSUP;
+	    }
 	virtual int request_password(gensiods maxsize, std::string &retval)
-	    { return GE_NOTSUP; }
+	    {
+		(void) maxsize;
+		(void) retval;
+		return GE_NOTSUP;
+	    }
 	virtual int verify_2fa(const std::vector<unsigned char> data)
-	    { return GE_NOTSUP; }
+	    {
+		(void) data;
+		return GE_NOTSUP;
+	    }
 	virtual int request_2fa(std::vector<unsigned char> &retval)
-	    { return GE_NOTSUP; }
+	    {
+		(void) retval;
+		return GE_NOTSUP;
+	    }
 
 	// A gensio that is non-standard may generate events for its
 	// own purposes; these events have event numbers that fall
@@ -96,7 +113,13 @@ namespace gensios {
 	// delivered here.
 	virtual int user_event(int event, int err,
 			       std::vector<unsigned char> &userdata,
-			       const char *const *auxdata) { return GE_NOTSUP; }
+			       const char *const *auxdata) {
+	    (void) event;
+	    (void) err;
+	    (void) userdata;
+	    (void) auxdata;
+	    return GE_NOTSUP;
+	}
 
 	// The free() operation for gensio this object is assigned to
 	// has finished and the data will immediately be freed.  This
@@ -108,38 +131,79 @@ namespace gensios {
 	virtual ~Event() = default;
 
 	// Errors from parameter parsing come in here.
-	virtual void parmlog(const std::string log) { }
+	virtual void parmlog(const std::string log) {
+	    (void) log;
+	}
 
 	// Window size events come in here.
-	virtual void win_size(unsigned int height, unsigned int width) { }
+	virtual void win_size(unsigned int height, unsigned int width) {
+	    (void) height;
+	    (void) width;
+	}
 
 	// General logs on running gensios come in here.
 	virtual int log(enum gensio_log_levels level,
-			const std::string log) { return GE_NOTSUP; }
+			const std::string log) {
+	    (void) level;
+	    (void) log;
+	    return GE_NOTSUP;
+	}
 
 	// See gensio_event.3 and gensio_acontrol.3 for details
-	virtual void modemstate(unsigned int state) { }
+	virtual void modemstate(unsigned int state) {
+	    (void) state;
+	}
 	// See gensio_event.3 and gensio_acontrol.3 for details
-	virtual void linestate(unsigned int state) { }
-	virtual void flow_state(bool state) { }
+	virtual void linestate(unsigned int state) {
+	    (void) state;
+	}
+	virtual void flow_state(bool state) {
+	    (void) state;
+	}
 	virtual void sync() { }
 
 	// Server side calls, used when the client requests changes.
 	// See GENSIO_ACONTROL_SER_xxx.
-	virtual void signature(const std::vector<unsigned char> data) { }
-	virtual void flush(unsigned int val) { }
-	virtual void baud(unsigned int speed) { }
-	virtual void datasize(unsigned int size) { }
-	virtual void parity(unsigned int par) { }
-	virtual void stopbits(unsigned int bits) { }
-	virtual void flowcontrol(unsigned int flow) { }
-	virtual void iflowcontrol(unsigned int flow) { }
-	virtual void sbreak(unsigned int sbreak) { }
-	virtual void dtr(unsigned int dtr) { }
-	virtual void rts(unsigned int rts) { }
+	virtual void signature(const std::vector<unsigned char> data) {
+	    (void) data;
+	}
+	virtual void flush(unsigned int val) {
+	    (void) val;
+	}
+	virtual void baud(unsigned int speed) {
+	    (void) speed;
+	}
+	virtual void datasize(unsigned int size) {
+	    (void) size;
+	}
+	virtual void parity(unsigned int par) {
+	    (void) par;
+	}
+	virtual void stopbits(unsigned int bits) {
+	    (void) bits;
+	}
+	virtual void flowcontrol(unsigned int flow) {
+	    (void) flow;
+	}
+	virtual void iflowcontrol(unsigned int flow) {
+	    (void) flow;
+	}
+	virtual void sbreak(unsigned int sbreak) {
+	    (void) sbreak;
+	}
+	virtual void dtr(unsigned int dtr) {
+	    (void) dtr;
+	}
+	virtual void rts(unsigned int rts) {
+	    (void) rts;
+	}
 
-	virtual void modemstate_mask(unsigned int state) { }
-	virtual void linestate_mask(unsigned int state) { }
+	virtual void modemstate_mask(unsigned int state) {
+	    (void) state;
+	}
+	virtual void linestate_mask(unsigned int state) {
+	    (void) state;
+	}
     };
 
     // Used for done handlers for gensio operations that can fail,
@@ -450,6 +514,8 @@ namespace gensios {
 	// reported as a return value.
 	virtual void log(enum gensio_log_levels level, const std::string log)
 	{
+	    (void) level;
+	    (void) log;
 	}
 
 	// When authenticating a new incoming gensio, these are used
@@ -458,24 +524,52 @@ namespace gensios {
 	// be used to fetch username, certificate info, etc.  See
 	// gensio_event.3 for details on these.
 	virtual int auth_begin(Gensio *tmpg)
-	{ return GE_NOTSUP; }
+	{
+	    (void) tmpg;
+	    return GE_NOTSUP;
+	}
 	virtual int precert_verify(Gensio *tmpg)
-	{ return GE_NOTSUP; }
+	{
+	    (void) tmpg;
+	    return GE_NOTSUP;
+	}
 	virtual int postcert_verify(Gensio *tmpg,
 				    int err, const char *errstr)
-	{ return GE_NOTSUP; }
+	{
+	    (void) tmpg;
+	    (void) err;
+	    (void) errstr;
+	    return GE_NOTSUP;
+	}
 	virtual int password_verify(Gensio *tmpg,
 				    const std::string val)
-	{ return GE_NOTSUP; }
+	{
+	    (void) tmpg;
+	    (void) val;
+	    return GE_NOTSUP;
+	}
 	virtual int request_password(Gensio *tmpg, gensiods maxsize,
 				     std::string &retval)
-	{ return GE_NOTSUP; }
+	{
+	    (void) tmpg;
+	    (void) maxsize;
+	    (void) retval;
+	    return GE_NOTSUP;
+	}
 	virtual int verify_2fa(Gensio *tmpg,
 			       const std::vector<unsigned char> data)
-	    { return GE_NOTSUP; }
+	    {
+		(void) tmpg;
+		(void) data;
+		return GE_NOTSUP;
+	    }
 	virtual int request_2fa(Gensio *tmpg,
 				std::vector<unsigned char> &retval)
-	    { return GE_NOTSUP; }
+	    {
+		(void) tmpg;
+		(void) retval;
+		return GE_NOTSUP;
+	    }
 
 	// The free() operation for accepter this object is assigned
 	// to has finished and the data will immediately be freed.
@@ -486,7 +580,9 @@ namespace gensios {
 	virtual ~Accepter_Event() = default;
 
 	// Errors from parameter parsing come in here.
-	virtual void parmlog(const std::string log) { }
+	virtual void parmlog(const std::string log) {
+	    (void) log;
+	}
     };
 
     class GENSIOCPP_DLL_PUBLIC Accepter_Shutdown_Done {

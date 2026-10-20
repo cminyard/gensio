@@ -101,6 +101,9 @@ static struct gensio_addr *
 ax25_addr_cat(const struct gensio_addr *addr1,
 	      const struct gensio_addr *addr2)
 {
+    (void) addr1;
+    (void) addr2;
+
     return NULL;
 }
 
@@ -109,6 +112,11 @@ ax25_addr_addr_present(const struct gensio_addr *gai,
 		       const void *addr, gensiods addrlen,
 		       bool compare_ports)
 {
+    (void) gai;
+    (void) addr;
+    (void) addrlen;
+    (void) compare_ports;
+
     /* FIXME ? */
     return false;
 }
@@ -124,23 +132,31 @@ ax25_addr_free(struct gensio_addr *addr)
 static bool
 ax25_addr_next(struct gensio_addr *addr)
 {
+    (void) addr;
+
     return false;
 }
 
 static void
 ax25_addr_rewind(struct gensio_addr *addr)
 {
+    (void) addr;
 }
 
 static int
 ax25_addr_get_nettype(const struct gensio_addr *addr)
 {
+    (void) addr;
+
     return GENSIO_NETTYPE_AX25;
 }
 
 static bool
 ax25_addr_family_supports(const struct gensio_addr *addr, int family, int flags)
 {
+    (void) addr;
+    (void) flags;
+
     return family == GENSIO_NETTYPE_AX25;
 }
 
@@ -233,6 +249,8 @@ gensio_ax25_addr_alloc(struct gensio_os_funcs *o,
     struct gensio_ax25_addr *a;
     unsigned int i;
     int rv;
+
+    (void) tnc_port;
 
     if (nr_extra > GENSIO_AX25_ADDR_MAX_EXTRA)
 	return GE_INVAL;

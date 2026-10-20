@@ -338,6 +338,8 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
     struct filen_data *ndata = cb_data;
     int err = 0;
 
+    (void) runner;
+
     filen_lock(ndata);
     ndata->deferred_op_pending = false;
 
@@ -586,6 +588,8 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
 {
+    (void) auxdata;
+
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return filen_write(io, count, cbuf, buflen);
@@ -750,6 +754,8 @@ file_gensio_alloc(const void *gdata,
     struct file_ndata_data data;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "file", user_data);
 
+    (void) gdata;
+
     err = process_file_args(&p, args, &data);
     if (err)
 	return err;
@@ -780,6 +786,8 @@ str_to_file_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
+    (void) str;
+
     return file_gensio_alloc(NULL, args, o, cb, user_data, new_gensio);
 }
 

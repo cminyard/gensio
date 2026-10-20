@@ -41,6 +41,8 @@ i_gensio_pa_err_to_err(struct gensio_os_funcs *o, PaErrorCode pa_err,
 {
     int err;
 
+    (void) file;
+
     switch (pa_err) {
     case paNotInitialized:			err = GE_NOTREADY; break;
     case paInvalidChannelCount:			err = GE_INVAL; break;
@@ -214,6 +216,8 @@ gensio_sound_pa_api_set_read(struct sound_info *si, bool enable)
 static void
 gensio_sound_pa_api_set_write(struct sound_info *si, bool enable)
 {
+    (void) si;
+    (void) enable;
     /* Nothing to do here. */
 }
 
@@ -328,6 +332,9 @@ gensio_sound_pa_stream_cb(const void *input, void *output,
     gensiods ppos, to_copy;
     const unsigned char *inbuf;
     unsigned char *outbuf;
+
+    (void) timeInfo;
+    (void) statusFlags;
 
     gensio_sound_ll_lock(si->soundll);
     if (si->is_input) {
@@ -502,6 +509,8 @@ gensio_sound_pa_api_setup(struct gensio_pparm_info *p,
     struct pa_sound_info *w = NULL;
     int err;
     PaError pa_err;
+
+    (void) p;
 
     pa_err = Pa_Initialize();
     if (pa_err) {

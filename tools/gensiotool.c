@@ -69,6 +69,10 @@ static void *dummy_rand_newctx(
 {
     int *st = OPENSSL_malloc(sizeof(*st));
 
+    (void) provctx;
+    (void) parent;
+    (void) parent_dispatch;
+
     if (st != NULL)
         *st = EVP_RAND_STATE_UNINITIALISED;
     return st;
@@ -180,6 +184,8 @@ static const OSSL_ALGORITHM *dummy_rand_query(void *provctx,
                                              int operation_id,
                                              int *no_cache)
 {
+    (void) provctx;
+
     *no_cache = 0;
     switch (operation_id) {
     case OSSL_OP_RAND:
@@ -199,6 +205,9 @@ static int dummy_rand_provider_init(const OSSL_CORE_HANDLE *handle,
                                    const OSSL_DISPATCH *in,
                                    const OSSL_DISPATCH **out, void **provctx)
 {
+    (void) handle;
+    (void) in;
+
     *provctx = OSSL_LIB_CTX_new();
     if (*provctx == NULL)
         return 0;
@@ -473,6 +482,8 @@ i_io_closed(struct gensio *io, void *close_data)
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
 
+    (void) close_data;
+
     if (ioinfo_io(ioinfo) == NULL)
 	gensio_free(io);
     gtconn->close_done = true;
@@ -701,6 +712,8 @@ io_open(struct gensio *io, int err, void *open_data)
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
     struct gtinfo *g = gtconn->g;
 
+    (void) open_data;
+
     if (err) {
 	if (!g->err)
 	    g->err = err;
@@ -753,6 +766,11 @@ parmlog_eventh(struct gensio *io, void *user_data,
 	       const char *const *auxdata)
 {
     struct gtinfo *g = user_data;
+
+    (void) io;
+    (void) err;
+    (void) buflen;
+    (void) auxdata;
 
     if (event == GENSIO_EVENT_PARMLOG) {
 	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) buf;
@@ -903,6 +921,7 @@ handle_term(void *info)
 static void
 handle_reload(void *info)
 {
+    (void) info;
 }
 
 static int
@@ -911,6 +930,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 {
     struct gtinfo *g = user_data;
     int err;
+
+    (void) accepter;
 
     if (event == GENSIO_ACC_EVENT_PARMLOG) {
 	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) data;

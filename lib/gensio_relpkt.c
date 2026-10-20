@@ -521,6 +521,8 @@ relpkt_ll_write_queued(struct relpkt_filter *rfilter, bool *rv)
 static bool
 relpkt_ll_read_needed(struct relpkt_filter *rfilter)
 {
+    (void) rfilter;
+
     /* We can always take data.  Flow control should keep us from overrunning */
     return true;
 }
@@ -528,6 +530,8 @@ relpkt_ll_read_needed(struct relpkt_filter *rfilter)
 static int
 relpkt_check_open_done(struct relpkt_filter *rfilter, struct gensio *io)
 {
+    (void) rfilter;
+
     gensio_set_is_packet(io, true);
     gensio_set_is_message(io, true);
     gensio_set_is_reliable(io, true);
@@ -830,6 +834,8 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
     struct pkt *p;
     const char *proto_err_str = NULL;
 
+    (void) auxdata;
+
 #ifdef DEBUG_MSG
     if (buflen) {
 	printf("Read(%p):", rfilter);
@@ -1074,6 +1080,8 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 static int
 relpkt_setup(struct relpkt_filter *rfilter)
 {
+    (void) rfilter;
+
     return 0;
 }
 
@@ -1454,6 +1462,8 @@ relpktna_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "relpkt",
 			      nadata->user_data);
 
+    (void) finish_data;
+
     return gensio_relpkt_filter_alloc(&p, nadata->o, nadata->args,
 				      true, filter);
 }
@@ -1461,6 +1471,9 @@ relpktna_new_child(void *acc_data, void **finish_data,
 static int
 relpktna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    (void) acc_data;
+    (void) finish_data;
+
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
     return 0;
@@ -1470,6 +1483,8 @@ static int
 gensio_gensio_acc_relpkt_cb(void *acc_data, int op, void *data1, void *data2,
 			    void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return relpktna_alloc_gensio(acc_data, data4, data1, data2);

@@ -83,6 +83,8 @@ script_unlock(struct script_filter *sfilter)
 static bool
 script_ul_read_pending(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
@@ -117,6 +119,8 @@ script_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
     struct script_filter *sfilter = filter_to_script(filter);
 
+    (void) io;
+
     return sfilter->err;
 }
 
@@ -126,6 +130,8 @@ script_finish_close(struct gensio *io, void *close_data)
     struct script_filter *sfilter = close_data;
     char data[50];
     gensiods datalen = sizeof(data);
+
+    (void) io;
 
     if (!sfilter->err) {
 	/* Check that the script returned no error. */
@@ -188,6 +194,8 @@ script_open_done(struct gensio *io, int err, void *open_data)
 {
     struct script_filter *sfilter = open_data;
 
+    (void) io;
+
     script_lock(sfilter);
     if (err) {
 	script_handle_err_unlock(sfilter, err);
@@ -209,6 +217,8 @@ script_sub_event(struct gensio *io, void *user_data,
     struct script_filter *sfilter = user_data;
     gensiods count;
     bool call_handler = false;
+
+    (void) auxdata;
 
     if (sfilter->state != SCRIPT_IN_OPEN || io != sfilter->io)
 	/* Not in the right state, or an old io. */
@@ -281,6 +291,8 @@ script_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     struct script_filter *sfilter = filter_to_script(filter);
     int err = GE_INPROGRESS;
 
+    (void) timeout;
+
     script_lock(sfilter);
     switch(sfilter->state) {
     case SCRIPT_IN_SUB_OPEN:
@@ -318,6 +330,8 @@ script_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct script_filter *sfilter = filter_to_script(filter);
     int err;
+
+    (void) timeout;
 
     script_lock(sfilter);
     switch(sfilter->state) {
@@ -715,12 +729,17 @@ scriptna_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "script",
 			      nadata->user_data);
 
+    (void) finish_data;
+
     return gensio_script_filter_alloc(&p, nadata->o, nadata->args, filter);
 }
 
 static int
 scriptna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    (void) acc_data;
+    (void) finish_data;
+
     gensio_set_attr_from_child(io, gensio_get_child(io, 0));
     return 0;
 }
@@ -729,6 +748,8 @@ static int
 gensio_gensio_acc_script_cb(void *acc_data, int op, void *data1, void *data2,
 			    void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return scriptna_alloc_gensio(acc_data, data4, data1, data2);

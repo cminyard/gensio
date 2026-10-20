@@ -37,6 +37,8 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    (void) f;
+
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
     vfprintf(stderr, log, args);
     fprintf(stderr, "\n");
@@ -63,6 +65,8 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     struct gensio_waiter *waiter = user_data;
     gensiods i;
     size_t len;
+
+    (void) auxdata;
 
     switch (event) {
     case GENSIO_EVENT_READ:

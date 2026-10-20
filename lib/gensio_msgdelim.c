@@ -138,12 +138,16 @@ msgdelim_ll_write_pending(struct gensio_filter *filter)
 static bool
 msgdelim_ll_read_needed(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return false;
 }
 
 static int
 msgdelim_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    (void) filter;
+
     gensio_set_is_packet(io, true);
     return 0;
 }
@@ -151,6 +155,9 @@ msgdelim_check_open_done(struct gensio_filter *filter, struct gensio *io)
 static int
 msgdelim_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
+    (void) filter;
+    (void) timeout;
+
     return 0;
 }
 
@@ -159,6 +166,8 @@ static int
 msgdelim_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct msgdelim_filter *mfilter = filter_to_msgdelim(filter);
+
+    (void) timeout;
 
     if (mfilter->write_data_len == 0 || !mfilter->out_msg_complete)
 	return 0;
@@ -183,6 +192,8 @@ msgdelim_ul_write(struct gensio_filter *filter,
 {
     struct msgdelim_filter *mfilter = filter_to_msgdelim(filter);
     int err = 0;
+
+    (void) auxdata;
 
     msgdelim_lock(mfilter);
     if (mfilter->out_msg_complete) {
@@ -267,6 +278,8 @@ msgdelim_ll_write(struct gensio_filter *filter,
     static const char *eomaux[2] = { "eom", NULL };
     uint16_t crc;
 
+    (void) auxdata;
+
     msgdelim_lock(mfilter);
     if (mfilter->in_msg_complete || buflen == 0) {
 	if (rcount)
@@ -350,6 +363,8 @@ msgdelim_ll_write(struct gensio_filter *filter,
 static int
 msgdelim_setup(struct gensio_filter *filter)
 {
+    (void) filter;
+
     return 0;
 }
 
@@ -522,6 +537,8 @@ gensio_msgdelim_config(struct gensio_pparm_info *p,
 {
     unsigned int i;
 
+    (void) o;
+
     config->max_read_size = 128; /* FIXME - magic number. */
     config->max_write_size = 128; /* FIXME - magic number. */
     config->crc = true;
@@ -693,6 +710,8 @@ msgdelimna_new_child(void *acc_data, void **finish_data,
 {
     struct msgdelimna_data *nadata = acc_data;
 
+    (void) finish_data;
+
     return gensio_msgdelim_filter_alloc(nadata->o, &nadata->config, filter);
 }
 
@@ -701,6 +720,8 @@ msgdelimna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     struct msgdelimna_data *nadata = acc_data;
     int err;
+
+    (void) finish_data;
 
     err = gensio_acc_base_parms_apply(nadata->acc, io);
     if (err)
@@ -714,6 +735,8 @@ static int
 gensio_gensio_acc_msgdelim_cb(void *acc_data, int op, void *data1, void *data2,
 			      void *data3, const void *data4)
 {
+    (void) data3;
+
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
 	return msgdelimna_alloc_gensio(acc_data, data4, data1, data2);

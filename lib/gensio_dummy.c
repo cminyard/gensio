@@ -103,6 +103,8 @@ dummyna_do_deferred(struct gensio_runner *runner, void *cb_data)
 {
     struct dummyna_data *nadata = cb_data;
 
+    (void) runner;
+
     dummyna_lock(nadata);
     nadata->deferred_pending = false;
 
@@ -170,6 +172,8 @@ dummyna_set_accept_callback_enable(struct gensio_accepter *accepter,
     struct dummyna_data *nadata = gensio_acc_get_gensio_data(accepter);
     int rv = 0;
 
+    (void) enabled;
+
     dummyna_lock(nadata);
     if (nadata->enabled_done) {
 	rv = GE_INUSE;
@@ -198,6 +202,10 @@ gensio_acc_dummy_func(struct gensio_accepter *acc, int func, int val,
 		      const char *addr, void *done, void *data,
 		      const void *data2, void *ret)
 {
+    (void) addr;
+    (void) data2;
+    (void) ret;
+
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
 	return dummyna_startup(acc);
@@ -225,6 +233,9 @@ dummy_gensio_accepter_alloc(const void *gdata,
 			    struct gensio_accepter **accepter)
 {
     struct dummyna_data *nadata;
+
+    (void) gdata;
+    (void) args;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
@@ -262,6 +273,8 @@ str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 			     void *user_data,
 			     struct gensio_accepter **acc)
 {
+    (void) str;
+
     return dummy_gensio_accepter_alloc(NULL, args, o, cb, user_data, acc);
 }
 

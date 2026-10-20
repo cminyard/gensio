@@ -366,6 +366,9 @@ int
 delete_file(gtlssh_logger logger, void *cbdata,
 	    const char *filename)
 {
+    (void) logger;
+    (void) cbdata;
+
     return unlink(filename);
 }
 

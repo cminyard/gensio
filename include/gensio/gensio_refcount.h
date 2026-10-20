@@ -28,6 +28,8 @@ typedef struct {
 static inline int gensio_refcount_init(struct gensio_os_funcs *o,
 				       gensio_refcount *a, unsigned int val)
 {
+    (void) o;
+
     return gensio_atomic_init(o, &a->count, val);
 }
 
@@ -83,6 +85,8 @@ static inline bool gensio_refcount_inc_if_nz(gensio_refcount *a)
  */
 static inline void gensio_refcount_cleanup(gensio_refcount *a)
 {
+    (void) a;
+
     gensio_atomic_cleanup(&a->count);
 }
 

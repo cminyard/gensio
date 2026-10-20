@@ -167,6 +167,8 @@ wake_thread_send_sig_waiter(long thread_id, void *cb_data)
 {
     struct waiter_data *w = cb_data;
 
+    (void) thread_id;
+
     pthread_kill(w->tid, w->wake_sig);
 }
 
@@ -519,12 +521,16 @@ static void iod_read_handler(int fd, void *cb_data)
 {
     struct gensio_iod_unix *iod = cb_data;
 
+    (void) fd;
+
     iod->read_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_write_handler(int fd, void *cb_data)
 {
     struct gensio_iod_unix *iod = cb_data;
+
+    (void) fd;
 
     iod->write_handler(&iod->r, iod->cb_data);
 }
@@ -533,12 +539,16 @@ static void iod_except_handler(int fd, void *cb_data)
 {
     struct gensio_iod_unix *iod = cb_data;
 
+    (void) fd;
+
     iod->except_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_cleared_handler(int fd, void *cb_data)
 {
     struct gensio_iod_unix *iod = cb_data;
+
+    (void) fd;
 
     iod->handlers_set = false;
     iod->cleared_handler(&iod->r, iod->cb_data);
@@ -621,6 +631,8 @@ file_runner(struct gensio_runner *r, void *cb_data)
 {
     struct gensio_iod_unix *iod = cb_data;
     struct gensio_os_funcs *f = iod->r.f;
+
+    (void) r;
 
     f->lock(iod->u.file.lock);
     while (iod->u.file.read_enabled || iod->u.file.write_enabled) {
@@ -740,6 +752,9 @@ gensio_timeout_handler(struct selector_s *sel,
 {
     struct gensio_timer *timer = cb_data;
 
+    (void) sel;
+    (void) sel_timer;
+
     timer->handler(timer, timer->cb_data);
 }
 
@@ -821,6 +836,9 @@ gensio_stop_timer_done(struct selector_s *sel,
     void (*done_handler)(struct gensio_timer *t, void *cb_data);
     void *done_cb_data;
 
+    (void) sel;
+    (void) sel_timer;
+
     LOCK(&timer->lock);
     done_handler = timer->done_handler;
     done_cb_data = timer->done_cb_data;
@@ -897,6 +915,8 @@ static void
 gensio_runner_handler(sel_runner_t *sel_runner, void *cb_data)
 {
     struct gensio_runner *runner = cb_data;
+
+    (void) sel_runner;
 
     runner->handler(runner, runner->cb_data);
 }
@@ -996,6 +1016,8 @@ static void
 wake_thread_send_sig(long thread_id, void *cb_data)
 {
     struct wait_data *w = cb_data;
+
+    (void) thread_id;
 
     pthread_kill(w->id, w->wake_sig);
 }
@@ -1101,6 +1123,8 @@ static void
 gensio_unix_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
     struct timeval tv;
+
+    (void) f;
 
     sel_get_monotonic_time(&tv);
     timeval_to_gensio_time(time, &tv);
@@ -1405,6 +1429,8 @@ gensio_unix_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
     int err;
     struct stat statb;
 
+    (void) o;
+
     err = fstat(fd, &statb);
     if (err == -1)
 	return false;
@@ -1698,6 +1724,8 @@ gensio_unix_control(struct gensio_os_funcs *o, int func, void *data,
 {
     struct gensio_data *d = o->user_data;
 
+    (void) datalen;
+
     switch (func) {
     case GENSIO_CONTROL_SET_PROC_DATA:
 	d->pdata = data;
@@ -1857,23 +1885,30 @@ static struct gensio_os_proc_data proc_data;
 static void
 handle_sigchld(int sig)
 {
+    (void) sig;
+
     proc_data.got_sigchld = true;
 }
 
 static void
 handle_wakesig(int sig)
 {
+    (void) sig;
 }
 
 static void
 term_sig_handler(int sig)
 {
+    (void) sig;
+
     proc_data.got_term_sig = true;
 }
 
 static void
 reload_sig_handler(int sig)
 {
+    (void) sig;
+
     proc_data.got_reload_sig = true;
 }
 
@@ -1881,6 +1916,8 @@ reload_sig_handler(int sig)
 static void
 winch_sig_handler(int sig)
 {
+    (void) sig;
+
     proc_data.got_winch_sig = true;
 }
 #endif
@@ -2450,6 +2487,8 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 {
     int err;
 
+    (void) file;
+
     if (oserr == 0)
 	return 0;
 
@@ -2626,6 +2665,8 @@ int
 gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		       unsigned int flags, va_list ap)
 {
+    (void) ap;
+
     if (wake_sig == GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL)
 	wake_sig = SIGUSR1;
 
