@@ -245,20 +245,60 @@ else
     osh_libs += cc.find_library('dl', required: false)
 endif
 
-# Windows mDNS, only used if avahi isn't available
-have_winmdns = false
+# The mDNS backends in the order configure.ac tries them: avahi, dnssd
+# (macOS, or avahi's compat library), Windows mDNS.
 mdns_libs = []
-if is_windows and not found_deps['avahi-client'].found()
+have_dnssd = false
+if not found_deps['avahi-client'].found() and not get_option('dnssd').disabled()
+    if cc.has_header('dns_sd.h')
+        dnssd_lib = cc.find_library('dns_sd', required: false)
+        if dnssd_lib.found() and cc.has_function('DNSServiceRegister',
+                                                 dependencies: dnssd_lib)
+            have_dnssd = true
+            mdns_libs += dnssd_lib
+        else
+            # On macOS it is part of libSystem
+            have_dnssd = cc.has_function('DNSServiceRegister')
+        endif
+    endif
+    if get_option('dnssd').enabled() and not have_dnssd
+        error('dnssd enabled, but dns_sd.h or DNSServiceRegister not found')
+    endif
+endif
+conf.set10('HAVE_DNSSD', have_dnssd)
+
+have_winmdns = false
+if (is_windows and not found_deps['avahi-client'].found() and not have_dnssd
+    and not get_option('winmdns').disabled())
     have_winmdns = cc.compiles('''#include <windows.h>
 #include <windns.h>
 int main(void) { DnsServiceBrowse(NULL, NULL); return 0; }''',
                                name: 'Windows mDNS')
+endif
+if get_option('winmdns').enabled() and not have_winmdns
+    error('winmdns enabled, but Windows mDNS is not available')
 endif
 conf.set10('HAVE_WINMDNS', have_winmdns)
 if have_winmdns
     foreach l : ['dnsapi', 'iphlpapi', 'ws2_32']
         mdns_libs += cc.find_library(l)
     endforeach
+endif
+
+# mdns uses POSIX regex, from PCRE if the C library doesn't have it
+regex_libs = []
+if not conf.has('HAVE_REGEXEC')
+    pcre2_posix = cc.find_library('pcre2-posix', required: false)
+    pcre_posix = cc.find_library('pcreposix', required: false)
+    if pcre2_posix.found() and cc.has_function('pcre2_regexec',
+                                               dependencies: pcre2_posix)
+        conf.set('HAVE_PCRE2_POSIX', 1)
+        regex_libs += pcre2_posix
+    elif pcre_posix.found() and cc.has_function('regexec',
+                                                dependencies: pcre_posix)
+        conf.set('HAVE_PCRE_POSIX', 1)
+        regex_libs += pcre_posix
+    endif
 endif
 
 # Windows sound and the cm108gpio gensio need extra libraries
@@ -272,10 +312,42 @@ if is_windows
     endforeach
 endif
 
-# The file gensio uses stdio on Windows
-conf.set10('USE_FILE_STDIO', is_windows)
+# The file gensio uses stdio on Windows by default
+file_stdio = get_option('file-stdio')
+conf.set10('USE_FILE_STDIO',
+           file_stdio == 'yes' or (file_stdio == 'auto' and is_windows))
 
-conf.set10('HAVE_MDNS', found_deps['avahi-client'].found() or have_winmdns)
+conf.set10('HAVE_MDNS',
+           found_deps['avahi-client'].found() or have_dnssd or have_winmdns)
+
+# On macOS, dlopen()ing libssl may change the signal mask of other
+# threads, so libssl has to be linked with libgensio.  See "Issues with
+# openssl and signal masks" in the FAQ.
+link_ssl_with_main = get_option('link-ssl-with-main')
+if link_ssl_with_main == 'auto'
+    link_ssl_with_main = 'no'
+    if target_machine.system() == 'darwin' and found_deps['openssl'].found()
+        if meson.can_run_host_binaries()
+            ssl_libdir = found_deps['openssl'].get_variable(pkgconfig: 'libdir',
+                                                            default_value: '')
+            ssl_check = cc.run(files('meson/ssl_sigmask_check.c'),
+                args: ['-DSSL_LIB="@0@/libssl.dylib"'.format(ssl_libdir)],
+                dependencies: [dependency('threads')],
+                name: 'if ssl needs to be linked with the main library')
+            if not ssl_check.compiled() or ssl_check.returncode() not in [0, 4]
+                error('Error running ssl link test program')
+            endif
+            if ssl_check.returncode() == 4
+                link_ssl_with_main = 'yes'
+            endif
+        else
+            link_ssl_with_main = 'yes'
+        endif
+    endif
+endif
+if link_ssl_with_main == 'yes' and not found_deps['openssl'].found()
+    error('link-ssl-with-main requires openssl')
+endif
 conf.set10(
     'HAVE_SCTP_SENDV',
     cc.has_function('sctp_sendv', dependencies: found_deps['libsctp']),

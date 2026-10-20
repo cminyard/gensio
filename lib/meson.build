@@ -44,7 +44,7 @@ libgensiomdns = library(
     include_directories: [top_inc, inc_inc],
     c_args: ['-DBUILDING_GENSIOMDNS_DLL'],
     link_with: [libgensioosh],
-    dependencies: [found_deps['avahi-client']] + mdns_libs,
+    dependencies: [found_deps['avahi-client']] + mdns_libs + regex_libs,
     install: true,
     soversion: soversion,
     version: libversion,
@@ -210,6 +210,10 @@ builtin_gensios_h = configure_file(
     output: 'builtin_gensios.h',
     configuration: builtin_conf,
 )
+
+if link_ssl_with_main == 'yes'
+    builtin_gensios_deps += found_deps['openssl']
+endif
 
 libgensio = library(
     'gensio',
