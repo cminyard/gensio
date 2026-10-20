@@ -196,7 +196,7 @@ chardelay_ul_write(struct chardelay_filter *rfilter,
 	 * character, then advance the sendon's position.  If we hit
 	 * the end of a sendon string, we have a match.
 	 */
-	for (j = 0; j < left; j++) {
+	for (j = 0; j < len; j++) {
 	    for (k = 0; k < rfilter->config.sendonc; k++) {
 		gensiods pos = rfilter->sendon_pos[k];
 

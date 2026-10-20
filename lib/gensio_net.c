@@ -438,7 +438,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     int ival, err;
     bool istcp = protocol == GENSIO_NET_PROTOCOL_TCP;
     bool nodelay = false, reuseaddr = istcp;
-    struct gensio_base_parms *parms;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, typestr, user_data);
 
     if (rparms) {

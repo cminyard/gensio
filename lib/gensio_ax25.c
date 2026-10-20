@@ -3749,6 +3749,25 @@ i_ax25_base_handle_child_err(struct ax25_base *base, int err)
 	ax25_chan_deref_and_unlock(chan);
     }
     ax25_base_lock(base);
+
+    /*
+     * Write callbacks are disabled now, so the send list will never be
+     * processed again.  Drop the refs the channels hold for being in
+     * it, otherwise a channel that was waiting to send (like one
+     * sending its SABM in open) can never be freed.
+     */
+    while (!gensio_list_empty(&base->send_list)) {
+	struct ax25_chan *chan;
+
+	l = gensio_list_first(&base->send_list);
+	gensio_list_rm(&base->send_list, l);
+	chan = gensio_container_of(l, struct ax25_chan, sendlink);
+	ax25_base_unlock(base);
+	ax25_chan_lock(chan);
+	ax25_chan_deref_and_unlock(chan);
+	ax25_base_lock(base);
+    }
+
     ax25_base_child_close(base);
 }
 
@@ -3865,6 +3884,17 @@ ax25_child_read(struct ax25_base *base, int ierr,
 
     if (chan)
 	chan = ax25_chan_check_and_lock(chan, &base->chans, true);
+
+    if (chan && chan->state == AX25_CHAN_CLOSED) {
+	/*
+	 * Another thread closed the channel (on a child I/O error, for
+	 * instance) and unlocked it to report the close, but it is not
+	 * yet moved off the open list.  It can't handle any frames, so
+	 * just drop this one.
+	 */
+	ax25_chan_deref_and_unlock(chan);
+	return 0;
+    }
 
     if (!cmd) {
 	/* Extract data from I and S frames. */
@@ -5350,7 +5380,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     if (addr) {
 	chan->conf.addr = gensio_addr_dup(addr);
 	if (!chan->conf.addr)
-	    return GE_NOMEM;
+	    goto out_nomem;
     }
 
     rv = ax25_readconf(&p, o, firstchan, connector, false, &chan->conf, args);
@@ -5465,8 +5495,10 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
  out_nomem:
     rv = GE_NOMEM;
  out_err:
-    if (addr)
-	gensio_addr_free(addr);
+    /*
+     * addr belongs to the caller, the copy in chan->conf.addr is freed
+     * with the rest of the chan.
+     */
     if (chan)
 	ax25_chan_finish_free(chan, false);
     return rv;
@@ -5543,7 +5575,8 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     if (!base->ll) {
 	if (base->out_child)
 	    gensio_free(base->out_child);
-	goto out_nomem;
+	rv = GE_NOMEM;
+	goto out_err_free_chan;
     }
 
     /*
@@ -5592,7 +5625,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 	for (i = 0; i < num_my_addrs; i++) {
 	    rv = ax25_add_iaddr(o, &base->listen_addrs, &my_addrs[i]);
 	    if (rv)
-		goto out_err;
+		goto out_err_free_chan_and_base;
 	}
 	o->free(o, my_addrs);
     }
@@ -5601,6 +5634,21 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 
     *rchan = chan;
     return 0;
+
+ out_err_free_chan_and_base:
+    /*
+     * The chan holds the only reference to the base now, freeing the
+     * chan frees the base, too.
+     */
+    if (my_addrs)
+	o->free(o, my_addrs);
+    ax25_chan_finish_free(chan, false);
+    return rv;
+
+ out_err_free_chan:
+    /* Drop the chan's reference to the base, the base is freed below. */
+    ax25_chan_finish_free(chan, false);
+    goto out_err;
 
  out_nomem:
     rv = GE_NOMEM;
