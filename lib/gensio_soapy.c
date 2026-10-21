@@ -547,8 +547,6 @@ gensio_soapy_outthread(void *data)
 	    break;
 
 	if (sb->stop) {
-	    SoapySDRDevice_deactivateStream(soapyll->sdr, soapyll->outstream,
-					    0, 0);
 	    sb->stopped = true;
 	    sb->stop = false;
 	    gensio_soapy_sched_deferred_op(soapyll);
@@ -556,6 +554,14 @@ gensio_soapy_outthread(void *data)
 	}
 	if (sb->stopped || soapyll->err)
 	    continue;
+
+	if (SoapySDRDevice_activateStream(soapyll->sdr, soapyll->outstream,
+					  0, 0, 0)) {
+	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
+		       "soapy activate tx stream failed: %s\n",
+		       SoapySDRDevice_lastError());
+	    goto stop_on_err;
+	}
 
 	/* We have been woken, handle output buffers. */
 	while ((sb->numbufs > 0 || sb->curwritepos > 0) && !sb->stop) {
@@ -601,6 +607,7 @@ gensio_soapy_outthread(void *data)
 			   "soapy write stream failed(%d): %s\n",
 			   SoapySDRDevice_lastStatus(),
 			   SoapySDRDevice_lastError());
+	    stop_on_err:
 		soapyll->err = GE_IOERR;
 		if (soapyll->write_enabled)
 		    gensio_soapy_sched_deferred_op(soapyll);		
@@ -622,6 +629,8 @@ gensio_soapy_outthread(void *data)
 		sb->curreadpos += rv;
 	    }
 	}
+	SoapySDRDevice_deactivateStream(soapyll->sdr, soapyll->outstream,
+					0, 0);
     }
     gensio_soapy_ll_unlock(soapyll);
 }
@@ -921,16 +930,6 @@ gensio_soapy_ll_open(struct soapy_ll *soapyll,
 		       "soapy activate rx stream failed: %s\n",
 		       SoapySDRDevice_lastError());
 	    err = GE_INVAL;
-	    goto out_unlock;
-	}
-    }
-
-    if (soapyll->outc.channel >= 0) {
-	if (SoapySDRDevice_activateStream(soapyll->sdr, soapyll->outstream,
-					  0, 0, 0)) {
-	    gensio_log(soapyll->o, GENSIO_LOG_INFO,
-		       "soapy activate tx stream failed: %s\n",
-		       SoapySDRDevice_lastError());
 	    goto out_unlock;
 	}
     }
