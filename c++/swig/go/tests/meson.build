@@ -29,21 +29,28 @@ endif
 foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
              'test_mdns', 'test_netifs']
     configure_file(input: 'src' + t + '.go', output: t + '.go', copy: true)
+    go_exec_file = t
+    if is_windows
+        go_exec_file += '.exe'
+    endif
     go_test = custom_target(
         'go_' + t,
-        output: t,
-        command: go_build + [meson.current_build_dir(), '-o', t, t + '.go'],
+        output: go_exec_file,
+        command: go_build + [meson.current_build_dir(), '-o', go_exec_file, t + '.go'],
         depends: go_gensio_deps,
         depend_files: files('src' + t + '.go', 'testbase/testbase.srcgo'),
         env: go_env,
         build_by_default: true,
     )
     go_exe = go_test
-    if meson.version().version_compare('<1.10.0')
+    go_exe_args = []
+    if meson.version().version_compare('<1.20.0')
         # Older version of meson don't support using custom_target() as
 	# a test executable.  Use an old hack that doesn't work in
 	# newer versions.
-        go_exe = files([go_test.full_path()])[0]
+        #go_exe = files([go_test.full_path()])[0]
+        go_exe = find_program('run_wrapper.py')
+        go_exe_args += go_test.full_path()
     endif
     t_suite = ['go']
     if t.contains('mdns')
@@ -54,6 +61,7 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
     test(
         t,
         go_exe,
+        args: go_exe_args,
         env: test_env,
         workdir: meson.current_build_dir(),
         depends: go_test_deps + [go_test],
