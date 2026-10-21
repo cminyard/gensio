@@ -581,6 +581,16 @@ gensio_soapy_outthread(void *data)
 					    vbufs,
 					    sb->curbuflen - sb->curreadpos,
 					    &flags, timeNs, 1000000);
+#if 0
+	    if (rv > 0){
+		FILE *f = fopen("d1.raw", "a");
+
+		if (f) {
+		    fwrite(vbufs[0], 1, rv, f);
+		    fclose(f);
+		}
+	    }
+#endif
 	    gensio_soapy_ll_lock(soapyll);
 	    if (rv == SOAPY_SDR_UNDERFLOW) {
 		/* FIXME - log or count this somehow. */
