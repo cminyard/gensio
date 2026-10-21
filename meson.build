@@ -468,4 +468,6 @@ if have_go
     subdir('c++/swig/go')
 endif
 
+meson.add_devenv({'GENSIO_LIBRARY_PATH': meson.project_build_root() / 'lib'})
+
 configure_file(output: 'config.h', configuration: conf)
