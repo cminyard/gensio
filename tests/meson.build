@@ -120,6 +120,11 @@ if have_python_swig
 	    # Fails on github actions on windows for some reason
 	    t_suite += 'nogithub'
 	endif
+	if is_windows and t == 'test_ratelimit.py'
+	    # Fails on github actions on windows for some reason.  It's
+	    # timing based, so that's kind of dicey on server like this.
+	    t_suite += 'nogithub'
+	endif
         test(
             t,
             python,
