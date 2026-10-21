@@ -38,9 +38,16 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
         env: go_env,
         build_by_default: true,
     )
+    go_exe = go_test
+    if meson.version().version_compare('<1.10.0')
+        # Older version of meson don't support using custom_target() as
+	# a test executable.  Use an old hack that doesn't work in
+	# newer versions.
+        go_exe = files([go_test.full_path()])[0]
+    endif
     test(
         t,
-        go_test,
+        go_exe,
         env: test_env,
         workdir: meson.current_build_dir(),
         depends: go_test_deps + [go_test],
