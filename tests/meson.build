@@ -161,6 +161,12 @@ endif
 
 foreach i : range(16)
     t = 'oomtest@0@'.format(i)
+    t_suite = ['oom', h]
+    if is_windows and t == 'oomtest9'
+        # Occasionally gails on github actions on windows sometimes.
+	# Unable to reproduce outside github actions.
+        t_suite += 'nogithub'
+    endif
     foreach h : os_handlers
         env = test_env
         env.set('GENSIO_TEST_OS_HANDLER', h)
@@ -173,7 +179,7 @@ foreach i : range(16)
             depends: test_deps,
             is_parallel: false,
             timeout: 600,
-            suite: ['oom', h],
+            suite: t_suite,
         )
     endforeach
 endforeach
