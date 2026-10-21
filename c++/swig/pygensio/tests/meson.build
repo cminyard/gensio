@@ -25,7 +25,9 @@ foreach t : ['test_basic.py', 'test_ax25.py', 'test_crypto.py',
              'test_mdns.py', 'test_serial.py']
     t_suite = ['pygensio']
     if t.contains('mdns')
+	# Don't run MDNS on github actions
         t_suite += 'mdns'
+	t_suite += 'nogithub'
     endif
     test(
         t,

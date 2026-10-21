@@ -47,7 +47,9 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
     endif
     t_suite = ['go']
     if t.contains('mdns')
+	# Don't run MDNS on github actions
         t_suite += 'mdns'
+	t_suite += 'nogithub'
     endif
     test(
         t,

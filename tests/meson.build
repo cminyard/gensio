@@ -112,7 +112,13 @@ if have_python_swig
     foreach t : python_tests
         t_suite = ['python']
 	if t.contains('mdns')
+	    # Don't run MDNS on github actions
 	    t_suite += 'mdns'
+	    t_suite += 'nogithub'
+	endif
+	if is_windows and t == 'test_unix_accept_connect.py'
+	    # Fails on github actions on windows for some reason
+	    t_suite += 'nogithub'
 	endif
         test(
             t,

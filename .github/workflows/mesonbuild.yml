@@ -10,8 +10,6 @@ on:
 
 env:
   INSTALLPREFIX: "_local"
-  # Same as the autotools workflows, there is no mDNS on the runners.
-  SKIP_TESTS: "test_mdns test_mdns.py"
 
 jobs:
   macos:
@@ -38,7 +36,7 @@ jobs:
           meson install -C build
       - name: Test
         run: |
-          meson test --no-suite mdns -C build --print-errorlogs
+          meson test --no-suite nogithub -C build --print-errorlogs
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,7 +70,7 @@ jobs:
           meson install -C build
       - name: Test
         run: |
-          meson test --no-suite mdns -C build --print-errorlogs
+          meson test --no-suite nogithub -C build --print-errorlogs
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -93,9 +91,6 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
-    env:
-      # Same as WinBuild, these fail on the github runners.
-      SKIP_TESTS: "test_unix_accept_connect.py test_mdns.py test_ratelimit.py oomtest9 oomtest11"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,7 +117,7 @@ jobs:
           meson install -C build
       - name: Test
         run: |
-          meson test --no-suite mdns -C build --print-errorlogs
+          meson test --no-suite nogithub -C build --print-errorlogs
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
