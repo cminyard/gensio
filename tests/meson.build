@@ -1,6 +1,9 @@
 tests_conf = configuration_data()
 tests_conf.set('top_srcdir', meson.project_source_root())
 tests_conf.set('top_builddir', meson.project_build_root())
+# For the #! line of reflector.py, no backslashes in the path on Windows.
+tests_conf.set('PYTHON_EXECUTABLE',
+               python.found() ? python.full_path().replace('\\', '/') : '')
 tests_conf.set('GLIB_DIR', found_deps['glib-2.0'].found() ? 'glib' : '')
 tests_conf.set('TCL_DIR', found_deps['tcl'].found() ? 'tcl' : '')
 foreach d : ['HAVE_LIBSCTP', 'HAVE_MDNS', 'HAVE_OPENIPMI', 'HAVE_OPENSSL',
@@ -101,7 +104,20 @@ if is_windows
     endforeach
 endif
 
+# Run each test with every available OS handler, like runtest does for
+# autotools.  The default handler keeps the plain test name, the others
+# get the handler name appended.  Each handler is also a suite, so
+# "meson test --suite glib" runs just the glib ones.
+os_handlers = ['default']
+if found_deps['tcl'].found()
+    os_handlers += 'tcl'
+endif
+if found_deps['glib-2.0'].found()
+    os_handlers += 'glib'
+endif
+
 python_test_env = test_env
+python_test_env.set('GENSIO_MEMTRACK', 'abort')
 python_test_env.set('PYTHONPATH', '')
 foreach d : ['swig/python', 'glib/swig/python', 'tcl/swig/python', 'tests']
     python_test_env.prepend('PYTHONPATH', meson.project_build_root() / d)
@@ -125,30 +141,39 @@ if have_python_swig
 	    # timing based, so that's kind of dicey on server like this.
 	    t_suite += 'nogithub'
 	endif
-        test(
-            t,
-            python,
-            args: [meson.current_source_dir() / t],
-            env: python_test_env,
-            workdir: meson.current_build_dir(),
-            depends: test_deps,
-            is_parallel: false,
-            timeout: 600,
-            suite: t_suite,
-        )
+        foreach h : os_handlers
+            env = python_test_env
+            env.set('GENSIO_TEST_OS_HANDLER', h)
+            test(
+                h == 'default' ? t : t + '-' + h,
+                python,
+                args: [meson.current_source_dir() / t],
+                env: env,
+                workdir: meson.current_build_dir(),
+                depends: test_deps,
+                is_parallel: false,
+                timeout: 600,
+                suite: t_suite + [h],
+            )
+        endforeach
     endforeach
 endif
 
 foreach i : range(16)
-    test(
-        'oomtest@0@'.format(i),
-        oomtest,
-        args: ['-t', i.to_string()],
-        env: test_env,
-        workdir: meson.current_build_dir(),
-        depends: test_deps,
-        is_parallel: false,
-        timeout: 600,
-        suite: 'oom'
-    )
+    t = 'oomtest@0@'.format(i)
+    foreach h : os_handlers
+        env = test_env
+        env.set('GENSIO_TEST_OS_HANDLER', h)
+        test(
+            h == 'default' ? t : t + '-' + h,
+            oomtest,
+            args: ['-t', i.to_string()],
+            env: env,
+            workdir: meson.current_build_dir(),
+            depends: test_deps,
+            is_parallel: false,
+            timeout: 600,
+            suite: ['oom', h],
+        )
+    endforeach
 endforeach
