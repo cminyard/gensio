@@ -12,12 +12,6 @@ configure_file(
     },
 )
 
-go_runtest = configure_file(
-    input: 'runtest.in',
-    output: 'runtest',
-    configuration: tests_conf,
-)
-
 go_test_deps = []
 if openssl_prog.found()
     go_test_deps += custom_target(
@@ -46,8 +40,7 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
     )
     test(
         t,
-        go_sh,
-        args: [go_runtest, t],
+        go_test,
         env: test_env,
         workdir: meson.current_build_dir(),
         depends: go_test_deps + [go_test],

@@ -1,11 +1,11 @@
-# Tests for the C++ python bindings, run through runtest like the
-# tests in the top level tests directory.
 
-pygensio_runtest = configure_file(
-    input: 'runtest.in',
-    output: 'runtest',
-    configuration: tests_conf,
-)
+pygensio_test_env = test_env
+pygensio_test_env.set('PYTHONPATH', '')
+foreach d : ['glib/swig/python', 'tcl/swig/python', 'tests']
+    pygensio_test_env.prepend('PYTHONPATH', meson.project_build_root() / d)
+endforeach
+pygensio_test_env.prepend('PYTHONPATH', meson.current_source_dir())
+pygensio_test_env.prepend('PYTHONPATH', meson.project_build_root() / 'c++/swig/pygensio')
 
 pygensio_test_deps = []
 if openssl_prog.found()
@@ -25,9 +25,9 @@ foreach t : ['test_basic.py', 'test_ax25.py', 'test_crypto.py',
              'test_mdns.py', 'test_serial.py']
     test(
         t,
-        sh,
-        args: [pygensio_runtest, t],
-        env: test_env,
+        python,
+        args: [meson.current_source_dir() / t],
+        env: pygensio_test_env,
         workdir: meson.current_build_dir(),
         depends: pygensio_test_deps,
         is_parallel: false,

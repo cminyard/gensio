@@ -1,13 +1,6 @@
-# The tests are run through runtest, which sets up the paths to the
-# python modules and libraries and runs each test with every available
-# OS handler.  See the check target in Makefile.am.
-
 tests_conf = configuration_data()
 tests_conf.set('top_srcdir', meson.project_source_root())
 tests_conf.set('top_builddir', meson.project_build_root())
-# runtest is a shell script, so no backslashes in the path on Windows.
-tests_conf.set('PYTHON_EXECUTABLE',
-               python.found() ? python.full_path().replace('\\', '/') : '')
 tests_conf.set('GLIB_DIR', found_deps['glib-2.0'].found() ? 'glib' : '')
 tests_conf.set('TCL_DIR', found_deps['tcl'].found() ? 'tcl' : '')
 foreach d : ['HAVE_LIBSCTP', 'HAVE_MDNS', 'HAVE_OPENIPMI', 'HAVE_OPENSSL',
@@ -15,11 +8,6 @@ foreach d : ['HAVE_LIBSCTP', 'HAVE_MDNS', 'HAVE_OPENIPMI', 'HAVE_OPENSSL',
     tests_conf.set(d, conf.get(d, 0))
 endforeach
 
-runtest = configure_file(
-    input: 'runtest.in',
-    output: 'runtest',
-    configuration: tests_conf,
-)
 configure_file(
     input: 'gensios_enabled.py.in',
     output: 'gensios_enabled.py',
@@ -98,11 +86,6 @@ python_tests = [
     'test_parmlog.py', 'test_serial_break.py', 'test_chardelay.py',
 ]
 
-oom_tests = []
-foreach i : range(16)
-    oom_tests += 'oomtest@0@'.format(i)
-endforeach
-
 test_env = environment()
 test_env.set('GENSIOT', meson.project_build_root() / 'tools/gensiot')
 test_env.set('VERBOSE', '1')
@@ -118,21 +101,39 @@ if is_windows
     endforeach
 endif
 
-all_tests = oom_tests
+python_test_env = test_env
+python_test_env.set('PYTHONPATH', '')
+foreach d : ['swig/python', 'glib/swig/python', 'tcl/swig/python', 'tests']
+    python_test_env.prepend('PYTHONPATH', meson.project_build_root() / d)
+endforeach
+python_test_env.prepend('PYTHONPATH', meson.project_source_root() / 'tests')
+
 if have_python_swig
-    all_tests = python_tests + oom_tests
+    foreach t : python_tests
+        test(
+            t,
+            python,
+            args: [meson.current_source_dir() / t],
+            env: python_test_env,
+            workdir: meson.current_build_dir(),
+            depends: test_deps,
+            is_parallel: false,
+            timeout: 600,
+            suite: 'python',
+        )
+    endforeach
 endif
 
-foreach t : all_tests
+foreach i : range(16)
     test(
-        t,
-        sh,
-        args: [runtest, t],
+        'oomtest@0@'.format(i),
+        oomtest,
+        args: ['-t', i.to_string()],
         env: test_env,
         workdir: meson.current_build_dir(),
         depends: test_deps,
         is_parallel: false,
         timeout: 600,
-        suite: t.startswith('oomtest') ? 'oom' : 'python',
+        suite: 'oom'
     )
 endforeach
