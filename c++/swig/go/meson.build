@@ -21,6 +21,18 @@ go_ldflags = []
 foreach d : go_libdirs
     go_ldflags += ['-L' + d, '-Wl,-rpath,' + d]
 endforeach
+if link_ssl_with_main == 'yes'
+    # Like the other programs, see ssl_main_dep in lib/meson.build
+    go_ldflags += ssl_main_link_args
+    if target_machine.system() != 'darwin'
+        ssl_libdir = found_deps['openssl'].get_variable(pkgconfig: 'libdir',
+                                                        default_value: '')
+        if ssl_libdir != ''
+            go_ldflags += '-L' + ssl_libdir
+        endif
+        go_ldflags += '-lssl'
+    endif
+endif
 go_ldflags += ['-lgensiooshcpp', '-lgensiocpp', '-lgensiomdnscpp',
                '-lgensioosh', '-lgensio', '-lgensiomdns']
 go_env.set('CGO_LDFLAGS', ' '.join(go_ldflags))

@@ -36,7 +36,7 @@ sh = find_program('sh')
 openssl_prog = find_program('openssl', required: false)
 
 oomtest_link = [libgensioosh, libgensio]
-oomtest_deps = osh_libs
+oomtest_deps = osh_libs + [ssl_main_dep]
 if found_deps['glib-2.0'].found()
     oomtest_link += libgensioglib
     oomtest_deps += found_deps['glib-2.0']

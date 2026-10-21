@@ -211,24 +211,29 @@ builtin_gensios_h = configure_file(
     configuration: builtin_conf,
 )
 
-# libgensio doesn't use any libssl symbols itself, so make sure the
-# linker keeps libssl even with as-needed (-dead_strip_dylibs on macOS).
-libgensio_link_args = []
+# For link-ssl-with-main libgensio and every program using it are
+# linked with libssl, like libtool does with configure.  They don't use
+# any libssl symbols themselves, so make sure the linker keeps libssl
+# even with as-needed (-dead_strip_dylibs on macOS).
+ssl_main_dep = declare_dependency()
 if link_ssl_with_main == 'yes'
-    builtin_gensios_deps += found_deps['openssl']
+    ssl_main_link_args = []
     if target_machine.system() == 'darwin'
         # meson links libssl by its full path, without -L
         ssl_libdir = found_deps['openssl'].get_variable(pkgconfig: 'libdir',
                                                         default_value: '')
         if ssl_libdir != ''
-            libgensio_link_args += '-Wl,-needed_library,' + ssl_libdir / 'libssl.dylib'
+            ssl_main_link_args += '-Wl,-needed_library,' + ssl_libdir / 'libssl.dylib'
         else
-            libgensio_link_args += '-Wl,-needed-lssl'
+            ssl_main_link_args += '-Wl,-needed-lssl'
         endif
     else
-        libgensio_link_args += cc.get_supported_link_arguments('-Wl,--no-as-needed')
+        ssl_main_link_args += cc.get_supported_link_arguments('-Wl,--no-as-needed')
     endif
+    ssl_main_dep = declare_dependency(link_args: ssl_main_link_args,
+                                      dependencies: found_deps['openssl'])
 endif
+builtin_gensios_deps += ssl_main_dep
 
 libgensio = library(
     'gensio',
@@ -237,7 +242,6 @@ libgensio = library(
     c_args: ['-DBUILDING_GENSIO_DLL'],
     link_with: [libgensioosh] + builtin_gensios_link,
     dependencies: builtin_gensios_deps,
-    link_args: libgensio_link_args,
     install: true,
     soversion: soversion,
     version: libversion,

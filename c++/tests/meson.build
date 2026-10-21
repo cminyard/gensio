@@ -8,6 +8,7 @@ executable(
         libgensio,
     ],
     include_directories: [top_inc, inc_inc, cpp_inc],
+    dependencies: ssl_main_dep,
     install: false,
 )
 
@@ -21,5 +22,6 @@ executable(
         libgensio,
     ],
     include_directories: [top_inc, inc_inc, cpp_inc],
+    dependencies: ssl_main_dep,
     install: false,
 )

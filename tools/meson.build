@@ -12,7 +12,7 @@ libgensiotool = static_library(
 build_ssl = 'ssl' in builtin_gensios or 'ssl' in dynamic_gensio_names
 
 gensiot_link = [libgensiotool, libgensioosh, libgensio]
-gensiot_deps = []
+gensiot_deps = [ssl_main_dep]
 if found_deps['openssl'].found()
     gensiot_deps += found_deps['openssl']
 endif
@@ -41,6 +41,7 @@ if conf.get('HAVE_MDNS') == 1
         'gensiomdns.c',
         link_with: [libgensiomdns, libgensiotool, libgensioosh],
         include_directories: [top_inc, inc_inc],
+        dependencies: ssl_main_dep,
         install: true,
     )
     install_man('gmdns.1')
@@ -69,6 +70,7 @@ executable(
     'gensiosound.c',
     link_with: [libgensiotool, libgensioosh, libgensio],
     include_directories: [top_inc, inc_inc],
+    dependencies: ssl_main_dep,
     install: true,
 )
 install_man('gsound.1')
@@ -78,6 +80,7 @@ executable(
     'gensioagwpe.c',
     link_with: [libgensioosh, libgensio],
     include_directories: [top_inc, inc_inc],
+    dependencies: ssl_main_dep,
     install: true,
 )
 install_man('gagwpe.1')
@@ -106,7 +109,7 @@ if build_ssl
         'gtlssh-keygen.c',
         link_with: [libgtlssh, libgensiotool, libgensioosh],
         include_directories: [top_inc, inc_inc],
-        dependencies: [found_deps['openssl']],
+        dependencies: [ssl_main_dep, found_deps['openssl']],
         install: true,
     )
     install_man('gtlssh-keygen.1')
@@ -116,7 +119,7 @@ if build_ssl
         'gtlssh.c',
         link_with: [libgtlssh, libgensiomdns, libgensiotool, libgensioosh],
         include_directories: [top_inc, inc_inc],
-        dependencies: [found_deps['openssl']],
+        dependencies: [ssl_main_dep, found_deps['openssl']],
         install: true,
     )
     install_man('gtlssh.1')
@@ -138,7 +141,7 @@ if build_ssl
             'gtlsshd.c',
             link_with: [libgtlssh, libgensiotool, libgensioosh, libgensio, libgensiomdns],
             include_directories: [top_inc, inc_inc],
-            dependencies: [found_deps['openssl'], found_deps['pam']],
+            dependencies: [ssl_main_dep, found_deps['openssl'], found_deps['pam']],
             install: true,
             install_dir: get_option('sbindir'),
         )
