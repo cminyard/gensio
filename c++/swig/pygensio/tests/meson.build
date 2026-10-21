@@ -23,6 +23,10 @@ endif
 
 foreach t : ['test_basic.py', 'test_ax25.py', 'test_crypto.py',
              'test_mdns.py', 'test_serial.py']
+    t_suite = ['pygensio']
+    if t.contains('mdns')
+        t_suite += 'mdns'
+    endif
     test(
         t,
         python,
@@ -32,6 +36,6 @@ foreach t : ['test_basic.py', 'test_ax25.py', 'test_crypto.py',
         depends: pygensio_test_deps,
         is_parallel: false,
         timeout: 600,
-        suite: 'pygensio',
+        suite: t_suite,
     )
 endforeach

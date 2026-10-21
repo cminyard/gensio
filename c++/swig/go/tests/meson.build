@@ -45,6 +45,10 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
 	# newer versions.
         go_exe = files([go_test.full_path()])[0]
     endif
+    t_suite = ['go']
+    if t.contains('mdns')
+        t_suite += 'mdns'
+    endif
     test(
         t,
         go_exe,
@@ -53,6 +57,6 @@ foreach t : ['test_basic', 'test_ax25', 'test_crypto', 'test_serial',
         depends: go_test_deps + [go_test],
         is_parallel: false,
         timeout: 600,
-        suite: 'go',
+        suite: t_suite,
     )
 endforeach

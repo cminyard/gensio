@@ -110,6 +110,10 @@ python_test_env.prepend('PYTHONPATH', meson.project_source_root() / 'tests')
 
 if have_python_swig
     foreach t : python_tests
+        t_suite = ['python']
+	if t.contains('mdns')
+	    t_suite += 'mdns'
+	endif
         test(
             t,
             python,
@@ -119,7 +123,7 @@ if have_python_swig
             depends: test_deps,
             is_parallel: false,
             timeout: 600,
-            suite: 'python',
+            suite: t_suite,
         )
     endforeach
 endif
